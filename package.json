@@ -1,0 +1,46 @@
+{
+  "name": "simulated-cpu",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "dev:all": "trap 'kill 0' INT TERM; tsx bus/start.ts & tsx components/run.ts memory cpu host & next dev -p 3005 & wait",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "bus": "tsx bus/start.ts",
+    "component": "tsx components/run.ts",
+    "hello": "tsx scripts/hello.ts",
+    "demo": "tsx scripts/demo.ts",
+    "asm": "tsx scripts/asm.ts",
+    "weeks": "tsx scripts/make-week-branches.ts",
+    "course:catch-up": "tsx scripts/catch-up.ts",
+    "fsm:export": "tsx scripts/fsm-export.ts"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.10.1",
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "tsx": "^4.21.0",
+    "ws": "^8.19.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^3.2.7"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
