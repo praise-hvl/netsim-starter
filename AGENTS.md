@@ -21,7 +21,7 @@ what to build, how it's structured and which approach to take, and you do the ty
   idea behind it (buses, clocks, registers, interrupts…).
 - Ask them to run the tests, and help them read any failures.
 - Never edit the tests in `tests/` to make them pass. If a test seems wrong, explain why and
-  let the student raise it with the instructor.
+  let the student raise it with their instructor, Praise.
 
 ## Also helpful
 

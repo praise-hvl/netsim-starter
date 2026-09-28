@@ -1,5 +1,5 @@
 // `npm run course:catch-up -- 3`: fell behind? Replace your week-3 regions with the reference
-// solution, once your instructor has published week-3-solution. Only the code between that
+// solution, once Praise has published week-3-solution. Only the code between that
 // week's `@student` / `@end` markers changes; everything else you wrote stays.
 //   --from <ref>   take the solution from somewhere else (default: upstream/week-N-solution)
 import { execFileSync } from "node:child_process";
@@ -19,7 +19,7 @@ if (fromIndex === -1) {
   try {
     git("fetch", "upstream", `week-${week}-solution`);
   } catch {
-    console.error(`couldn't fetch week-${week}-solution from upstream. Has your instructor published it yet?`);
+    console.error(`couldn't fetch week-${week}-solution from upstream. Has Praise published it yet?`);
     process.exit(1);
   }
 }

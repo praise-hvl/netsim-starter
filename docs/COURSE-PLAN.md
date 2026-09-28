@@ -1,6 +1,6 @@
 # NetSim Course Plan
 
-Eight weeks, 2–3 hours each. Every week has an **in-class build** (done together, live) and a
+Eight weeks, one 1-hour session each. Every week has an **in-class build** (done together, live) and a
 **take-home portion** (done alone or in pairs). Students use an AI coding assistant (Codex) that
 may write code for them, but **the student guides the design**: they choose the approach and the
 structure, and must be able to explain every line. Each week's work is checked in an
@@ -23,7 +23,7 @@ System architecture, protocol, ISA and FSMs: see [ARCHITECTURE.md](./ARCHITECTUR
   `git fetch upstream && git merge upstream/week-N-start` on `work`. That merge only adds that
   week's tests, docs and scaffolding, so it never conflicts with code they wrote (see "Why
   merges don't conflict" below).
-- Optional, at the instructor's choice: after a week's deadline, publish `week-N-solution` so a
+- Optional, at Praise's choice: after a week's deadline, publish `week-N-solution` so a
   student who fell behind can run `npm run course:catch-up -- 3` to replace their week-3 regions
   with the reference and keep going.
 
@@ -70,7 +70,7 @@ own stub with `@stub` lines. For example, the week-1 handshake parses messages b
 teaches validation, so `parseMessage` ships as a trusting cast:
 
 ```ts
-// @student week=2 part=class id=parse-message "Parse JSON, then validate it with messageSchema"
+// @student week=2 part=home id=parse-message "Parse JSON, then validate it with messageSchema"
 // @stub // Until week 2 this trusts whatever arrives. Week 2 replaces the cast with real validation.
 // @stub return { ok: true, message: JSON.parse(raw) as Message };
 ...solution...
@@ -140,12 +140,12 @@ code itself, so treat that output as the source of truth.
 | Week | In class (`part=class`) | Take-home (`part=home`) |
 |---|---|---|
 | 1 | – (setup; see week 1) | `docs/notes/week-01.md`: `setup-doctor`, `setup-codex-summary`, `setup-codex-check` |
-| 2 | `components/client.ts`: `handshake`, `client-request`; `protocol/messages.ts`: `is-mem-read`, `parse-message` (stubbed as a trusting cast until then) | `client.ts`: `handle-tick`; `core/memory.ts`: `memory-read`, `memory-write`; `components/memory.ts`: `memory-handler`; `scripts/hello.ts`: `hello-script` |
-| 3 | `core/isa.ts`: `decode`; `core/cpu-core.ts`: `fetch`, `await-instruction`, `decode-step`, `execute-core` (LOAD/ADD/HALT), `await-data` | `isa.ts`: `encode`; `cpu-core.ts`: `execute-rest` (STORE/SUB/LOADI/JMP/JZ/JNZ) |
+| 2 | `components/client.ts`: `handshake`, `client-request` | `client.ts`: `handle-tick`; `protocol/messages.ts`: `is-mem-read`, `parse-message` (stubbed as a trusting cast until then); `core/memory.ts`: `memory-read`, `memory-write`; `components/memory.ts`: `memory-handler`; `scripts/hello.ts`: `hello-script` |
+| 3 | `core/isa.ts`: `decode`; `core/cpu-core.ts`: `fetch`, `await-instruction`, `decode-step` | `isa.ts`: `encode`; `cpu-core.ts`: `execute-core` (LOAD/ADD/HALT), `await-data`, `execute-rest` (STORE/SUB/LOADI/JMP/JZ/JNZ) |
 | 4 | `components/cpu.ts`: `cpu-send-effects`, `cpu-latch-reply`; `bus/server.ts`: `tick-barrier` (stubbed as "tick.done only" until then) | `core/scheduler.ts`: `pick-next`, `should-preempt`, `switch-out`; read `tests/week-04/order.test.ts` and add one assertion |
-| 5 | `components/peripherals/button.ts`: `button-view` | LED peripheral (PERIPH's regions in `components/peripherals/led.ts`) |
-| 6 | `core/interrupts.ts`: `irq-enqueue`, `irq-take-next`; `cpu-core.ts`: `can-take-interrupt`, `enter-interrupt`, `iret`; `components/peripherals/timer.ts`: `timer-input`, `timer-tick` | `bus/server.ts`: `watchdog` (stubbed as "don't mark stalled" until then); the chosen peripheral and its `programs/isr-<kind>.asm` |
-| 7 | `core/memory.ts`: `memory-snapshot`, `memory-restore`; `cpu-core.ts`: `core-snapshot`, `core-restore`; `core/fsm.ts`: `fsm-mermaid` | `core/scheduler.ts`: `scheduler-snapshot`, `scheduler-restore`; the chosen peripheral's `snapshot`/`restore` hooks |
+| 5 | `components/peripherals/button.ts`: `button-view`; `app/_components/nodes/core-card.tsx`: `core-node` | `components/peripherals/led.ts`: `led-tick`, `led-view`; `app/_components/nodes/peripherals/led.tsx`: `led-node`; `app/_components/nodes/memory-access.ts`: `memory-node` |
+| 6 | `core/interrupts.ts`: `irq-enqueue`, `irq-take-next`; `cpu-core.ts`: `can-take-interrupt`, `enter-interrupt`, `iret` | `components/peripherals/timer.ts`: `timer-input`, `timer-tick`; `bus/server.ts`: `watchdog` (stubbed as "don't mark stalled" until then); the chosen peripheral and its `programs/isr-<kind>.asm` |
+| 7 | `core/memory.ts`: `memory-snapshot`, `memory-restore`; `cpu-core.ts`: `core-snapshot`, `core-restore` | `core/fsm.ts`: `fsm-mermaid`; `core/scheduler.ts`: `scheduler-snapshot`, `scheduler-restore`; the chosen peripheral's `snapshot`/`restore` hooks |
 | 8 | – | – (Seven-segment and Screen are the stretch options for the final demo) |
 
 Regions in `.asm` files use `; @student …` / `; @end`, and their default stub is a handler that
@@ -154,9 +154,9 @@ only does `IRET`. The student notes in `docs/notes/*.md` (and no other Markdown)
 under the heading.
 
 The bus routing, the client plumbing, the peripheral shell (`startPeripheral`), the Button apart
-from its `button-view` region, the host, the logger, `npm run doctor`, the dashboard, `todo` and
-the test helpers are infrastructure: never stubbed. The Timer is *not* infrastructure: its `timer-input` and
-`timer-tick` regions are part of week 6's in-class build.
+from its `button-view` region, the host, the logger, `npm run doctor`, the dashboard apart from
+its `*-node` regions, `todo` and the test helpers are infrastructure: never stubbed. The Timer is *not* infrastructure: its
+`timer-input` and `timer-tick` regions are part of week 6's take-home.
 
 ## Week by week
 
@@ -184,7 +184,7 @@ is no `@student` code this week.
     checks passing.
   - The unplugged system-roles activity: students act out CPU, memory, bus and a button, passing
     paper messages on a clock.
-  - Watch the instructor's live system on the projected dashboard.
+  - Watch Praise's live system on the projected dashboard.
 - **Take-home:** finish the setup. Fill in `docs/notes/week-01.md`:
   - `setup-doctor`: paste the `npm run doctor` output.
   - `setup-codex-summary`: ask Codex to explain `bus/server.ts`, close it, and write what the file
@@ -207,14 +207,14 @@ boundary; request/response correlation.
 
 - **In class:**
   - Build `connect()`'s handshake together: open the socket, send `hello`, wait for `welcome`.
-  - Write one type guard by hand (`isMemRead`) and feel the pain. Then replace it with the zod
-    schema in `parseMessage`.
   - Build `client.request()`: send with an `id`, resolve when a message with that `replyTo`
     arrives, reject on `fault`. Reply correlation is this week's core idea.
-  - Everyone connects to the instructor's live bus and appears on the projected dashboard.
+  - Everyone connects to Praise's live bus and appears on the projected dashboard.
   - From now on, `LOG=1` shows every message on the bus (the logger is already built).
 - **Take-home:**
   - `handle-tick`: remember the tick, run the handlers, reply `tick.done`.
+  - Write one type guard by hand (`isMemRead`) and feel the pain. Then write `parseMessage` with
+    the zod schema, which does the same for every message type.
   - `core/memory.ts`: `read`, and `write` with bounds → `fault`.
   - The Memory shell that answers `mem.read` and `mem.write`.
   - `scripts/hello.ts` (`npm run hello`): join the class bus and print who is there, who comes and
@@ -235,13 +235,13 @@ boundary; request/response correlation.
 **Hardware idea:** fetch–decode–execute; registers, program counter, flags; instruction encoding.
 **Software idea:** finite state machines; pure functions; `(state, event) → { state, effects }`.
 
-- **In class:** decode 4 bytes into an `Instruction`. Build the core FSM for `FETCH`,
-  `WAIT_FETCH`, `DECODE`, `EXECUTE` with `LOAD`, `ADD` and `HALT`, testing each transition with a
-  fake memory (no network yet). Run a 3-instruction program step by step in a test and read the
-  trace together.
-- **Take-home:** the rest of `EXECUTE`: `SUB`, `JMP`, `LOADI`, `JZ`, `JNZ`, `STORE` (with correct
-  flags); `encode` so the assembler works. Hand-assemble the count-down program on paper, then
-  check it with `asm`.
+- **In class:** decode 4 bytes into an `Instruction`. Build the first steps of the core FSM,
+  `FETCH` → `WAIT_FETCH` → `DECODE`, testing each transition with a fake memory (no network yet).
+- **Take-home:** `EXECUTE` and `WAIT_DATA`: `LOAD`, `ADD` and `HALT` first (`execute-core`,
+  `await-data`), then `SUB`, `JMP`, `LOADI`, `JZ`, `JNZ` and `STORE` with correct flags
+  (`execute-rest`); `encode` so the assembler works. Run a 3-instruction program step by step in
+  a test and read the trace. Hand-assemble the count-down program on paper, then check it with
+  `asm`.
 - **Tests:** `isa.test.ts`, `cpu-core.test.ts` (each transition in the table; illegal transition
   throws; count-down program ends with the right memory and flags).
 - **Explain it back:** Walk through the 4 bytes of `JNZ 0x010` and what the core does with them,
@@ -293,11 +293,10 @@ switching.
 watchdogs.
 **Software idea:** priority queues; saving and restoring context; timeouts.
 
-- **In class:** the interrupt queue; core interrupt entry at instruction boundaries and `IRET`;
-  the Timer peripheral. Watch a timer ISR increment its counter on the dashboard while two
-  programs run.
-- **Take-home:** pick one of Sensor, Proximity or Potentiometer: FSM, register writes, IRQ rule,
-  its ISR in `programs/`. Add the bus watchdog: a component that misses `tickTimeoutMs` is
+- **In class:** the interrupt queue; core interrupt entry at instruction boundaries and `IRET`.
+- **Take-home:** the Timer peripheral (`timer-input`, `timer-tick`); watch a timer ISR increment
+  its counter on the dashboard while two programs run. Then pick one of Sensor, Proximity or
+  Potentiometer: FSM, register writes, IRQ rule, and its ISR in `programs/`. Add the bus watchdog: a component that misses `tickTimeoutMs` is
   reported `stalled`. Demonstrate a fault (e.g. `LOAD` from `0x500`) on the dashboard.
 - **Tests:** `interrupts.test.ts`, `cpu-core-irq.test.ts` (taken only between instructions;
   registers identical after `IRET`), `timer.test.ts`, one test file per optional peripheral
@@ -315,9 +314,9 @@ hibernation).
 code (diagrams from transition tables).
 
 - **In class:** `snapshot`/`restore` for memory and the core; save mid-run, restart everything,
-  restore, and finish the program with the same result. Turn transition tables into mermaid with
-  `npm run fsm:export`.
-- **Take-home:** `snapshot`/`restore` for the scheduler and your week-6 peripheral; clean-up pass
+  restore, and finish the program with the same result.
+- **Take-home:** `fsm-mermaid`, so `npm run fsm:export` turns transition tables into mermaid
+  diagrams; `snapshot`/`restore` for the scheduler and your week-6 peripheral; clean-up pass
   (names, dead code, small functions); README section for your peripheral with its exported FSM
   diagram; a one-page reflection (what surprised you, one bug you fixed and how you found it).
 - **Tests:** `persistence.test.ts` (round trip of every component; saving and restoring halfway
@@ -331,7 +330,7 @@ code (diagrams from transition tables).
   your own that loops and uses at least one input and one output peripheral; trigger an interrupt
   live; save and restore. Stretch: add the Seven-segment display or the Screen, or a new
   peripheral of your own design.
-- **Final explain-it-back (graded):** the instructor picks one moment in the live trace and the
+- **Final explain-it-back (graded):** Praise picks one moment in the live trace and the
   student explains every message around it, at both levels: what the "hardware" is doing and
   which function in their code did it.
 - **Reflection:** submitted as `docs/REFLECTION.md` in the fork.

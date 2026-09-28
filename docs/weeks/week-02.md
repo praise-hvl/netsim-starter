@@ -18,7 +18,7 @@ and get *your* answer back. At home you build the first real part of the compute
 
 ## Before class
 
-1. Pass (or schedule) your week-1 explain-it-back.
+1. Make sure your week-1 explain-it-back is done (a booked slot with me, or your video).
 2. Merge this week's starter into your `work` branch:
 
    ```bash
@@ -34,11 +34,18 @@ and get *your* answer back. At home you build the first real part of the compute
 4. Skim the [zod docs](https://zod.dev) front page: what is `z.object`, what does `safeParse`
    return, what does `z.infer` do? Five minutes is enough.
 
-## In class: join the bus, check every message, ask questions
+## In class (1 hour): join the bus and ask questions
 
-You'll work in `components/client.ts`, `scripts/hello.ts` and `protocol/messages.ts`.
+You'll work in `components/client.ts` and `scripts/hello.ts`.
 
-1. **Run the week's tests and watch them fail.**
+1. **Roles and tickets, unplugged** (7 minutes). Volunteers play CLOCK, CPU, MEMORY, BUTTON
+   and LED; I'm the BUS. The clock says "tick", and nobody may act between ticks. The CPU asks
+   for a memory card by saying it *to the bus*, never straight to Memory. Then the button gets
+   pressed mid-tick: when does the CPU find out? Second round: two CPUs send requests at once
+   and I shuffle the replies. How does each CPU know which answer is its own? (Ticket numbers:
+   that's `id` and `replyTo`.)
+
+2. **Run the week's tests and watch them fail.**
 
    ```bash
    npx vitest tests/week-02
@@ -47,14 +54,10 @@ You'll work in `components/client.ts`, `scripts/hello.ts` and `protocol/messages
    ✅ **Checkpoint:** tests fail with errors that start `week 2:`. That's the `todo()` stub
    telling you where to work. Leave Vitest running in watch mode; it re-runs every time you save.
 
-2. **Read the stub.** Open `components/client.ts` and find `TODO(week 2, handshake)` inside
-   `handshake(socket, options)`. Every component in this course (CPU, memory, every peripheral,
-   the dashboard) joins the bus through `connect()`, and the first thing `connect()` does is the
-   handshake. Read its signature, the `hello` and `welcome` schemas in `protocol/messages.ts`,
-   and the place in `connect()` that calls it. With your neighbour: what goes in, what comes
-   out, and what does the caller get back?
-
-3. **Write the handshake** (together on the projector). `connect()` has already created the
+3. **Write the handshake** (together on the projector). Open `components/client.ts` and find
+   `TODO(week 2, handshake)` inside `handshake(socket, options)`. Every component in this course
+   (CPU, memory, every peripheral, the dashboard) joins the bus through `connect()`, and the
+   first thing `connect()` does is the handshake. `connect()` has already created the
    `WebSocket` for the bus URL; `handshake()` returns a `Promise` that settles later:
    - When the socket's `open` event fires, send `hello`. `envelope(type, from, to, payload,
      { id, tick })` in `protocol/messages.ts` builds a message with all the envelope fields
@@ -63,6 +66,9 @@ You'll work in `components/client.ts`, `scripts/hello.ts` and `protocol/messages
    - Listen for messages, parse each one with `parseMessage`, and **resolve** with the
      `welcome` message when it arrives. If the bus answers `error` instead (your id is taken, for
      example), **reject** with its message. If the socket errors, reject too.
+
+   (`parseMessage` is still a placeholder that trusts whatever arrives, which is why the
+   handshake works today. Replacing it with real validation is take-home.)
 
    ✅ **Checkpoint:** `handshake.test.ts` passes.
 
@@ -77,47 +83,18 @@ You'll work in `components/client.ts`, `scripts/hello.ts` and `protocol/messages
    return client;
    ```
 
-   Point it at the instructor's bus (the address is on the board). Use your GitHub username as
-   the id; ids must be unique on a bus (it's lowercased for you).
+   Point it at my bus (the address is on the board). Use your GitHub username as the id; ids
+   must be unique on a bus (it's lowercased for you).
 
    ```bash
    BUS_URL=ws://<address-on-the-board>:3006 HELLO_ID=<your-github-username> npm run hello
    ```
 
    ✅ **Checkpoint:** your name appears as a node on the projected dashboard. Leave it running
-   and watch what happens to your node when the instructor starts the clock. (Your client can't
-   answer a `tick` yet: that's `handle-tick`, this week's take-home.)
+   and watch what happens to your node when I start the clock. (Your client can't answer a
+   `tick` yet: that's `handle-tick`, this week's take-home.)
 
-5. **Write one validator by hand.** In `protocol/messages.ts`, find `TODO(week 2, is-mem-read)`.
-   Write `isMemRead(value: unknown): value is MessageOf<"mem.read">`. It must check, with
-   `typeof` and friends, that `value` is an object, `type` is `"mem.read"`, the envelope fields
-   are there with the right types, and `payload.address` and `payload.length` are whole numbers
-   in range.
-
-   ✅ **Checkpoint:** the `isMemRead` tests pass. Count your lines. There are about 30 message
-   types in `messageSchema`. Multiply.
-
-6. **Read the schemas together.** Scroll through `messageSchema` in the same file. Each line is
-   one message type: `message("mem.read", z.object({ address, length: ... }))`. The `message()`
-   helper adds the envelope, so each line only describes the payload. `Message`, `MessageOf<T>`
-   and `PayloadOf<T>` are all `z.infer` of the schema, never written twice.
-
-7. **Validate at the boundary.** Find `TODO(week 2, parse-message)`. Until now `parseMessage`
-   has been a placeholder that trusts everything: it does `JSON.parse` and *casts* the result
-   to `Message`, so TypeScript believes it while nothing checks it. Your handshake from step 3
-   has been running on that trust. Replace it with real validation,
-   `parseMessage(raw: string): ParseResult`: `JSON.parse` (which can throw: catch it and return
-   `{ ok: false, error: "not valid JSON" }`), then `messageSchema.safeParse`. On success return
-   `{ ok: true, message }`; on failure return an error that says **which field** was wrong (look
-   at `error.issues`).
-
-   This is the one place bytes off a socket become a typed `Message`. Find the places in
-   `components/client.ts` that call it. Nothing after that line ever sees unchecked data.
-
-   ✅ **Checkpoint:** `messages.test.ts` passes: valid messages parse, and bad JSON, wrong types,
-   missing fields and unknown `type` values are rejected with an error that names the field.
-
-8. **Build `request()`** in `components/client.ts` (`TODO(week 2, client-request)`). It sends a
+5. **Build `request()`** in `components/client.ts` (`TODO(week 2, client-request)`). It sends a
    message with a fresh `id` and returns a promise that settles when the reply comes. The client
    already has a `pending` map (`Map<id, { resolve, reject }>`) and a `settle()` function that,
    when any message with a `replyTo` arrives, looks it up there and resolves it (or rejects it on
@@ -127,12 +104,12 @@ You'll work in `components/client.ts`, `scripts/hello.ts` and `protocol/messages
    Read `settle()` before you write anything. The whole feature is the handshake between your
    three lines and its six.
 
-   ✅ **Checkpoint:** the `request()` tests pass.
+   ✅ **Checkpoint:** the `request()` tests in `messages.test.ts` pass.
 
-9. **Commit.**
+6. **Commit.**
 
    ```bash
-   git add -A && git commit -m "week 2: handshake, parseMessage, request()" && git push
+   git add -A && git commit -m "week 2: handshake, request()" && git push
    ```
 
 ### What the code looks like (shape only)
@@ -157,15 +134,49 @@ Two requests can be in flight at once, and replies can come back in any order. I
 just waited for "the next `mem.data`", request A could get request B's bytes. The `id` is a
 ticket number; `replyTo` is the ticket stapled to the answer.
 
-## Take-home: ticks, memory, and your hello script
+## Take-home: validation, ticks, memory, and your hello script
 
 Due before next session. Work alone or in a pair (both of you must pass explain-it-back).
+Keep Vitest running in watch mode while you work: `npx vitest tests/week-02`.
 
-1. **Answer the clock** in `handleTick` (`components/client.ts`, `TODO(week 2, handle-tick)`).
+1. **Write one validator by hand.** In `protocol/messages.ts`, find `TODO(week 2, is-mem-read)`.
+   Write `isMemRead(value: unknown): value is MessageOf<"mem.read">`. It must check, with
+   `typeof` and friends, that `value` is an object, `type` is `"mem.read"`, the envelope fields
+   are there with the right types, and `payload.address` and `payload.length` are whole numbers
+   in range.
+
+   Write this one yourself, by hand, before you look at the schemas: its whole point is that you
+   feel how tedious and error-prone hand validation is.
+
+   ✅ **Checkpoint:** the `isMemRead` tests pass. Count your lines. There are about 30 message
+   types in `messageSchema`. Multiply.
+
+2. **Now read the schemas.** Scroll through `messageSchema` in the same file. Each line is
+   one message type: `message("mem.read", z.object({ address, length: ... }))`. The `message()`
+   helper adds the envelope, so each line only describes the payload. `Message`, `MessageOf<T>`
+   and `PayloadOf<T>` are all `z.infer` of the schema, never written twice. Put
+   your `isMemRead` next to the one-line `mem.read` schema and compare.
+
+3. **Validate at the boundary.** Find `TODO(week 2, parse-message)`. Until now `parseMessage`
+   has been a placeholder that trusts everything: it does `JSON.parse` and *casts* the result
+   to `Message`, so TypeScript believes it while nothing checks it. Your handshake from class
+   has been running on that trust. Replace it with real validation,
+   `parseMessage(raw: string): ParseResult`: `JSON.parse` (which can throw: catch it and return
+   `{ ok: false, error: "not valid JSON" }`), then `messageSchema.safeParse`. On success return
+   `{ ok: true, message }`; on failure return an error that says **which field** was wrong (look
+   at `error.issues`).
+
+   This is the one place bytes off a socket become a typed `Message`. Find the places in
+   `components/client.ts` that call it. Nothing after that line ever sees unchecked data.
+
+   ✅ **Checkpoint:** `messages.test.ts` passes: valid messages parse, and bad JSON, wrong types,
+   missing fields and unknown `type` values are rejected with an error that names the field.
+
+4. **Answer the clock** in `handleTick` (`components/client.ts`, `TODO(week 2, handle-tick)`).
    When a `tick` message arrives: remember its tick number, call every handler registered with
    `client.onTick(...)`, then send `tick.done` to the bus. Messages you send are stamped with the
    tick you remembered, so `tick.done` carries **the same tick number** as the tick it answers.
-2. **`core/memory.ts`**: pure functions, no sockets.
+5. **`core/memory.ts`**: pure functions, no sockets.
    - `read(memory, address, length)` (`TODO(week 2, memory-read)`) returns
      `{ ok: true, value: bytes }`, or `{ ok: false, fault }` if any byte is outside
      `0x000`–`0x3FF`.
@@ -173,11 +184,11 @@ Due before next session. Work alone or in a pair (both of you must pass explain-
      (the old one is untouched), or a fault on the same rule.
    - Decide: does a write that is *partly* out of range change anything? (The tests expect: no.
      A faulted write changes nothing. Why is that the safer rule?)
-3. **The Memory component** in `components/memory.ts`, `answer()`
+6. **The Memory component** in `components/memory.ts`, `answer()`
    (`TODO(week 2, memory-handler)`): on `mem.read` reply `mem.data`; on `mem.write` or
    `program.load` reply `mem.ack`; on a bad address reply `fault` with code `OUT_OF_RANGE`.
    Every reply sets `replyTo` (the client's `reply(request, type, payload)` does that for you).
-4. **Finish `hello()` in `scripts/hello.ts`** (`TODO(week 2, hello-script)`). It connects with
+7. **Finish `hello()` in `scripts/hello.ts`** (`TODO(week 2, hello-script)`). It connects with
    the id it's given, prints the other components listed in `welcome`, then prints a line each
    time someone joins or leaves, and one every 10th tick. Print through `options.print`, not
    `console.log`, so the test can read your lines.
@@ -190,7 +201,7 @@ Due before next session. Work alone or in a pair (both of you must pass explain-
    - sam-laptop left
    ```
 
-5. **Watch it all with the logger.** The bus logger is a tool you're given
+8. **Watch it all with the logger.** The bus logger is a tool you're given
    (`components/logger.ts`): it connects like a dashboard, so it sees every message, and prints
    one line each, pairing every reply with its request and timing it. Run your memory with it:
 
@@ -207,7 +218,7 @@ Due before next session. Work alone or in a pair (both of you must pass explain-
 
    Use `LOG=1` whenever you want to see what's really on the bus, in every week from now on.
 
-6. Commit on your `work` branch and push.
+9. Commit on your `work` branch and push.
 
 ### Acceptance criteria
 
@@ -251,12 +262,14 @@ Tests that gate this week (`tests/week-02/`):
 
 ## Explain it back
 
-At the start of next session, no notes and no AI. Be ready to:
+Before next session, explain your work to me without notes or AI: book a 5-minute slot with me,
+or record a 3-minute video (your face and your screen, no notes) answering the two questions I
+post after class. I may also ask one or two people live at the start of class. Be ready to:
 
 1. **Walk through your `handshake()`** line by line: when does the promise resolve, and what
    happens if the `welcome` never comes?
 2. **What happens if your client never sends `tick.done`?** (What is the bus waiting for?
-   You saw it happen in class.)
+   You saw your node drop off in class.)
 3. **Show a message your validator rejects** and explain what would break *later* if it got
    through.
 4. **How does a reply find its way back** to the right `request()` call? Point at the line that
@@ -275,7 +288,7 @@ At the start of next session, no notes and no AI. Be ready to:
 
 Codex may write code with you, but **you decide the design**: for `request()`, for example,
 *you* choose how pending requests are stored and matched before it types anything. Write
-`isMemRead` by hand in class, though: its whole point is that *you* feel how tedious and
+`isMemRead` by hand, though, before you look at the schemas: its whole point is that *you* feel how tedious and
 error-prone hand validation is, so you know what the schema is doing.
 
 ## Stretch

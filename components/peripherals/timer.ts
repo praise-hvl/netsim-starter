@@ -51,7 +51,7 @@ export const timer: PeripheralDefinition<TimerState, TimerInput, TimerConfig> = 
   }),
 
   onInput(state, input) {
-    // @student week=6 part=class id=timer-input "Start or stop the timer; stopping forgets the ticks counted so far"
+    // @student week=6 part=home id=timer-input "Start or stop the timer; stopping forgets the ticks counted so far"
     // TODO(week 6, timer-input): Start or stop the timer; stopping forgets the ticks counted so far
     // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
     return todo("week 6: timer-input", state, input);
@@ -59,7 +59,7 @@ export const timer: PeripheralDefinition<TimerState, TimerInput, TimerConfig> = 
   },
 
   onTick(state) {
-    // @student week=6 part=class id=timer-tick "While COUNTING, raise one irq every `interval` ticks"
+    // @student week=6 part=home id=timer-tick "While COUNTING, raise one irq every `interval` ticks"
     // TODO(week 6, timer-tick): While COUNTING, raise one irq every `interval` ticks
     // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
     return todo("week 6: timer-tick", state);

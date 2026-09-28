@@ -1,5 +1,5 @@
 // `npm run hello`: say hello to the bus and watch who comes and goes.
-//   BUS_URL=ws://<instructor-ip>:3006 HELLO_ID=<your-github-username> npm run hello
+//   BUS_URL=ws://<Praise's bus address, on the board>:3006 HELLO_ID=<your-github-username> npm run hello
 // Ids are lowercase letters, digits and dashes, so HELLO_ID is lowercased (Ada-L -> ada-l).
 import { pathToFileURL } from "node:url";
 import { busUrl, connect, type BusClient } from "@/components/client";
