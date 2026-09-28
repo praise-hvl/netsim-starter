@@ -22,22 +22,22 @@ you can help a neighbour.
 
 ## Before class
 
-Do as much of the checklist below as you can at home, on the laptop you'll bring every week.
+Do as much of the setup below as you can at home, on the laptop you'll bring every week.
 Anything you get stuck on, we finish in class. At minimum, before you arrive:
 
-1. Create your **GitHub account** (step A1) and send me your username so I can find your work.
-2. Create your **ChatGPT account** (step A2). Claiming the student offer can take a day if
+1. Create your **GitHub account** (Setup, 1a) and send me your username so I can find your work.
+2. Create your **ChatGPT account** (Setup, 1b). Install **Node.js 22** (Setup, 2), and if
+   you can, run the setup tool (Setup, 3). Claiming the student offer can take a day if
    verification needs documents, so start early.
 3. Charge your laptop and make sure you have ~5 GB free disk space.
 
-## The setup checklist
+## Setup
 
-Work through the sections in order. Each step says how to check it worked. Where macOS and
-Windows differ, both are given. (Linux users: follow the macOS steps with your package manager.)
+Three parts: accounts and Node you do by hand, then a setup tool walks you through the rest.
 
-### A. Accounts
+### 1. Accounts (by hand)
 
-**A1. GitHub.** Sign up at [github.com](https://github.com) (free). Use a username you're happy
+**1a. GitHub.** Sign up at [github.com](https://github.com) (free). Use a username you're happy
 to show on a CV. Then:
 
 - Turn on two-factor authentication (Settings → Password and authentication). GitHub requires
@@ -45,12 +45,12 @@ to show on a CV. Then:
 - Send me your username so I can find your work.
 - Optional, recommended: apply for the [GitHub Student Developer Pack](https://education.github.com/pack)
   with your school email. It includes GitHub Copilot for free, which is the course's fallback AI
-  tool (see A2).
+  tool (see 1b).
 
 ✅ **Check:** you can sign in, and you can open the course starter repo,
 [github.com/praiseisaac/netsim-starter](https://github.com/praiseisaac/netsim-starter).
 
-**A2. ChatGPT and the student offer.** The course's AI tool is **Codex**, which comes with a
+**1b. ChatGPT and the student offer.** The course's AI tool is **Codex**, which comes with a
 ChatGPT account.
 
 1. Sign up at [chatgpt.com](https://chatgpt.com) (free), ideally with your school email.
@@ -69,14 +69,15 @@ ChatGPT account.
 upload a document that shows your name, your school and the current term (a class schedule or
 enrollment letter works; a student ID without a date often doesn't). You can retry. If it still
 fails, tell me, and I'll make sure you get Codex access. In the meantime use the fallback:
-**GitHub Copilot**, free with the GitHub Student Developer Pack (A1), which also works in VS Code. Everything in this course works with
+**GitHub Copilot**, free with the GitHub Student Developer Pack (1a), which also works in VS Code. Everything in this course works with
 the free ChatGPT plan or Copilot; the offer just gives you more Codex use.
 
 ✅ **Check:** you can sign in at chatgpt.com.
 
-### B. Tools
+### 2. Node.js 22 (by hand)
 
-**B1. Node.js 22 or newer.** Node runs all of this course's code.
+Node runs all of this course's code, and the setup tool itself, so it's the one thing you
+install by hand.
 
 - **macOS:** download the **LTS** installer (22 or newer) from
   [nodejs.org](https://nodejs.org) and run it. (If you already use Homebrew: `brew install node`.)
@@ -91,7 +92,92 @@ node --version   # v22.x or higher
 npm --version
 ```
 
-**B2. git.**
+### 3. The setup tool
+
+Everything else (git, the GitHub CLI and signing in, your fork, the clone, the `work` branch,
+VS Code, Codex, the course's packages) is done by a guided setup tool. In **Terminal** (macOS)
+or **PowerShell** (Windows), go to the folder where you keep projects and run:
+
+```bash
+# macOS
+curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -o setup.mjs && node setup.mjs
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -OutFile setup.mjs; node setup.mjs
+```
+
+(The Windows path hasn't been tried on a real Windows machine yet. If something goes wrong,
+tell me what it printed, and use "If the setup tool doesn't work for you" below.)
+
+**How it works:**
+
+- It shows a checklist of all the steps, then goes through them **one at a time**.
+- For each step it says **why** it matters and **checks first** whether it's already done. Done
+  steps get a ✓ and you press Enter to move on.
+- If a step isn't done, it shows the command **greyed out**, and **you type it yourself**. It
+  runs only once you've typed it correctly. After three misses it offers to run it for you.
+- It **pauses between steps**, so you can read what happened.
+- **s** skips a step, **q** quits. Nothing is lost: **rerun it any time** and it checks
+  everything again from the top. Once the course is cloned, rerun it from inside the course
+  folder with `npm run setup`.
+
+**The steps**, exactly as it prints them:
+
+1. Node 22 or newer
+2. git installed
+3. git knows who you are
+4. GitHub CLI (gh)
+5. Signed in to GitHub
+6. git signs in with that account
+7. ChatGPT account and the student offer (optional)
+8. Your fork of the starter repo
+9. Your fork on this laptop
+10. upstream remote
+11. The work branch, on GitHub
+12. VS Code, with the code command (optional)
+13. Codex CLI, signed in
+14. Course dependencies
+15. npm run doctor
+
+It asks you which folder the course should go in (step 9) and clones your fork into a `netsim`
+folder there. Step 5 makes sure you're signed in as **your** GitHub account; if the laptop is
+signed in as someone else, it tells you.
+
+One thing it can't do: the **Codex extension for VS Code**. Install it by hand: in VS Code,
+**Extensions** (the squares icon) → search **Codex** → install **Codex** by OpenAI (id
+`openai.chatgpt`), open it from the side bar and choose **Sign in with ChatGPT**.
+
+**The last step, `npm run doctor`,** checks your whole setup in one go and prints one line per
+check: ✓ passed, ✗ failed (with a `→` hint underneath saying how to fix it), or ! a warning you
+can ignore. You can run it yourself any time from the course folder. The eight checks are:
+
+1. Node 22 or newer
+2. git knows who you are
+3. on the 'work' branch
+4. 'upstream' remote set
+5. origin is your fork
+6. you can push to your fork: checks that the GitHub account git pushes as (your SSH key or gh
+   login) is the one that owns your fork
+7. dependencies installed
+8. Codex CLI installed
+
+plus a warning-only check for VS Code's `code` command. Fix whatever is ✗ (usually by rerunning the setup tool)
+and run it again until the last line says:
+
+```
+doctor: all 8 checks passed
+```
+
+✅ **Check:** the last line is `doctor: all 8 checks passed`. Open the project in VS Code:
+`code .`
+
+## If the setup tool doesn't work for you
+
+Do the same setup by hand. You've already done the accounts (1) and Node (2).
+
+**M1. git.**
 
 - **macOS:** run `git --version`. If git isn't installed, macOS offers to install the
   "command line developer tools": say **Install**, wait, then run it again.
@@ -108,7 +194,7 @@ git config --global user.email "you@example.com"
 
 ✅ **Check:** `git --version` prints a version; `git config user.name` prints your name.
 
-**B3. Signing in to GitHub from the terminal.** You'll push your work to your fork, so git
+**M2. Signing in to GitHub from the terminal.** You'll push your work to your fork, so git
 needs to know it's you. Pick **one** way; either works for the whole course. If you're not sure,
 use HTTPS.
 
@@ -149,7 +235,7 @@ type $HOME\.ssh\id_ed25519.pub    # Windows (PowerShell)
 `ssh -T git@github.com` says "Hi *your-username*! You've successfully authenticated" (type `yes`
 the first time it asks about the host).
 
-**B4. VS Code.** Download from [code.visualstudio.com](https://code.visualstudio.com) and
+**M3. VS Code.** Download from [code.visualstudio.com](https://code.visualstudio.com) and
 install.
 
 - **macOS:** drag it into Applications. Then open VS Code, press **Cmd+Shift+P**, run **Shell
@@ -158,7 +244,7 @@ install.
 
 ✅ **Check:** `code --version` prints a version (restart the terminal first).
 
-**B5. Codex.** Two parts: the command-line tool and the VS Code extension. Both sign in with
+**M4. Codex.** Two parts: the command-line tool and the VS Code extension. Both sign in with
 your ChatGPT account.
 
 ```bash
@@ -181,9 +267,7 @@ quit.
 ✅ **Check:** `codex --version` prints a version, and the Codex panel in VS Code answers a
 question like "what is a WebSocket?".
 
-### C. The course code
-
-**C1. Fork the starter repo.** On GitHub, open the course starter repo,
+**M5. Fork the starter repo.** On GitHub, open the course starter repo,
 [github.com/praiseisaac/netsim-starter](https://github.com/praiseisaac/netsim-starter), click
 **Fork**, and create the fork under your own account (the defaults are fine).
 
@@ -191,9 +275,9 @@ Your fork is **public**, like the starter repo: anyone, including your classmate
 you push. That's normal on GitHub, and a public repo can go on your CV. It also means copying is
 easy, which is why every week's grade depends on explaining your own work without notes or AI.
 
-**C2. Clone your fork, connect it to the course, and make your `work` branch.** In the terminal,
+**M6. Clone your fork, connect it to the course, and make your `work` branch.** In the terminal,
 go to the folder where you keep projects. Clone your fork with the kind of URL that matches how
-you signed in (B3); everything after the clone is the same:
+you signed in (M2); everything after the clone is the same:
 
 ```bash
 # HTTPS
@@ -224,41 +308,19 @@ Already cloned with HTTPS and want SSH (or the other way)?
 ✅ **Check:** `git remote -v` shows both `origin` (your fork) and `upstream` (the course), and
 `git branch --show-current` prints `work`.
 
-**C3. Install and run the doctor.**
+**M7. Install and run the doctor.**
 
 ```bash
 npm install
 npm run doctor
 ```
 
-`npm run doctor` checks everything above in one go and prints one line per check: ✓ passed,
-✗ failed (with a `→` hint underneath saying how to fix it), or ! a warning you can ignore. The
-eight checks are:
-
-1. Node 22 or newer
-2. git knows who you are
-3. on the 'work' branch
-4. 'upstream' remote set
-5. origin is your fork
-6. you can push to your fork: checks that the GitHub account git pushes as (your SSH key or gh
-   login) is the one that owns your fork
-7. dependencies installed
-8. Codex CLI installed
-
-plus a warning-only check for VS Code's `code` command. Fix whatever is ✗ and run it again
-until the last line says:
-
-```
-doctor: all 8 checks passed
-```
-
-✅ **Check:** the last line is `doctor: all 8 checks passed`. Open the project in VS Code:
-`code .`
+`npm run doctor` then checks your setup the same way the tool's last step does (see above).
 
 ## In class (1 hour: setup)
 
-The whole session is a **setup clinic**. Work through the checklist above in pairs, sections A,
-B and C, with me and your classmates helping. When you're green, help the pair next
+The whole session is a **setup clinic**: everyone runs the setup tool (Setup, part 3), in pairs,
+with me and your classmates helping. If you did it at home, help your neighbour. When you're green, help the pair next
 to you. Put a green sticky note on your laptop when `npm run doctor` passes, a pink one if
 you're stuck.
 
@@ -318,6 +380,7 @@ Due before next session.
 
 | Command | What it does | Works this week? |
 |---|---|---|
+| `node setup.mjs` / `npm run setup` | the guided setup tool (the second once you're in the course folder) | ✅ |
 | `npm install` | installs the project's packages | ✅ |
 | `npm run doctor` | checks your setup: 8 checks, one line each, `→` hints for failures | ✅ |
 | `npx vitest run tests/week-01` | this week's test (your notes) | ✅ once your notes are written |
