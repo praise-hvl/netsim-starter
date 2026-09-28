@@ -15,7 +15,7 @@ pieces you built before. By week 8 the computer on the screen is one you wrote.
 
 ## The course
 
-Fridays, 2–3 hours per session. Each week has an **in-class build** (together, live) and a
+Mondays, 2–3 hours per session. Each week has an **in-class build** (together, live) and a
 **take-home portion** (on your own or in a pair).
 
 | Week | Topic | You build |
