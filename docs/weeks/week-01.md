@@ -1,9 +1,11 @@
 # Week 1: Setup & System Roles
 
+> Prefer a web page? Open [week-01.html](./week-01.html) in your browser (download it or open it from your clone): the same setup steps, with pictures and diagrams.
+
 This week is about getting ready. By the end of it you'll have every tool installed, your own
 copy of the course code on your laptop, an AI coding assistant that knows the course rules, and a picture
-in your head of the computer you're going to build. You'll also watch the finished computer run
-on the projector: by week 8, the one on your screen will be yours.
+in your head of the computer you're going to build. By week 8, the finished computer on the
+screen will be one you built yourself.
 
 No code to write this week. If you already have everything installed, the setup goes fast and
 you can help a neighbour.
@@ -23,8 +25,7 @@ you can help a neighbour.
 Do as much of the checklist below as you can at home, on the laptop you'll bring every week.
 Anything you get stuck on, we finish in class. At minimum, before you arrive:
 
-1. Create your **GitHub account** (step A1) and send your username to the instructor, so they
-   can find your fork (that's where your work is graded).
+1. Create your **GitHub account** (step A1) and send me your username so I can find your work.
 2. Create your **ChatGPT account** (step A2). Claiming the student offer can take a day if
    verification needs documents, so start early.
 3. Charge your laptop and make sure you have ~5 GB free disk space.
@@ -41,7 +42,7 @@ to show on a CV. Then:
 
 - Turn on two-factor authentication (Settings → Password and authentication). GitHub requires
   it for most accounts anyway.
-- Send your username to the instructor, so they can find your fork.
+- Send me your username so I can find your work.
 - Optional, recommended: apply for the [GitHub Student Developer Pack](https://education.github.com/pack)
   with your school email. It includes GitHub Copilot for free, which is the course's fallback AI
   tool (see A2).
@@ -67,8 +68,8 @@ ChatGPT account.
 **If SheerID verification fails:** try the school sign-in option first; if that doesn't work,
 upload a document that shows your name, your school and the current term (a class schedule or
 enrollment letter works; a student ID without a date often doesn't). You can retry. If it still
-fails, tell the instructor and use the fallback: **GitHub Copilot**, free with the GitHub
-Student Developer Pack (A1), which also works in VS Code. Everything in this course works with
+fails, tell me, and I'll make sure you get Codex access. In the meantime use the fallback:
+**GitHub Copilot**, free with the GitHub Student Developer Pack (A1), which also works in VS Code. Everything in this course works with
 the free ChatGPT plan or Copilot; the offer just gives you more Codex use.
 
 ✅ **Check:** you can sign in at chatgpt.com.
@@ -209,44 +210,38 @@ doctor: all 7 checks passed
 ✅ **Check:** the last line is `doctor: all 7 checks passed`. Open the project in VS Code:
 `code .`
 
-## In class
+## In class (1 hour: setup)
 
-1. **Setup clinic** (first hour). Finish the checklist, in pairs. When you're green, help the
-   pair next to you. Put a green sticky note on your laptop when `npm run doctor` passes, a pink
-   one if you're stuck.
+The whole session is a **setup clinic**. Work through the checklist above in pairs, sections A,
+B and C, with me and your classmates helping. When you're green, help the pair next
+to you. Put a green sticky note on your laptop when `npm run doctor` passes, a pink one if
+you're stuck.
 
-2. **System roles, unplugged.** Five volunteers play CLOCK, CPU, MEMORY, BUTTON and LED. Memory
-   holds four index cards (addresses 0–3). The clock says "tick", and nobody may act between
-   ticks. The CPU asks for card 0 by saying it out loud *to the bus* (the instructor), never
-   straight to Memory. Then the button gets pressed mid-tick… Everyone else draws the system as
-   it happens. Questions we'll answer together:
-   - Who owns time? Why not let everyone keep their own clock?
-   - What does the bus know about CPUs? (Nothing. It just carries messages.)
-   - When the button is pressed in the middle of a tick, when does the CPU find out?
-
-3. **Watch the real thing.** The instructor runs the finished computer on the projector: the
-   bus, the CPU with two cores, memory, a button, an LED, and the dashboard drawing every message
-   live. Match each box on screen to a role from the activity. Watch a `mem.read` go out and a
-   `mem.data` come back, and press the button.
-
-4. **Map the code.** In VS Code, open [ARCHITECTURE.md](../ARCHITECTURE.md) at "The big picture"
-   and "File layout". Find each part from the activity in the file tree: which folder is the
-   bus? Where will the CPU's logic live? Where does the dashboard live?
-
-5. **First Codex session, with the rules on.** Open the Codex panel and ask:
-   *"What is this project, and what am I supposed to do in week 1?"* It answers from the course
-   files, including `AGENTS.md` (see "Using Codex in this course" below). Then ask it to
-   "write the handshake in components/client.ts" (that's next week's work; don't keep what it
-   writes). Notice that it asks you how you want to approach it, or offers you two options,
-   before it writes anything. That's the course's rule: **you decide the design, Codex can do the
-   typing.**
+If there's time at the end, I'll run the finished computer on the projector: the bus,
+the CPU with two cores, memory, a button, an LED, and the dashboard drawing every message live.
 
 ## Take-home
 
 Due before next session.
 
 1. **Finish setup.** `npm run doctor` all green on the laptop you'll bring every week.
-2. **Write your week-1 notes** in `docs/notes/week-01.md`. The file is there with three
+2. **Map the system.** Open [ARCHITECTURE.md](../ARCHITECTURE.md) and read "The big picture"
+   and "File layout". On paper, draw the computer you're going to build: the bus, the clock,
+   the CPU, memory, a button, an LED, and the dashboard. Label each one with its job in a few
+   words. Then find each part in the file tree: which folder is the bus? Where will the CPU's
+   logic live? Where does the dashboard live? Keep the drawing: you'll use it in your
+   explain-it-back. Think about:
+   - Who owns time? Why not let every part keep its own clock?
+   - What does the bus know about CPUs? (Look at `bus/server.ts`.)
+   - If a button is pressed in the middle of a tick, when does the CPU find out?
+3. **First Codex session, with the rules on.** Open the Codex panel and ask:
+   *"What is this project, and what am I supposed to do in week 1?"* It answers from the course
+   files, including `AGENTS.md` (see "Using Codex in this course" below). Then ask it to
+   "write the handshake in components/client.ts" (that's next week's work; don't keep what it
+   writes). Notice that it asks you how you want to approach it, or offers you two options,
+   before it writes anything. That's the course's rule: **you decide the design, Codex can do
+   the typing.**
+4. **Write your week-1 notes** in `docs/notes/week-01.md`. The file is there with three
    headings, each with a `<!-- TODO(week 1, …) -->` comment under it. Write under each heading
    (you can delete the comment; comments don't count toward anything):
    - **`## npm run doctor output`:** paste everything it prints inside a ```` ```text ````
@@ -258,7 +253,7 @@ Due before next session.
    - **`## One thing I checked myself`:** pick one thing Codex told you and check it by
      reading the code yourself. Say what the claim was, where in `bus/server.ts` you found the
      answer (a function name or line), and whether Codex was right.
-3. **Commit and push your `work` branch.**
+5. **Commit and push your `work` branch.**
 
    ```bash
    git add -A
@@ -295,11 +290,13 @@ Tests that gate this week (`tests/week-01/`):
 
 ## Explain it back
 
-At the start of next session you'll have a short conversation with the instructor, no notes
-and no AI. Be ready to:
+Before next session, explain your work to me without notes or AI: book a 5-minute slot with
+me, or record a 3-minute video (your face and your screen, no notes) answering the two
+questions I post after class. I may also ask one or two people live at the start of class. Be
+ready to:
 
-1. **Draw the system on paper**: bus, clock, CPU, memory, a couple of devices, the dashboard.
-   Say what each one's job is.
+1. **Show your drawing of the system** (from the take-home): bus, clock, CPU, memory, a couple
+   of devices, the dashboard. Say what each one's job is.
 2. **Why does the bus hold the clock** instead of each component keeping its own time?
 3. **Explain `bus/server.ts` in your own words**, the way you wrote it in your notes. Then
    answer one follow-up question about it.
@@ -339,8 +336,9 @@ goes where), and be able to explain every line you keep: what it does, why it's 
 hardware idea behind it. If Codex writes something you can't explain yet, don't keep it until
 you can: ask it to walk you through it, or rewrite it your way.
 
-**Why explain-it-back is no-AI.** Each week's work is checked in a short conversation at the
-next session, without notes or AI, where you explain your code and the design choices you made.
+**Why explain-it-back is no-AI.** Each week's work is checked in a short explain-it-back with me
+before the next session (a 5-minute slot or a 3-minute video), without notes or AI, where you
+explain your code and the design choices you made.
 That's what's graded, together with the tests. Codex can write code with you; it can't
 understand it *for* you. A good rule: if you can't explain a line, you don't have it yet.
 
@@ -355,6 +353,6 @@ understand it *for* you. A good rule: if you can't explain a line, you don't hav
 
 - Run `npm run bus` in one terminal and `npx vitest tests/week-02` in another. Read the failing
   test names: that's next week's work.
-- Read ARCHITECTURE.md's "A clock tick, step by step" diagram. Which messages in it did you see
-  on the projector today?
+- Read ARCHITECTURE.md's "A clock tick, step by step" diagram and follow one `mem.read` from
+  the CPU to Memory and back.
 - Ask Codex to quiz you with five questions about the big picture. Answer them without looking.

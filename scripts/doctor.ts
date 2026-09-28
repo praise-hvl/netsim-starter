@@ -61,7 +61,7 @@ export function runChecks(root: string = process.cwd()): Check[] {
     "'upstream' remote set",
     upstream !== null,
     upstream ?? "no remote called upstream",
-    "Run `git remote add upstream <the starter repo URL from your instructor>`, then `git fetch upstream`.",
+    "Run `git remote add upstream <the starter repo URL from Praise>`, then `git fetch upstream`.",
   );
 
   const origin = output("git", ["remote", "get-url", "origin"], root);

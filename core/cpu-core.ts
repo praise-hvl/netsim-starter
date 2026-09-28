@@ -162,7 +162,7 @@ function execute(core: Core, instruction: Instruction): StepResult {
   const [r0, r1, r2, r3] = core.registers;
   const regs = [r0, r1, r2, r3];
   switch (instruction.op) {
-    // @student week=3 part=class id=execute-core "Execute LOAD (ask memory), ADD (with zero and carry flags) and HALT"
+    // @student week=3 part=home id=execute-core "Execute LOAD (ask memory), ADD (with zero and carry flags) and HALT"
     // TODO(week 3, execute-core): Execute LOAD (ask memory), ADD (with zero and carry flags) and HALT
     // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
     case "LOAD":
@@ -191,7 +191,7 @@ function execute(core: Core, instruction: Instruction): StepResult {
 }
 
 function awaitData(core: Core, reply: MemReply | null): StepResult {
-  // @student week=3 part=class id=await-data "LOAD: put the byte in the register (and set zero). STORE: the ack means done. Then fetch the next instruction"
+  // @student week=3 part=home id=await-data "LOAD: put the byte in the register (and set zero). STORE: the ack means done. Then fetch the next instruction"
   // TODO(week 3, await-data): LOAD: put the byte in the register (and set zero). STORE: the ack means done. Then fetch the next instruction
   // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
   return todo("week 3: await-data", core, reply);

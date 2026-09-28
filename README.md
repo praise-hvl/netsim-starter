@@ -15,8 +15,8 @@ pieces you built before. By week 8 the computer on the screen is one you wrote.
 
 ## The course
 
-Mondays, 2–3 hours per session. Each week has an **in-class build** (together, live) and a
-**take-home portion** (on your own or in a pair).
+I'm Praise Daramola, and I teach this course: Mondays, 1 hour per session. Each week has an
+**in-class build** (together, live) and a **take-home portion** (on your own or in a pair).
 
 | Week | Topic | You build |
 |---|---|---|
@@ -30,8 +30,8 @@ Mondays, 2–3 hours per session. Each week has an **in-class build** (together,
 | 8 | [Final Demo & Reflection](docs/weeks/week-08.md) | Your own program, live, on your own computer |
 
 Each week's guide has the goals, what to read before class, the in-class steps, the take-home
-with its acceptance criteria, the exact commands that work that week, and the questions you'll
-answer at the start of the next session.
+with its acceptance criteria, the exact commands that work that week, and the explain-it-back
+questions you'll answer before the next session.
 
 **Prerequisites:** loops and functions, basic Node.js and TypeScript, git basics (clone,
 commit, push), and a rough idea of what a CPU, memory and I/O are for.
@@ -47,8 +47,10 @@ design**: you decide the approach and the structure, and Codex does the typing. 
 course has an `AGENTS.md` that makes Codex ask how you want to approach something (or offer two
 options) before it writes, follow your design, explain what it wrote, and never edit the tests.
 What's graded is whether you understand the hardware idea and your own code: each week's work is
-checked in a short **explain-it-back** conversation at the next session, **without notes or
-AI**, where you walk through what you built and why. A good rule: if you can't explain a line,
+checked in a short **explain-it-back** with me before the next session, **without notes or AI**:
+a booked 5-minute slot, or a 3-minute video (your face and your screen) answering two questions
+I post after class. You walk through what you built and why. I may also ask one or two people
+live at the start of class. A good rule: if you can't explain a line,
 you don't have it yet.
 
 ## Getting started (week 1)

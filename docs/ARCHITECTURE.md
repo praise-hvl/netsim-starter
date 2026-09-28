@@ -531,14 +531,14 @@ npm run weeks -- --verify            # instructor: check the generated week bran
 
 ## Instructor setup: a shared live bus
 
-In week 1 students watch the instructor's live system; from week 2 every student connects to one
-bus on the instructor's machine.
+In week 1 students watch Praise's live system; from week 2 every student connects to one bus on
+Praise's machine.
 
 1. On the instructor machine: `BUS_HOST=0.0.0.0 npm run bus`. The bus now accepts connections
    from the local network (the default, `127.0.0.1`, only accepts this machine). Find the LAN
    address with `ipconfig getifaddr en0` (macOS) or `hostname -I` (Linux). The OS firewall may
    ask to allow incoming connections on port 3006.
-2. Students run their client with `BUS_URL=ws://<instructor-ip>:3006 npm run hello`.
+2. Students run their client with `BUS_URL=ws://<Praise's IP>:3006 npm run hello`.
 3. If students aren't on the same network (remote class, locked-down campus Wi-Fi), put a tunnel
    in front of the bus instead, e.g. `cloudflared tunnel --url http://localhost:3006` or
    `ngrok http 3006`, and hand out the `wss://…` address it prints as `BUS_URL`.

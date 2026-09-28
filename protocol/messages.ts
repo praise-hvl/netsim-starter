@@ -138,7 +138,7 @@ export type ParseResult = { ok: true; message: Message } | { ok: false; error: s
 
 /** Turn raw socket text into a typed message, or explain why it isn't one. */
 export function parseMessage(raw: string): ParseResult {
-  // @student week=2 part=class id=parse-message "Parse JSON, then validate it with messageSchema"
+  // @student week=2 part=home id=parse-message "Parse JSON, then validate it with messageSchema"
   // TODO(week 2, parse-message): Parse JSON, then validate it with messageSchema
   // Tests: tests/week-02/   Guide: docs/weeks/week-02.md
   // Until week 2 this trusts whatever arrives. Week 2 replaces the cast with real validation.
@@ -151,7 +151,7 @@ export function parseMessage(raw: string): ParseResult {
  * Written once in week 2 so the zod schemas above aren't magic.
  */
 export function isMemRead(value: unknown): value is MessageOf<"mem.read"> {
-  // @student week=2 part=class id=is-mem-read "Check every field of a mem.read by hand"
+  // @student week=2 part=home id=is-mem-read "Check every field of a mem.read by hand"
   // TODO(week 2, is-mem-read): Check every field of a mem.read by hand
   // Tests: tests/week-02/   Guide: docs/weeks/week-02.md
   return todo("week 2: is-mem-read", value);
