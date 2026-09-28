@@ -55,20 +55,25 @@ you don't have it yet.
 
 ## Getting started (week 1)
 
-Week 1 is all setup, and [its guide](docs/weeks/week-01.md) walks through every step on macOS
-and Windows: a GitHub account, a ChatGPT account and the student offer, Node.js 22+, git, VS Code, and Codex. Then, in short:
+Week 1 is all setup, and [its guide](docs/weeks/week-01.md) walks through it. You make a
+GitHub account and a ChatGPT account (and claim the student offer) and install **Node.js 22+**
+by hand; then a guided setup tool does the rest, one step at a time, with you typing each
+command:
 
 ```bash
-# after forking github.com/praiseisaac/netsim-starter on GitHub
-git clone https://github.com/<you>/netsim-starter.git netsim   # or git@github.com:<you>/netsim-starter.git (SSH)
-cd netsim
-git remote add upstream https://github.com/praiseisaac/netsim-starter.git
-git fetch upstream
-git switch -c work upstream/week-1-start   # your branch for the whole course
-git push -u origin work
-npm install
-npm run doctor                             # checks your setup; fix anything it marks ✗
+# macOS
+curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -o setup.mjs && node setup.mjs
 ```
+
+```powershell
+# Windows (PowerShell). Not yet tried on a real Windows machine: tell me how it goes.
+irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -OutFile setup.mjs; node setup.mjs
+```
+
+It installs git, the GitHub CLI, VS Code and Codex, signs you in, forks the course, clones your
+fork into a `netsim` folder, makes your `work` branch, installs the packages, and ends with
+`npm run doctor`. Rerun it any time (inside the course folder: `npm run setup`). If it doesn't
+work for you, the week-1 guide has the same steps by hand.
 
 All your work for the whole course goes on `work`. Every week you merge the new week into it;
 you never switch branches.
@@ -105,6 +110,7 @@ Which of these work depends on the week: parts that later weeks build throw a cl
 error until you get there. Your week guide lists exactly what works.
 
 ```bash
+npm run setup                        # week 1: the guided setup (rerun any time)
 npm run doctor                       # week 1: check your setup
 npm run bus                          # just the bus
 npm run hello                        # week 2: say hello to the bus (HELLO_ID=you)
