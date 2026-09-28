@@ -110,6 +110,9 @@
   svg .mono { font-family: "JetBrains Mono", monospace; }
   svg .muted { fill: var(--muted); }
 
+  pre.wrapcmd { white-space: pre-wrap; word-break: break-all; }
+  ol.compact { margin: 0; padding-left: 26px; columns: 2 260px; column-gap: 32px; }
+  ol.compact li { break-inside: avoid; padding: 2px 0; }
   .table-wrap { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-size: 16px; }
   th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -210,9 +213,55 @@
     </div>
   </section>
 
+  <section id="setup-tool">
+    <h2>B. Node, then one command</h2>
+    <div class="step">
+      <div class="step-head"><span class="logo"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDQ0IDUwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxkZWZzPgogICAgPGNsaXBQYXRoIGlkPSJoZXhDbGlwIj4KICAgICAgPHBhdGggZD0iTTIyLjg3MjUgMC40MTY2QzIyLjEzNiAwIDIxLjI2MTYgMCAyMC41MjUzIDAuNDE2NkwxLjE1MDUgMTEuNjY5NEMwLjQxNDIgMTIuMDg2MiAwIDEyLjg3MzMgMCAxMy43MDdWMzYuMjU4NEMwIDM3LjA5MjEgMC40NjAyIDM3Ljg3OTEgMS4xNTA1IDM4LjI5NkwyMC41MjUzIDQ5LjU0ODdDMjEuMjYxNiA0OS45NjUzIDIyLjEzNiA0OS45NjUzIDIyLjg3MjUgNDkuNTQ4N0w0Mi4yNDcxIDM4LjI5NkM0Mi45ODM2IDM3Ljg3OTEgNDMuMzk3NiAzNy4wOTIxIDQzLjM5NzYgMzYuMjU4NFYxMy43MDdDNDMuMzk3NiAxMi44NzMzIDQyLjkzNzUgMTIuMDg2MiA0Mi4yNDcxIDExLjY2OTRMMjIuODcyNSAwLjQxNjZaIiAvPgogICAgPC9jbGlwUGF0aD4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0ibWFpbiIgeDE9IjMwLjMzIiB5MT0iOC41NiIgeDI9IjE0LjkiIHkyPSI0NC43IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIHN0b3AtY29sb3I9IiMzRjhCM0QiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjY0IiBzdG9wLWNvbG9yPSIjM0Y4NzNGIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC45MyIgc3RvcC1jb2xvcj0iIzNEQTkyRSIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMzREFFMkIiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9InIxIiB4MT0iMTguOCIgeTE9IjI2LjgiIHgyPSI2OCIgeTI9IjAuNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAuMTQiIHN0b3AtY29sb3I9IiMzRjg3M0YiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjQiIHN0b3AtY29sb3I9IiM1MkEwNDQiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjcxIiBzdG9wLWNvbG9yPSIjNjRCNzQ5Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC45MSIgc3RvcC1jb2xvcj0iIzZBQkY0QiIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0icjIiIHgxPSIwLjI1IiB5MT0iMjQuNSIgeDI9IjQ0IiB5Mj0iMjQuNSIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAuMDkiIHN0b3AtY29sb3I9IiM2QUJGNEIiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjI5IiBzdG9wLWNvbG9yPSIjNjRCNzQ5Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC42IiBzdG9wLWNvbG9yPSIjNTJBMDQ0Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC44NiIgc3RvcC1jb2xvcj0iIzNGODczRiIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPHBhdGggZmlsbD0idXJsKCNtYWluKSIgZD0iTTIyLjg3MjUgMC40MTY2QzIyLjEzNiAwIDIxLjI2MTYgMCAyMC41MjUzIDAuNDE2NkwxLjE1MDUgMTEuNjY5NEMwLjQxNDIgMTIuMDg2MiAwIDEyLjg3MzMgMCAxMy43MDdWMzYuMjU4NEMwIDM3LjA5MjEgMC40NjAyIDM3Ljg3OTEgMS4xNTA1IDM4LjI5NkwyMC41MjUzIDQ5LjU0ODdDMjEuMjYxNiA0OS45NjUzIDIyLjEzNiA0OS45NjUzIDIyLjg3MjUgNDkuNTQ4N0w0Mi4yNDcxIDM4LjI5NkM0Mi45ODM2IDM3Ljg3OTEgNDMuMzk3NiAzNy4wOTIxIDQzLjM5NzYgMzYuMjU4NFYxMy43MDdDNDMuMzk3NiAxMi44NzMzIDQyLjkzNzUgMTIuMDg2MiA0Mi4yNDcxIDExLjY2OTRMMjIuODcyNSAwLjQxNjZaIiAvPgogIDxwb2x5Z29uIGZpbGw9InVybCgjcjEpIiBjbGlwLXBhdGg9InVybCgjaGV4Q2xpcCkiIHBvaW50cz0iMjEuNjk4OTAxLC0xLjA0NjYxOCA0My4yMDUzMiwxMS45NDgyNDcgMjEuNjk4OTAxLDUxLjA3MjcxNSAwLjE1Mjc3OCwzOC4wNTUxMDciIC8+CiAgPHBvbHlnb24gZmlsbD0idXJsKCNyMikiIGNsaXAtcGF0aD0idXJsKCNoZXhDbGlwKSIgcG9pbnRzPSIyMS42OTg5MDEsLTEuMDQ2NjE4IDAuMTUyNzc4LDExLjk0ODI0NyAyMS42OTg5MDEsNTEuMDcyNzE1IDQzLjIwNTMyLDM4LjA1NTEwNyIgLz4KPC9zdmc+Cg==" alt="Node.js"></span><h3>B1. Install Node.js 22 or newer (by hand)</h3></div>
+      <div class="os">
+        <div><h4>macOS</h4>Download the <b>LTS</b> installer from <a href="https://nodejs.org">nodejs.org</a>. With Homebrew: <code>brew install node</code></div>
+        <div><h4>Windows</h4>Download the <b>LTS</b> <code>.msi</code> from <a href="https://nodejs.org">nodejs.org</a> and keep the defaults.</div>
+      </div>
+      <pre><code>node --version   <span class="c"># v22.x or higher</span></code></pre>
+    </div>
+    <div class="step">
+      <h3>B2. Run the setup tool</h3>
+      <p>It walks you through everything else, one step at a time. Open Terminal (macOS) or PowerShell (Windows) in the folder where you keep projects, and paste one line:</p>
+      <pre class="wrapcmd"><code><span class="c"># macOS</span>
+curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -o setup.mjs &amp;&amp; node setup.mjs
+
+<span class="c"># Windows (PowerShell)</span>
+irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -OutFile setup.mjs; node setup.mjs</code></pre>
+      <ul class="plain">
+        <li>Each step <b>checks first</b>. Anything already done shows ✓ and waits for you to press Enter.</li>
+        <li>For anything not done, it shows the command <b>greyed out</b>. <b>You type it yourself</b>, and it runs when it matches. After 3 misses it offers to run it for you.</li>
+        <li><code>s</code> skips a step, <code>q</code> quits. Run it again anytime; finished steps are re-checked. Inside your clone: <code>npm run setup</code>.</li>
+      </ul>
+      <p>The 15 steps:</p>
+      <ol class="compact">
+        <li>Node 22 or newer</li>
+        <li>git installed</li>
+        <li>git knows who you are</li>
+        <li>GitHub CLI (gh)</li>
+        <li>Signed in to GitHub</li>
+        <li>git signs in with that account</li>
+        <li>ChatGPT account and the student offer (optional)</li>
+        <li>Your fork of the starter repo</li>
+        <li>Your fork on this laptop</li>
+        <li>upstream remote</li>
+        <li>The work branch, on GitHub</li>
+        <li>VS Code, with the code command (optional)</li>
+        <li>Codex CLI, signed in</li>
+        <li>Course dependencies</li>
+        <li>npm run doctor</li>
+      </ol>
+      <p class="check"><b>Done when:</b> the last step says <span class="ok">doctor: all 8 checks passed</span>. Then install the <b>Codex</b> extension in VS Code (Extensions → search Codex → Codex by OpenAI → Sign in with ChatGPT).</p>
+      <p class="sketch-note">Windows support is new: if anything goes wrong, tell me, and use the manual steps below.</p>
+    </div>
+  </section>
+
   <section id="tools">
-    <h2>B. Tools</h2>
-    <p class="lede">Macs use <b>Terminal</b>, Windows uses <b>PowerShell</b>. After installing anything, close and reopen the terminal.</p>
+    <h2>Manual setup (only if the setup tool doesn't work)</h2>
+    <p class="lede">These are the same steps the setup tool runs for you. Macs use <b>Terminal</b>, Windows uses <b>PowerShell</b>. After installing anything, close and reopen the terminal.</p>
 
     <div class="step">
       <div class="step-head"><span class="logo"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDQ0IDUwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxkZWZzPgogICAgPGNsaXBQYXRoIGlkPSJoZXhDbGlwIj4KICAgICAgPHBhdGggZD0iTTIyLjg3MjUgMC40MTY2QzIyLjEzNiAwIDIxLjI2MTYgMCAyMC41MjUzIDAuNDE2NkwxLjE1MDUgMTEuNjY5NEMwLjQxNDIgMTIuMDg2MiAwIDEyLjg3MzMgMCAxMy43MDdWMzYuMjU4NEMwIDM3LjA5MjEgMC40NjAyIDM3Ljg3OTEgMS4xNTA1IDM4LjI5NkwyMC41MjUzIDQ5LjU0ODdDMjEuMjYxNiA0OS45NjUzIDIyLjEzNiA0OS45NjUzIDIyLjg3MjUgNDkuNTQ4N0w0Mi4yNDcxIDM4LjI5NkM0Mi45ODM2IDM3Ljg3OTEgNDMuMzk3NiAzNy4wOTIxIDQzLjM5NzYgMzYuMjU4NFYxMy43MDdDNDMuMzk3NiAxMi44NzMzIDQyLjkzNzUgMTIuMDg2MiA0Mi4yNDcxIDExLjY2OTRMMjIuODcyNSAwLjQxNjZaIiAvPgogICAgPC9jbGlwUGF0aD4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0ibWFpbiIgeDE9IjMwLjMzIiB5MT0iOC41NiIgeDI9IjE0LjkiIHkyPSI0NC43IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIHN0b3AtY29sb3I9IiMzRjhCM0QiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjY0IiBzdG9wLWNvbG9yPSIjM0Y4NzNGIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC45MyIgc3RvcC1jb2xvcj0iIzNEQTkyRSIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMzREFFMkIiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9InIxIiB4MT0iMTguOCIgeTE9IjI2LjgiIHgyPSI2OCIgeTI9IjAuNCIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAuMTQiIHN0b3AtY29sb3I9IiMzRjg3M0YiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjQiIHN0b3AtY29sb3I9IiM1MkEwNDQiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjcxIiBzdG9wLWNvbG9yPSIjNjRCNzQ5Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC45MSIgc3RvcC1jb2xvcj0iIzZBQkY0QiIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0icjIiIHgxPSIwLjI1IiB5MT0iMjQuNSIgeDI9IjQ0IiB5Mj0iMjQuNSIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAuMDkiIHN0b3AtY29sb3I9IiM2QUJGNEIiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIwLjI5IiBzdG9wLWNvbG9yPSIjNjRCNzQ5Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC42IiBzdG9wLWNvbG9yPSIjNTJBMDQ0Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMC44NiIgc3RvcC1jb2xvcj0iIzNGODczRiIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPHBhdGggZmlsbD0idXJsKCNtYWluKSIgZD0iTTIyLjg3MjUgMC40MTY2QzIyLjEzNiAwIDIxLjI2MTYgMCAyMC41MjUzIDAuNDE2NkwxLjE1MDUgMTEuNjY5NEMwLjQxNDIgMTIuMDg2MiAwIDEyLjg3MzMgMCAxMy43MDdWMzYuMjU4NEMwIDM3LjA5MjEgMC40NjAyIDM3Ljg3OTEgMS4xNTA1IDM4LjI5NkwyMC41MjUzIDQ5LjU0ODdDMjEuMjYxNiA0OS45NjUzIDIyLjEzNiA0OS45NjUzIDIyLjg3MjUgNDkuNTQ4N0w0Mi4yNDcxIDM4LjI5NkM0Mi45ODM2IDM3Ljg3OTEgNDMuMzk3NiAzNy4wOTIxIDQzLjM5NzYgMzYuMjU4NFYxMy43MDdDNDMuMzk3NiAxMi44NzMzIDQyLjkzNzUgMTIuMDg2MiA0Mi4yNDcxIDExLjY2OTRMMjIuODcyNSAwLjQxNjZaIiAvPgogIDxwb2x5Z29uIGZpbGw9InVybCgjcjEpIiBjbGlwLXBhdGg9InVybCgjaGV4Q2xpcCkiIHBvaW50cz0iMjEuNjk4OTAxLC0xLjA0NjYxOCA0My4yMDUzMiwxMS45NDgyNDcgMjEuNjk4OTAxLDUxLjA3MjcxNSAwLjE1Mjc3OCwzOC4wNTUxMDciIC8+CiAgPHBvbHlnb24gZmlsbD0idXJsKCNyMikiIGNsaXAtcGF0aD0idXJsKCNoZXhDbGlwKSIgcG9pbnRzPSIyMS42OTg5MDEsLTEuMDQ2NjE4IDAuMTUyNzc4LDExLjk0ODI0NyAyMS42OTg5MDEsNTEuMDcyNzE1IDQzLjIwNTMyLDM4LjA1NTEwNyIgLz4KPC9zdmc+Cg==" alt="Node.js"></span><h3>B1. Node.js 22 or newer</h3></div>
@@ -276,8 +325,8 @@ codex            <span class="c"># choose "Sign in with ChatGPT", then Ctrl+C</s
   </section>
 
   <section id="code">
-    <h2>C. Your copy of the course</h2>
-    <p class="lede">Three places your code lives. You'll use them every week.</p>
+    <h2>Your copy of the course</h2>
+    <p class="lede">The setup tool does this for you (steps 8 to 11). Here's what it sets up: three places your code lives, which you'll use every week.</p>
 
     <div class="diagram">
       <svg viewBox="0 0 760 330" role="img" aria-label="The course repo on GitHub is forked to your fork, your fork is cloned to your laptop, new weeks are fetched from upstream, and your work is pushed to origin">
