@@ -109,15 +109,45 @@ git config --global user.email "you@example.com"
 ✅ **Check:** `git --version` prints a version; `git config user.name` prints your name.
 
 **B3. Signing in to GitHub from the terminal.** You'll push your work to your fork, so git
-needs to know it's you.
+needs to know it's you. Pick **one** way; either works for the whole course. If you're not sure,
+use HTTPS.
 
-- **Easiest on both systems:** install the **GitHub CLI** ([cli.github.com](https://cli.github.com);
-  macOS `brew install gh`, Windows the `.msi` installer), then run `gh auth login`, choose
-  **GitHub.com → HTTPS → Login with a web browser**, and follow the prompts.
-- **Windows alternative:** skip `gh`; the first `git push` opens a GitHub sign-in window (Git
-  Credential Manager).
+**HTTPS (simplest).** Install the **GitHub CLI** ([cli.github.com](https://cli.github.com);
+macOS `brew install gh`, Windows the `.msi` installer), then:
 
-✅ **Check:** `gh auth status` says you're logged in (if you installed `gh`).
+```bash
+gh auth login      # GitHub.com → HTTPS → Login with a web browser
+gh auth setup-git  # make git use that login when it pushes
+```
+
+When `gh auth login` asks **"Authenticate Git with your GitHub credentials?"**, answer **Yes**.
+(Windows alternative: skip `gh`; your first `git push` opens a GitHub sign-in window.)
+
+> **If git ever asks for your password, don't type it** (GitHub rejects passwords): run
+> `gh auth login`, then `gh auth setup-git`.
+>
+> **Signed in to `gh` with another account** (a work or old account)? Switch with
+> `gh auth switch --user <you>`.
+
+**SSH.** Make a key (press Enter to accept the defaults):
+
+```bash
+ssh-keygen -t ed25519 -C "you@example.com"
+```
+
+Add the **public** key to GitHub: Settings → SSH and GPG keys → **New SSH key**, and paste the
+output of:
+
+```bash
+cat ~/.ssh/id_ed25519.pub         # macOS
+type $HOME\.ssh\id_ed25519.pub    # Windows (PowerShell)
+```
+
+(Or, with the GitHub CLI: `gh ssh-key add ~/.ssh/id_ed25519.pub`.)
+
+✅ **Check:** HTTPS: `gh auth status` says you're logged in, as *your* account. SSH:
+`ssh -T git@github.com` says "Hi *your-username*! You've successfully authenticated" (type `yes`
+the first time it asks about the host).
 
 **B4. VS Code.** Download from [code.visualstudio.com](https://code.visualstudio.com) and
 install.
@@ -162,10 +192,20 @@ you push. That's normal on GitHub, and a public repo can go on your CV. It also 
 easy, which is why every week's grade depends on explaining your own work without notes or AI.
 
 **C2. Clone your fork, connect it to the course, and make your `work` branch.** In the terminal,
-go to the folder where you keep projects, then:
+go to the folder where you keep projects. Clone your fork with the kind of URL that matches how
+you signed in (B3); everything after the clone is the same:
 
 ```bash
+# HTTPS
 git clone https://github.com/<you>/netsim-starter.git netsim
+# or SSH
+git clone git@github.com:<you>/netsim-starter.git netsim
+```
+
+Then connect it to the course and make your branch. The course repo is public, so `upstream`
+can stay HTTPS either way:
+
+```bash
 cd netsim
 git remote add upstream https://github.com/praiseisaac/netsim-starter.git
 git fetch upstream
@@ -177,6 +217,9 @@ git push -u origin work
 - `upstream` is **the course repo**: where each new week comes from.
 - `work` is **the one branch you'll use all course**. Every week you merge the new week into
   it; you never switch branches.
+
+Already cloned with HTTPS and want SSH (or the other way)?
+`git remote set-url origin git@github.com:<you>/netsim-starter.git` (or the `https://` URL).
 
 ✅ **Check:** `git remote -v` shows both `origin` (your fork) and `upstream` (the course), and
 `git branch --show-current` prints `work`.
@@ -190,24 +233,26 @@ npm run doctor
 
 `npm run doctor` checks everything above in one go and prints one line per check: ✓ passed,
 ✗ failed (with a `→` hint underneath saying how to fix it), or ! a warning you can ignore. The
-seven checks are:
+eight checks are:
 
 1. Node 22 or newer
 2. git knows who you are
 3. on the 'work' branch
 4. 'upstream' remote set
 5. origin is your fork
-6. dependencies installed
-7. Codex CLI installed
+6. you can push to your fork: checks that the GitHub account git pushes as (your SSH key or gh
+   login) is the one that owns your fork
+7. dependencies installed
+8. Codex CLI installed
 
 plus a warning-only check for VS Code's `code` command. Fix whatever is ✗ and run it again
 until the last line says:
 
 ```
-doctor: all 7 checks passed
+doctor: all 8 checks passed
 ```
 
-✅ **Check:** the last line is `doctor: all 7 checks passed`. Open the project in VS Code:
+✅ **Check:** the last line is `doctor: all 8 checks passed`. Open the project in VS Code:
 `code .`
 
 ## In class (1 hour: setup)
@@ -245,7 +290,7 @@ Due before next session.
    headings, each with a `<!-- TODO(week 1, …) -->` comment under it. Write under each heading
    (you can delete the comment; comments don't count toward anything):
    - **`## npm run doctor output`:** paste everything it prints inside a ```` ```text ````
-     block, ending with `doctor: all 7 checks passed`.
+     block, ending with `doctor: all 8 checks passed`.
    - **`## Codex: what bus/server.ts does`:** ask Codex to explain `bus/server.ts` to you (ask
      follow-up questions too). Then close the chat and write, **in your own words**, what the
      bus does: who connects to it, what it does on each tick, and why it waits before starting
@@ -263,7 +308,7 @@ Due before next session.
 
 ### Acceptance criteria
 
-- [ ] `npm run doctor` ends with `doctor: all 7 checks passed` on your laptop.
+- [ ] `npm run doctor` ends with `doctor: all 8 checks passed` on your laptop.
 - [ ] `npx vitest run tests/week-01` passes. `setup.test.ts` checks your notes are really
       filled in: the doctor output, your own summary, and the thing you checked.
 - [ ] Your summary is in your own words: you could say the same thing out loud, without notes.
@@ -274,7 +319,7 @@ Due before next session.
 | Command | What it does | Works this week? |
 |---|---|---|
 | `npm install` | installs the project's packages | ✅ |
-| `npm run doctor` | checks your setup: 7 checks, one line each, `→` hints for failures | ✅ |
+| `npm run doctor` | checks your setup: 8 checks, one line each, `→` hints for failures | ✅ |
 | `npx vitest run tests/week-01` | this week's test (your notes) | ✅ once your notes are written |
 | `npm run bus` | starts the bus on port 3006 (Ctrl+C to stop) | ✅ it runs; nothing connects yet |
 | `npm run hello`, `npm run component -- …`, `npm run dev:all` | the parts you build later | ❌ from week 2 onwards |

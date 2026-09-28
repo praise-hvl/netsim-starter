@@ -60,7 +60,7 @@ and Windows: a GitHub account, a ChatGPT account and the student offer, Node.js 
 
 ```bash
 # after forking github.com/praiseisaac/netsim-starter on GitHub
-git clone https://github.com/<you>/netsim-starter.git netsim
+git clone https://github.com/<you>/netsim-starter.git netsim   # or git@github.com:<you>/netsim-starter.git (SSH)
 cd netsim
 git remote add upstream https://github.com/praiseisaac/netsim-starter.git
 git fetch upstream
