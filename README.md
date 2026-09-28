@@ -42,12 +42,14 @@ The course's AI tool is **Codex** (from ChatGPT); GitHub Copilot is the fallback
 students can get ChatGPT Plus, which includes Codex, free for 4 months: week 1 shows how to
 claim it (by October 31, 2026).
 
-Your copy of the course has an `AGENTS.md` that makes Codex act as a **tutor**: it explains,
-gives hints and points you to the right test or doc, but it won't write the code inside a
-`TODO(week N, …)` region for you. What's graded is whether you understand the hardware idea and
-your own code: each week starts with a short **explain-it-back** conversation, **without notes
-or AI**, where you walk through what you built. A good rule: if you can't explain a line, you
-don't have it yet.
+Codex may write code with you, including in the `TODO(week N, …)` regions, but **you guide the
+design**: you decide the approach and the structure, and Codex does the typing. Your copy of the
+course has an `AGENTS.md` that makes Codex ask how you want to approach something (or offer two
+options) before it writes, follow your design, explain what it wrote, and never edit the tests.
+What's graded is whether you understand the hardware idea and your own code: each week's work is
+checked in a short **explain-it-back** conversation at the next session, **without notes or
+AI**, where you walk through what you built and why. A good rule: if you can't explain a line,
+you don't have it yet.
 
 ## Getting started (week 1)
 
