@@ -180,8 +180,12 @@ is no `@student` code this week.
   - Install Node 22+, git and VS Code, then the Codex CLI (`npm install -g @openai/codex`) and the
     Codex VS Code extension.
   - Fork the starter repo and clone the fork. Then `git remote add upstream <starter URL>`,
-    `git switch -c work upstream/week-1-start` and `npm install`, until `npm run doctor` shows all
-    checks passing.
+    `git switch -c work upstream/week-1-start` and `npm install`, until `npm run doctor` ends with
+    `doctor: all 8 checks passed`. Its 8 required checks: Node 22+, git knows who you are, on the
+    `work` branch, `upstream` set, origin is your fork (compared by owner/repo, whatever the URL
+    form), you can push to your fork (the account git pushes as, via `ssh -T` or `gh`, must own
+    the fork), dependencies installed, and the Codex CLI. VS Code's `code` command only warns;
+    without a network the push check warns and asks you to run it again.
   - The unplugged system-roles activity: students act out CPU, memory, bus and a button, passing
     paper messages on a clock.
   - Watch Praise's live system on the projected dashboard.
@@ -193,8 +197,9 @@ is no `@student` code this week.
 
   Commit on `work` and push it to your fork.
 - **Tests (`tests/week-01/`):** `setup.test.ts` checks Node 22+ and that the notes are really
-  filled in: the doctor summary line with no failures, 60+ words of summary, and the check
-  section.
+  filled in: `doctor: all 8 checks passed` with no failures, 60+ words of summary, and the check
+  section. `doctor.test.ts` checks the doctor itself with a pretend laptop (no network needed),
+  including the push-as-the-wrong-account case.
 - **Explain it back:** Draw the system on paper and name each part's job. What did Codex get right
   about `bus/server.ts`, and how do you know? What are `origin` and `upstream`, and why do you need
   both?
