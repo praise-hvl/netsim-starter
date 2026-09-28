@@ -24,7 +24,7 @@ Do as much of the checklist below as you can at home, on the laptop you'll bring
 Anything you get stuck on, we finish in class. At minimum, before you arrive:
 
 1. Create your **GitHub account** (step A1) and send your username to the instructor, so they
-   can add you to the course repo before class.
+   can find your fork (that's where your work is graded).
 2. Create your **ChatGPT account** (step A2). Claiming the student offer can take a day if
    verification needs documents, so start early.
 3. Charge your laptop and make sure you have ~5 GB free disk space.
@@ -41,14 +41,13 @@ to show on a CV. Then:
 
 - Turn on two-factor authentication (Settings → Password and authentication). GitHub requires
   it for most accounts anyway.
-- Send your username to the instructor. They'll add you to the private course repo; you'll get
-  an **invitation email** from GitHub. **Accept it** (or open the repo link and accept there).
-  Until you do, the repo looks like it doesn't exist (404).
+- Send your username to the instructor, so they can find your fork.
 - Optional, recommended: apply for the [GitHub Student Developer Pack](https://education.github.com/pack)
   with your school email. It includes GitHub Copilot for free, which is the course's fallback AI
   tool (see A2).
 
-✅ **Check:** you can open the course starter repo in your browser while signed in.
+✅ **Check:** you can sign in, and you can open the course starter repo,
+[github.com/praiseisaac/netsim-starter](https://github.com/praiseisaac/netsim-starter).
 
 **A2. ChatGPT and the student offer.** The course's AI tool is **Codex**, which comes with a
 ChatGPT account.
@@ -108,14 +107,14 @@ git config --global user.email "you@example.com"
 
 ✅ **Check:** `git --version` prints a version; `git config user.name` prints your name.
 
-**B3. Signing in to GitHub from the terminal.** The course repo is private, so git needs to
-know it's you.
+**B3. Signing in to GitHub from the terminal.** You'll push your work to your fork, so git
+needs to know it's you.
 
 - **Easiest on both systems:** install the **GitHub CLI** ([cli.github.com](https://cli.github.com);
   macOS `brew install gh`, Windows the `.msi` installer), then run `gh auth login`, choose
   **GitHub.com → HTTPS → Login with a web browser**, and follow the prompts.
-- **Windows alternative:** skip `gh`; the first `git clone` of a private repo opens a GitHub
-  sign-in window (Git Credential Manager).
+- **Windows alternative:** skip `gh`; the first `git push` opens a GitHub sign-in window (Git
+  Credential Manager).
 
 ✅ **Check:** `gh auth status` says you're logged in (if you installed `gh`).
 
@@ -153,17 +152,21 @@ question like "what is a WebSocket?".
 
 ### C. The course code
 
-**C1. Fork the starter repo.** On GitHub, open the course starter repo (the link is in the
-invitation), click **Fork**, and create the fork under your own account. Your fork stays
-private.
+**C1. Fork the starter repo.** On GitHub, open the course starter repo,
+[github.com/praiseisaac/netsim-starter](https://github.com/praiseisaac/netsim-starter), click
+**Fork**, and create the fork under your own account (the defaults are fine).
+
+Your fork is **public**, like the starter repo: anyone, including your classmates, can see what
+you push. That's normal on GitHub, and a public repo can go on your CV. It also means copying is
+easy, which is why every week's grade depends on explaining your own work without notes or AI.
 
 **C2. Clone your fork, connect it to the course, and make your `work` branch.** In the terminal,
 go to the folder where you keep projects, then:
 
 ```bash
-git clone https://github.com/<you>/<starter-repo>.git netsim
+git clone https://github.com/<you>/netsim-starter.git netsim
 cd netsim
-git remote add upstream https://github.com/<instructor>/<starter-repo>.git
+git remote add upstream https://github.com/praiseisaac/netsim-starter.git
 git fetch upstream
 git switch -c work upstream/week-1-start   # your branch for the whole course
 git push -u origin work
