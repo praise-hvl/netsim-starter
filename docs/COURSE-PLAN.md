@@ -177,10 +177,22 @@ is no `@student` code this week.
   - Accounts: GitHub (with GitHub Education), and ChatGPT with the student offer claimed
     (chatgpt.com/students; Codex credits: chatgpt.com/codex/students). GitHub Copilot Student is
     the fallback.
-  - Install Node 22+, git and VS Code, then the Codex CLI (`npm install -g @openai/codex`) and the
-    Codex VS Code extension.
-  - Fork the starter repo and clone the fork. Then `git remote add upstream <starter URL>`,
-    `git switch -c work upstream/week-1-start` and `npm install`, until `npm run doctor` ends with
+  - Install Node 22+. Then the guided setup script does the rest, one step at a time:
+    - macOS: `curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -o setup.mjs && node setup.mjs`
+    - Windows (PowerShell): `irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -OutFile setup.mjs; node setup.mjs`
+      (untested on a real Windows machine so far)
+
+    It shows a checklist of 15 steps, then for each one: WHY, STATUS, and, if it isn't done, the
+    command in grey for the student to type (it runs only when typed correctly; after 3 misses it
+    offers to run it). Done steps show ✓ and wait for Enter. The steps: Node 22 or newer; git
+    installed; git knows who you are; GitHub CLI (gh); signed in to GitHub (and it's the right
+    account); git signs in with that account (`gh auth setup-git`); ChatGPT account and the student
+    offer (optional); your fork of the starter repo; your fork on this laptop (clone); upstream
+    remote; the work branch, on GitHub (`git push -u origin work`); VS Code with the `code` command
+    (optional); Codex CLI, signed in; course dependencies (`npm install`); `npm run doctor`. It's
+    safe to rerun (`npm run setup` inside the repo): it re-checks from the top. The Codex VS Code
+    extension is installed by hand, from VS Code's Extensions view.
+  - The setup ends with `npm run doctor`, which must end with
     `doctor: all 8 checks passed`. Its 8 required checks: Node 22+, git knows who you are, on the
     `work` branch, `upstream` set, origin is your fork (compared by owner/repo, whatever the URL
     form), you can push to your fork (the account git pushes as, via `ssh -T` or `gh`, must own
