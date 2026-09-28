@@ -52,14 +52,13 @@ don't have it yet.
 ## Getting started (week 1)
 
 Week 1 is all setup, and [its guide](docs/weeks/week-01.md) walks through every step on macOS
-and Windows: a GitHub account (the instructor adds you to the private course repo), a ChatGPT
-account and the student offer, Node.js 22+, git, VS Code, and Codex. Then, in short:
+and Windows: a GitHub account, a ChatGPT account and the student offer, Node.js 22+, git, VS Code, and Codex. Then, in short:
 
 ```bash
-# after forking the course starter repo on GitHub
-git clone https://github.com/<you>/<starter-repo>.git netsim
+# after forking github.com/praiseisaac/netsim-starter on GitHub
+git clone https://github.com/<you>/netsim-starter.git netsim
 cd netsim
-git remote add upstream https://github.com/<instructor>/<starter-repo>.git
+git remote add upstream https://github.com/praiseisaac/netsim-starter.git
 git fetch upstream
 git switch -c work upstream/week-1-start   # your branch for the whole course
 git push -u origin work
