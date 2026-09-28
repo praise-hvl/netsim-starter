@@ -11,6 +11,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "doctor": "tsx scripts/doctor.ts",
+    "setup": "node setup.mjs",
     "bus": "tsx bus/start.ts",
     "component": "tsx components/run.ts",
     "hello": "tsx scripts/hello.ts",

@@ -87,6 +87,7 @@ programs/                 Demo programs and interrupt handlers (*.asm), index.ts
                           read.ts (Node only: source + bytes)
 app/                      Next.js dashboard (React Flow)
 tests/week-01 ... week-08 Vitest tests, grouped by the week that unlocks them; helpers.ts
+setup.mjs                 Guided laptop setup (zero dependencies, runs before the repo exists)
 scripts/                  doctor, hello, demo, asm, fsm-export, make-week-branches, catch-up
 docs/notes/               Your weekly notes (week 1: setup and a Codex exercise)
 course/                   Instructor only: the students' AGENTS.md source (never in week branches)
@@ -520,6 +521,8 @@ npm run bus                          # just the bus (BUS_HOST, BUS_PORT, BUS_SPE
 npm run component -- memory cpu host # components (BUS_URL; LOG=1 also prints all traffic)
 npm run demo                         # load the demo programs and peripherals, start the clock
 npm run demo -- --ticks 300          # ...or run 300 ticks headless and print a summary
+node setup.mjs                       # week 1: set up the laptop step by step (before the repo exists)
+npm run setup                        # ...the same, again, from inside the course folder (--dry-run to only show)
 npm run doctor                       # week 1: is this machine and clone ready?
 npm run hello                        # week 2: say hello to the bus
 npm run asm -- programs/countdown.asm            # assemble and print a listing
