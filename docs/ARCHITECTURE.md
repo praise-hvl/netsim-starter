@@ -87,7 +87,9 @@ programs/                 Demo programs and interrupt handlers (*.asm), index.ts
                           read.ts (Node only: source + bytes)
 app/                      Next.js dashboard (React Flow)
 tests/week-01 ... week-08 Vitest tests, grouped by the week that unlocks them; helpers.ts
-scripts/                  hello, demo, asm, fsm-export, make-week-branches, catch-up
+scripts/                  doctor, hello, demo, asm, fsm-export, make-week-branches, catch-up
+docs/notes/               Your weekly notes (week 1: setup and a Codex exercise)
+course/                   Instructor only: the students' AGENTS.md source (never in week branches)
 ```
 
 Rules of thumb:
@@ -518,7 +520,8 @@ npm run bus                          # just the bus (BUS_HOST, BUS_PORT, BUS_SPE
 npm run component -- memory cpu host # components (BUS_URL; LOG=1 also prints all traffic)
 npm run demo                         # load the demo programs and peripherals, start the clock
 npm run demo -- --ticks 300          # ...or run 300 ticks headless and print a summary
-npm run hello                        # week 1: say hello to the bus
+npm run doctor                       # week 1: is this machine and clone ready?
+npm run hello                        # week 2: say hello to the bus
 npm run asm -- programs/countdown.asm            # assemble and print a listing
 npx vitest                           # tests (watch mode); npx vitest run tests/week-03
 npm run fsm:export                   # write docs/diagrams/*.md from the transition tables
@@ -528,7 +531,8 @@ npm run weeks -- --verify            # instructor: check the generated week bran
 
 ## Instructor setup: a shared live bus
 
-In week 1 every student connects to one bus on the instructor's machine.
+In week 1 students watch the instructor's live system; from week 2 every student connects to one
+bus on the instructor's machine.
 
 1. On the instructor machine: `BUS_HOST=0.0.0.0 npm run bus`. The bus now accepts connections
    from the local network (the default, `127.0.0.1`, only accepts this machine). Find the LAN

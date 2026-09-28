@@ -5,15 +5,28 @@
 import { connect, type BusClient } from "@/components/client";
 import { hex } from "@/protocol/memory-map";
 import type { Message } from "@/protocol/messages";
-import { todo } from "@/core/todo";
 
 /** A short human description of a message's payload. */
 export function describe(message: Message): string {
-  // @student week=2 part=home id=logger "Describe the payload of the message types you care about in a few words"
-  // TODO(week 2, logger): Describe the payload of the message types you care about in a few words
-  // Tests: tests/week-02/   Guide: docs/weeks/week-02.md
-  return todo("week 2: logger", message);
-  // @end
+  switch (message.type) {
+    case "mem.read":
+      return `${hex(message.payload.address)} ×${message.payload.length}`;
+    case "mem.data":
+      return `${message.payload.bytes.length} bytes`;
+    case "mem.write":
+      return `${hex(message.payload.address)} ← [${message.payload.bytes.join(", ")}]`;
+    case "program.load":
+      return `${message.payload.bytes.length} bytes at ${hex(message.payload.address)}`;
+    case "irq":
+      return `vector ${hex(message.payload.vector)} priority ${message.payload.priority}`;
+    case "fault":
+    case "error":
+      return message.payload.message;
+    case "status":
+      return message.payload.state;
+    default:
+      return "";
+  }
 }
 
 /** Formats messages one per line, timing each reply against its request. */

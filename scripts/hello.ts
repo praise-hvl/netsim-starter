@@ -9,10 +9,10 @@ export type HelloOptions = { id: string; url?: string; print?: (line: string) =>
 
 /** Connect, say who is already here, then report every join, leave and 10th tick. */
 export async function hello(options: HelloOptions): Promise<BusClient> {
-  // @student week=1 part=home id=hello-script "Connect with your id, print who is already here, then print joined/left and every 10th tick"
-  // TODO(week 1, hello-script): Connect with your id, print who is already here, then print joined/left and every 10th tick
-  // Tests: tests/week-01/   Guide: docs/weeks/week-01.md
-  return todo("week 1: hello-script", options);
+  // @student week=2 part=home id=hello-script "Connect with your id, print who is already here, then print joined/left and every 10th tick"
+  // TODO(week 2, hello-script): Connect with your id, print who is already here, then print joined/left and every 10th tick
+  // Tests: tests/week-02/   Guide: docs/weeks/week-02.md
+  return todo("week 2: hello-script", options);
   // @end
 }
 

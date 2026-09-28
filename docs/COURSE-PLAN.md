@@ -79,7 +79,7 @@ teaches validation, so `parseMessage` ships as a trusting cast:
 
 `npm run weeks -- [--from <ref>] [--week N] [--solution N] [--verify [--typecheck]] [--push <remote>]`
 
-1. Read every tracked `.ts`, `.tsx` and `.asm` file on `netsim` (or `--from <ref>`; `--verify`
+1. Read every tracked `.ts`, `.tsx`, `.asm` and `docs/notes/*.md` file on `netsim` (or `--from <ref>`; `--verify`
    checks `HEAD`, the code you have checked out) and find the `@student … @end`
    regions. Fail loudly on a missing `@end`, a nested region, or a duplicate `id`.
 2. Build **one stubbed tree**: every region, of every week, replaced by its stub. Infrastructure
@@ -90,6 +90,10 @@ teaches validation, so `parseMessage` ships as a trusting cast:
    - `week-N-start` = `week-(N-1)-start` + `tests/week-NN/` + `docs/weeks/week-NN.md` + `course.json { "week": N }`
 
    Other fields in `course.json` (such as `peripheral`, the student's week-6 choice) are kept.
+
+   Every branch also gets an `AGENTS.md` (from `course/AGENTS.student.md`), which Codex reads: it
+   tutors instead of writing `TODO` regions for the student. Instructor-only files never ship:
+   `course/`, `.github/` and the generator itself.
 4. `vitest.config.ts` reads `course.json` and only includes `tests/week-01` … `tests/week-NN`.
    On `netsim`, `course.json` says 8, so everything runs.
 5. `--verify` checks every week N in a temporary copy, twice:
@@ -131,8 +135,8 @@ code itself, so treat that output as the source of truth.
 
 | Week | In class (`part=class`) | Take-home (`part=home`) |
 |---|---|---|
-| 1 | `components/client.ts`: `handshake` | `client.ts`: `handle-tick`; `scripts/hello.ts`: `hello-script` |
-| 2 | `protocol/messages.ts`: `is-mem-read`, `parse-message` (stubbed as a trusting cast until then); `client.ts`: `client-request` | `core/memory.ts`: `memory-read`, `memory-write`; `components/memory.ts`: `memory-handler`; `components/logger.ts`: `logger` |
+| 1 | – (setup; see week 1) | `docs/notes/week-01.md`: `setup-doctor`, `setup-codex-summary`, `setup-codex-check` |
+| 2 | `components/client.ts`: `handshake`, `client-request`; `protocol/messages.ts`: `is-mem-read`, `parse-message` (stubbed as a trusting cast until then) | `client.ts`: `handle-tick`; `core/memory.ts`: `memory-read`, `memory-write`; `components/memory.ts`: `memory-handler`; `scripts/hello.ts`: `hello-script` |
 | 3 | `core/isa.ts`: `decode`; `core/cpu-core.ts`: `fetch`, `await-instruction`, `decode-step`, `execute-core` (LOAD/ADD/HALT), `await-data` | `isa.ts`: `encode`; `cpu-core.ts`: `execute-rest` (STORE/SUB/LOADI/JMP/JZ/JNZ) |
 | 4 | `components/cpu.ts`: `cpu-send-effects`, `cpu-latch-reply`; `bus/server.ts`: `tick-barrier` (stubbed as "tick.done only" until then) | `core/scheduler.ts`: `pick-next`, `should-preempt`, `switch-out`; read `tests/week-04/order.test.ts` and add one assertion |
 | 5 | `components/peripherals/button.ts`: `button-view` | LED peripheral (PERIPH's regions in `components/peripherals/led.ts`) |
@@ -141,11 +145,13 @@ code itself, so treat that output as the source of truth.
 | 8 | – | – (Seven-segment and Screen are the stretch options for the final demo) |
 
 Regions in `.asm` files use `; @student …` / `; @end`, and their default stub is a handler that
-only does `IRET`.
+only does `IRET`. The student notes in `docs/notes/*.md` (and no other Markdown) use HTML comments,
+`<!-- @student … -->` / `<!-- @end -->`; their stub is a `<!-- TODO(week N, id): … -->` comment
+under the heading.
 
 The bus routing, the client plumbing, the peripheral shell (`startPeripheral`), the Button apart
-from its `button-view` region, the host, the dashboard, `todo` and the test helpers are
-infrastructure: never stubbed. The Timer is *not* infrastructure: its `timer-input` and
+from its `button-view` region, the host, the logger, `npm run doctor`, the dashboard, `todo` and
+the test helpers are infrastructure: never stubbed. The Timer is *not* infrastructure: its `timer-input` and
 `timer-tick` regions are part of week 6's in-class build.
 
 ## Week by week
@@ -154,41 +160,71 @@ Each week lists: what gets built, the tests that gate it, and the explain-it-bac
 explain-it-back is a 5-minute conversation (or a short recorded video) at the start of the next
 session. Pass = the student can answer without notes or AI, pointing at their own code.
 
-### Week 1 — Introduction & System Roles
+### Week 1 — Setup & System Roles
 
 **Hardware idea:** the roles of CPU, memory and I/O; what a bus and a clock are for.
-**Software idea:** WebSockets, JSON messages, async/await, a handshake.
+**Software idea:** the toolchain (Node, npm, git, VS Code), forks and remotes, and working with an
+AI assistant you can check.
 
-- **In class:** fork the starter repo, clone, `npm install`, run `npm run bus`. Walk through
-  `ARCHITECTURE.md`'s big picture. Build `connect()` together: open the socket, send `hello`,
-  wait for `welcome`. Everyone connects their client to the instructor's live bus and appears on
-  the projected dashboard.
-- **Take-home:** handle `tick` (log it, reply `tick.done`); write `scripts/hello.ts` that
-  connects, prints the other components from `welcome`, and prints `joined`/`left` as classmates
-  come and go. Commit on your `work` branch and push it to your fork.
-- **Tests (`tests/week-01/`):** `handshake.test.ts` (client gets `welcome` with the right tick),
-  `ticks.test.ts` (client answers every tick with `tick.done` for the same tick number).
-- **Explain it back:** Draw the system on paper. Why does the bus hold the clock instead of each
-  component keeping its own time? What happens if your client never sends `tick.done`?
+Some students arrive with nothing installed, so this week gets everyone to a working setup. There
+is no `@student` code this week.
 
-### Week 2 — Message Protocols
+- **In class:**
+  - Accounts: GitHub (with GitHub Education), and ChatGPT with the student offer claimed
+    (chatgpt.com/students; Codex credits: chatgpt.com/codex/students). GitHub Copilot Student is
+    the fallback.
+  - Install Node 22+, git and VS Code, then the Codex CLI (`npm install -g @openai/codex`) and the
+    Codex VS Code extension.
+  - Fork the starter repo and clone the fork. Then `git remote add upstream <starter URL>`,
+    `git switch -c work upstream/week-1-start` and `npm install`, until `npm run doctor` shows all
+    checks passing.
+  - The unplugged system-roles activity: students act out CPU, memory, bus and a button, passing
+    paper messages on a clock.
+  - Watch the instructor's live system on the projected dashboard.
+- **Take-home:** finish the setup. Fill in `docs/notes/week-01.md`:
+  - `setup-doctor`: paste the `npm run doctor` output.
+  - `setup-codex-summary`: ask Codex to explain `bus/server.ts`, close it, and write what the file
+    does in your own words (60+ words).
+  - `setup-codex-check`: one thing Codex claimed that you checked in the code yourself.
+
+  Commit on `work` and push it to your fork.
+- **Tests (`tests/week-01/`):** `setup.test.ts` checks Node 22+ and that the notes are really
+  filled in: the doctor summary line with no failures, 60+ words of summary, and the check
+  section.
+- **Explain it back:** Draw the system on paper and name each part's job. What did Codex get right
+  about `bus/server.ts`, and how do you know? What are `origin` and `upstream`, and why do you need
+  both?
+
+### Week 2 — Connecting & Message Protocols
 
 **Hardware idea:** address bus vs. data bus; byte-addressable memory; bounds and bus faults.
-**Software idea:** schemas, discriminated unions, validating at the boundary, request/response
-correlation.
+**Software idea:** WebSockets and a handshake; schemas, discriminated unions and validating at the
+boundary; request/response correlation.
 
-- **In class:** write one type guard by hand (`isMemRead`), feel the pain, then replace it with a
-  zod schema and `z.infer`. Add the `mem.*` messages to the union. Build `client.request()`
-  (send with an `id`, resolve when a message with that `replyTo` arrives, reject on `fault`).
-- **Take-home:** `core/memory.ts` (`read`, `write`, bounds → `fault`); the Memory shell that
-  answers `mem.read`/`mem.write`; a logger that prints `→ mem.read 0x010 (cpu-88)` /
-  `← mem.data 4 bytes in 3 ms`.
-- **Tests:** `messages.test.ts` (valid messages parse; wrong types, missing fields and unknown
-  `type` are rejected with a useful error), `memory.test.ts` (pure), `memory-over-bus.test.ts`
-  (a test client reads back what it wrote; out-of-range gets `fault`).
+- **In class:**
+  - Build `connect()`'s handshake together: open the socket, send `hello`, wait for `welcome`.
+  - Write one type guard by hand (`isMemRead`) and feel the pain. Then replace it with the zod
+    schema in `parseMessage`.
+  - Build `client.request()`: send with an `id`, resolve when a message with that `replyTo`
+    arrives, reject on `fault`. Reply correlation is this week's core idea.
+  - Everyone connects to the instructor's live bus and appears on the projected dashboard.
+  - From now on, `LOG=1` shows every message on the bus (the logger is already built).
+- **Take-home:**
+  - `handle-tick`: remember the tick, run the handlers, reply `tick.done`.
+  - `core/memory.ts`: `read`, and `write` with bounds → `fault`.
+  - The Memory shell that answers `mem.read` and `mem.write`.
+  - `scripts/hello.ts` (`npm run hello`): join the class bus and print who is there, who comes and
+    goes, and every 10th tick.
+- **Tests (`tests/week-02/`):**
+  - `handshake.test.ts`, `ticks.test.ts`, `hello.test.ts` and `late-join.test.ts` (moved from week
+    1).
+  - `messages.test.ts`: valid messages parse; wrong types, missing fields and unknown `type` are
+    rejected with a useful error.
+  - `memory.test.ts` (pure), `memory-over-bus.test.ts`, `memory-status.test.ts`,
+    `who-may-send.test.ts` and `logger.test.ts`.
 - **Explain it back:** Show a message your validator rejects and why letting it through would
-  break something later. How does a reply find its way back to the right request? Why is the
-  address 16 bits when memory is only 1 KB?
+  break something later. How does a reply find its way back to the right request? What happens if
+  your client never sends `tick.done`? Why is the address 16 bits when memory is only 1 KB?
 
 ### Week 3 — Component FSM Logic
 

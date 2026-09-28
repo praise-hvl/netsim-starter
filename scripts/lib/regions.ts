@@ -6,7 +6,11 @@
 //   ...solution...
 //   // @end
 //
-// In .asm files the same markers start with `;` instead of `//`.
+// In .asm files the same markers start with `;` instead of `//`. In the student notes
+// (docs/notes/*.md, and only there) they are HTML comments:
+//   <!-- @student week=1 part=home id=setup-doctor "Paste your npm run doctor output" -->
+//   ...example answer...
+//   <!-- @end -->
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,12 +35,18 @@ export type Region = {
 
 export class RegionError extends Error {}
 
-const START = /^(\s*)(\/\/|;) @student week=(\d+) part=(class|home) id=([a-z0-9-]+) "([^"]*)"\s*$/;
-const STUB = /^\s*(\/\/|;) @stub(?: (.*))?$/;
-const END = /^\s*(\/\/|;) @end\s*$/;
+// `//` for TypeScript, `;` for assembly, `<!--` … `-->` for the notes.
+const START = /^(\s*)(\/\/|;|<!--) @student week=(\d+) part=(class|home) id=([a-z0-9-]+) "([^"]*)"(?:\s*-->)?\s*$/;
+const STUB = /^\s*(\/\/|;|<!--) @stub(?: (.*?))?(?:\s*-->)?$/;
+const END = /^\s*(\/\/|;|<!--) @end(?:\s*-->)?\s*$/;
+
+/** Notes are the only Markdown with regions: other docs show markers as examples. */
+function isNotesFile(file: string): boolean {
+  return /^docs\/notes\/[^/]+\.md$/.test(file);
+}
 
 export function isRegionFile(file: string): boolean {
-  return /\.(ts|tsx|asm)$/.test(file);
+  return /\.(ts|tsx|asm)$/.test(file) || isNotesFile(file);
 }
 
 export function findRegions(file: string, text: string): Region[] {
@@ -55,7 +65,7 @@ export function findRegions(file: string, text: string): Region[] {
       return;
     }
     if (line.includes("@student") && !line.includes("`@student`")) {
-      if (/^\s*(\/\/|;) @student/.test(line)) throw new RegionError(`${where}: malformed @student marker`);
+      if (/^\s*(\/\/|;|<!--) @student/.test(line)) throw new RegionError(`${where}: malformed @student marker`);
     }
     if (!open) {
       if (END.test(line)) throw new RegionError(`${where}: @end without @student`);
@@ -108,6 +118,9 @@ function enclosingParameters(file: string, text: string, line: number): string[]
 function stubLines(region: Region, text: string): string[] {
   const week = String(region.week).padStart(2, "0");
   const asm = region.file.endsWith(".asm");
+  if (isNotesFile(region.file)) {
+    return [`${region.indent}<!-- TODO(week ${region.week}, ${region.id}): ${region.description} -->`, ""];
+  }
   const comment = asm ? ";" : "//";
   const todoLine = `${region.indent}${comment} TODO(week ${region.week}, ${region.id}): ${region.description}`;
   const pointer = `${region.indent}${comment} Tests: tests/week-${week}/   Guide: docs/weeks/week-${week}.md`;
@@ -139,7 +152,7 @@ export function renderFile(file: string, text: string, fill: Fill): string {
   }
   out.push(...lines.slice(cursor));
   let result = out.join("\n");
-  if (!file.endsWith(".asm") && /\btodo\(/.test(result) && !/import \{[^}]*\btodo\b[^}]*\} from "@\/core\/todo"/.test(result)) {
+  if (/\.tsx?$/.test(file) && /\btodo\(/.test(result) && !/import \{[^}]*\btodo\b[^}]*\} from "@\/core\/todo"/.test(result)) {
     result = addTodoImport(result);
   }
   return result;

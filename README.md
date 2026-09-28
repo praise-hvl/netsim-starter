@@ -20,8 +20,8 @@ Fridays, 2–3 hours per session. Each week has an **in-class build** (together,
 
 | Week | Topic | You build |
 |---|---|---|
-| 1 | [Introduction & System Roles](docs/weeks/week-01.md) | The handshake every component uses to join the bus |
-| 2 | [Message Protocols](docs/weeks/week-02.md) | Message validation, request/reply, the Memory component |
+| 1 | [Setup & System Roles](docs/weeks/week-01.md) | Your accounts, tools and copy of the code; the parts of a computer and their jobs |
+| 2 | [Connecting & Message Protocols](docs/weeks/week-02.md) | The handshake every component uses to join the bus, message validation, request/reply, the Memory component |
 | 3 | [Component FSM Logic](docs/weeks/week-03.md) | Instruction decoding and the CPU core's fetch–decode–execute state machine |
 | 4 | [System Integration](docs/weeks/week-04.md) | The CPU on the bus, the tick barrier, a round-robin scheduler |
 | 5 | [React Flow Visualization](docs/weeks/week-05.md) | Dashboard nodes; the LED peripheral end to end |
@@ -36,41 +36,39 @@ answer at the start of the next session.
 **Prerequisites:** loops and functions, basic Node.js and TypeScript, git basics (clone,
 commit, push), and a rough idea of what a CPU, memory and I/O are for.
 
-### Using AI
+### Using AI: Codex
 
-You may use AI tools. What's graded is whether you understand the hardware idea and your own
-code: each week ends with a short **explain-it-back** conversation, without notes or AI, where
-you walk through what you built. Every week guide has a "Using AI this week" box saying what's
-fine to ask and what you must be able to explain yourself. A good rule: if you can't explain a
-line, you don't have it yet.
+The course's AI tool is **Codex** (from ChatGPT); GitHub Copilot is the fallback. US college
+students can get ChatGPT Plus, which includes Codex, free for 4 months: week 1 shows how to
+claim it (by October 31, 2026).
+
+Your copy of the course has an `AGENTS.md` that makes Codex act as a **tutor**: it explains,
+gives hints and points you to the right test or doc, but it won't write the code inside a
+`TODO(week N, …)` region for you. What's graded is whether you understand the hardware idea and
+your own code: each week starts with a short **explain-it-back** conversation, **without notes
+or AI**, where you walk through what you built. A good rule: if you can't explain a line, you
+don't have it yet.
 
 ## Getting started (week 1)
 
-You'll need **Node.js 22+** (`node --version`) and **git**.
+Week 1 is all setup, and [its guide](docs/weeks/week-01.md) walks through every step on macOS
+and Windows: a GitHub account (the instructor adds you to the private course repo), a ChatGPT
+account and the student offer, Node.js 22+, git, VS Code, and Codex. Then, in short:
 
-1. **Fork** the course starter repo on GitHub (your instructor will share the link), then:
+```bash
+# after forking the course starter repo on GitHub
+git clone https://github.com/<you>/<starter-repo>.git netsim
+cd netsim
+git remote add upstream https://github.com/<instructor>/<starter-repo>.git
+git fetch upstream
+git switch -c work upstream/week-1-start   # your branch for the whole course
+git push -u origin work
+npm install
+npm run doctor                             # checks your setup; fix anything it marks ✗
+```
 
-   ```bash
-   git clone https://github.com/<you>/<starter-repo>.git netsim
-   cd netsim
-   git remote add upstream https://github.com/<instructor>/<starter-repo>.git
-   git fetch upstream
-   git switch -c work upstream/week-1-start   # your branch for the whole course
-   git push -u origin work
-   npm install
-   ```
-
-   All your work for the whole course goes on `work`. Every week you merge the new week into
-   it; you never switch branches.
-
-2. Check it works:
-
-   ```bash
-   npm run bus                    # the bus, on ws://localhost:3006 (leave it running)
-   npx vitest tests/week-01       # this week's tests: they fail until you write the code
-   ```
-
-3. Open [docs/weeks/week-01.md](docs/weeks/week-01.md) and follow along.
+All your work for the whole course goes on `work`. Every week you merge the new week into it;
+you never switch branches.
 
 **Every week after that**, before class, on your `work` branch:
 
@@ -104,8 +102,9 @@ Which of these work depends on the week: parts that later weeks build throw a cl
 error until you get there. Your week guide lists exactly what works.
 
 ```bash
-npm run bus                          # just the bus (week 1+)
-npm run hello                        # week 1: say hello to the bus (HELLO_ID=you)
+npm run doctor                       # week 1: check your setup
+npm run bus                          # just the bus
+npm run hello                        # week 2: say hello to the bus (HELLO_ID=you)
 npm run component -- memory cpu host # components (memory: week 2+, cpu: week 4+; LOG=1 prints all traffic)
 npm run dev:all                      # bus + memory + cpu + host + dashboard at http://localhost:3005 (week 4+)
 npm run demo                         # load the demo programs and peripherals, start the clock

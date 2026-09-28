@@ -1,216 +1,343 @@
-# Week 1: Introduction & System Roles
+# Week 1: Setup & System Roles
 
-By the end of today your code will be talking to a computer that lives on the classroom
-projector. By the end of the course, the computer on that screen will be one you built.
+This week is about getting ready. By the end of it you'll have every tool installed, your own
+copy of the course code on your laptop, an AI tutor that knows the course rules, and a picture
+in your head of the computer you're going to build. You'll also watch the finished computer run
+on the projector: by week 8, the one on your screen will be yours.
+
+No code to write this week. If you already have everything installed, the setup goes fast and
+you can help a neighbour.
 
 ## Goals
 
 - **Hardware idea:** a computer is a few parts with different jobs. The **CPU** runs
-  instructions, **memory** stores bytes, **I/O devices** (buttons, LEDs, timers) connect it to the
-  world. They talk over shared wires, the **bus**, and they move in step with a **clock**.
-- **Software idea:** two programs talking over a **WebSocket** by sending **JSON messages**;
-  `async`/`await` for "wait until the other side answers"; a **handshake** (`hello` → `welcome`)
-  so both sides agree on who is who before anything else happens.
+  instructions, **memory** stores bytes, **I/O devices** (buttons, LEDs, timers) connect it to
+  the world. They talk over shared wires, the **bus**, and they move in step with a **clock**.
+- **Software idea:** a working setup is part of the job: a runtime (**Node.js**), version
+  control (**git** + **GitHub**), an editor (**VS Code**), and a project you can install and
+  check with one command (`npm install`, `npm run doctor`). And an AI tool you use to *learn*,
+  not to hand in work you can't explain.
 
 ## Before class
 
-1. Install Node.js 22 or newer (`node --version`) and git (`git --version`).
-2. Create a GitHub account if you don't have one.
-3. Read [ARCHITECTURE.md](../ARCHITECTURE.md), **"The big picture"** and **"The message
-   protocol → Envelope"** only (about 10 minutes). Don't worry about the rest yet.
-4. Write down one question about how a real CPU talks to memory. Bring it.
+Do as much of the checklist below as you can at home, on the laptop you'll bring every week.
+Anything you get stuck on, we finish in class. At minimum, before you arrive:
 
-## In class: build the handshake
+1. Create your **GitHub account** (step A1) and send your username to the instructor, so they
+   can add you to the course repo before class.
+2. Create your **ChatGPT account** (step A2). Claiming the student offer can take a day if
+   verification needs documents, so start early.
+3. Charge your laptop and make sure you have ~5 GB free disk space.
 
-You'll work in `components/client.ts`. Every component in this course (CPU, memory, every
-peripheral, the dashboard) joins the bus through `connect()`, and the first thing `connect()`
-does is the `handshake()` you write today, so it matters.
+## The setup checklist
 
-1. **Fork and clone.** Fork the course starter repo on GitHub, then:
+Work through the sections in order. Each step says how to check it worked. Where macOS and
+Windows differ, both are given. (Linux users: follow the macOS steps with your package manager.)
 
-   ```bash
-   git clone https://github.com/<you>/<starter-repo>.git netsim
-   cd netsim
-   git remote add upstream https://github.com/<instructor>/<starter-repo>.git
-   git fetch upstream
-   git switch -c work upstream/week-1-start   # your branch for the whole course
-   git push -u origin work
-   npm install
-   ```
+### A. Accounts
 
-   All your work for the whole course goes on `work`. Every week you merge the new week into
-   it; you never switch branches.
+**A1. GitHub.** Sign up at [github.com](https://github.com) (free). Use a username you're happy
+to show on a CV. Then:
 
-   ✅ **Checkpoint:** `cat course.json` prints `{ "week": 1 }`.
+- Turn on two-factor authentication (Settings → Password and authentication). GitHub requires
+  it for most accounts anyway.
+- Send your username to the instructor. They'll add you to the private course repo; you'll get
+  an **invitation email** from GitHub. **Accept it** (or open the repo link and accept there).
+  Until you do, the repo looks like it doesn't exist (404).
+- Optional, recommended: apply for the [GitHub Student Developer Pack](https://education.github.com/pack)
+  with your school email. It includes GitHub Copilot for free, which is the course's fallback AI
+  tool (see A2).
 
-2. **Run the bus on your own machine.**
+✅ **Check:** you can open the course starter repo in your browser while signed in.
 
-   ```bash
-   npm run bus
-   ```
+**A2. ChatGPT and the student offer.** The course's AI tool is **Codex**, which comes with a
+ChatGPT account.
 
-   It prints the address it's listening on (`ws://localhost:3006`). Leave it running in its own
-   terminal. The bus is already written: it's infrastructure, like the physical wires on a
-   motherboard.
+1. Sign up at [chatgpt.com](https://chatgpt.com) (free), ideally with your school email.
+2. If you're a student at a US college or university, claim the student offer at
+   [chatgpt.com/students](https://chatgpt.com/students): **4 months of ChatGPT Plus free**,
+   which includes Codex. You verify you're a student through **SheerID** (school sign-in,
+   enrollment record, or an uploaded document). **Claim it by October 31, 2026**; after that
+   the offer closes.
+3. There's also a separate **Codex for university students** credit offer at
+   [chatgpt.com/codex/students](https://chatgpt.com/codex/students). Claim it too if you're
+   eligible.
+4. After the 4 free months, Plus renews as a paid subscription unless you cancel (Settings →
+   Account → Manage subscription). Put a reminder in your calendar now.
 
-3. **Run the week's tests and watch them fail.**
+**If SheerID verification fails:** try the school sign-in option first; if that doesn't work,
+upload a document that shows your name, your school and the current term (a class schedule or
+enrollment letter works; a student ID without a date often doesn't). You can retry. If it still
+fails, tell the instructor and use the fallback: **GitHub Copilot**, free with the GitHub
+Student Developer Pack (A1), which also works in VS Code. Everything in this course works with
+the free ChatGPT plan or Copilot; the offer just gives you more Codex use.
 
-   ```bash
-   npx vitest tests/week-01
-   ```
+✅ **Check:** you can sign in at chatgpt.com.
 
-   ✅ **Checkpoint:** you see `handshake.test.ts` failing with an error that starts
-   `week 1: connect`. That's the `todo()` stub telling you where to work. Leave Vitest running in
-   watch mode; it re-runs every time you save.
+### B. Tools
 
-4. **Read the stub.** Open `components/client.ts` and find `// TODO(week 1, handshake)` inside
-   `handshake(socket, options)`. Read its signature, the `hello` and `welcome` schemas in
-   `protocol/messages.ts`, and the place in `connect()` that calls it. With your
-   neighbour, answer: what goes in, what comes out, and what does the caller get back?
+**B1. Node.js 22 or newer.** Node runs all of this course's code.
 
-5. **Wait for the socket to open** (together on the projector). `connect()` already created the
-   `WebSocket` for the bus URL; `handshake()` returns a `Promise` that settles later, so listen
-   for the socket's `open` event inside it.
+- **macOS:** download the **LTS** installer (22 or newer) from
+  [nodejs.org](https://nodejs.org) and run it. (If you already use Homebrew: `brew install node`.)
+- **Windows:** download the **LTS** Windows installer (`.msi`) from
+  [nodejs.org](https://nodejs.org) and run it with the defaults. Leave "Automatically install
+  the necessary tools" unticked; you don't need it.
 
-6. **Send `hello`** once it's open. Every message has the envelope fields from ARCHITECTURE.md
-   (`type`, `from`, `to`, `id`, `tick`, `payload`); `envelope(type, from, to, payload, { id,
-   tick })` in `protocol/messages.ts` builds one and makes TypeScript check the payload against
-   the type. For a first `hello` the tick is 0, `to` is `"bus"`, and the payload is your `role`
-   and `label`. Send it as JSON.
+Close and reopen your terminal (macOS: **Terminal**; Windows: **PowerShell**), then:
 
-7. **Wait for `welcome`.** Listen for incoming messages, parse them with `parseMessage`, and
-   resolve with the `welcome` message when it arrives. If the bus answers `error` instead (say,
-   your id is already taken), reject with that message. If the socket errors, reject too.
-
-   ✅ **Checkpoint:** `handshake.test.ts` passes.
-
-8. **Join the class bus.** Open `scripts/hello.ts` and find `TODO(week 1, hello-script)` inside
-   `hello(options)`. Finishing it is take-home, but start it now with just enough to connect,
-   print one line and hand back the client:
-
-   ```ts
-   const print = options.print ?? console.log;
-   const client = await connect({ id: options.id, role: "peripheral", kind: "hello", label: `Hello from ${options.id}`, url: options.url });
-   print(`connected as ${options.id} at tick ${client.tick}`);
-   return client;
-   ```
-
-   (The bottom of the file already reads `HELLO_ID` and calls `hello()` when you run it.)
-
-   Stop your local bus, then point at the instructor's bus (the address is on the board). Use
-   your GitHub username as the id: ids must be unique on a bus (it's lowercased for you, since
-   ids are lowercase letters, digits and dashes).
-
-   ```bash
-   BUS_URL=ws://<address-on-the-board>:3006 HELLO_ID=<your-github-username> npm run hello
-   ```
-
-   ✅ **Checkpoint:** your name appears as a node on the projected dashboard. Leave it running;
-   when the instructor starts the clock, watch what happens to your node while you have no
-   `tick.done` yet.
-
-9. **Commit.**
-
-   ```bash
-   git add -A && git commit -m "week 1: connect handshake" && git push
-   ```
-
-### What the code looks like (shape only)
-
-The point is the shape, not the exact lines. Yours will differ.
-
-```ts
-return new Promise((resolve, reject) => {
-  socket.addEventListener("open", () => socket.send(JSON.stringify(hello)), { once: true });
-  socket.addEventListener("message", onMessage);  // resolve(welcome) or reject(error)
-  socket.addEventListener("error", () => reject(new Error("could not reach the bus")));
-});
+```bash
+node --version   # v22.x or higher
+npm --version
 ```
 
-Why wrap events in a promise? Because "open the socket, then send, then wait for a reply" is a
-*sequence*, and a promise lets the caller write `const welcome = await handshake(...)` and read
-it top to bottom instead of nesting callbacks.
+**B2. git.**
+
+- **macOS:** run `git --version`. If git isn't installed, macOS offers to install the
+  "command line developer tools": say **Install**, wait, then run it again.
+- **Windows:** download **Git for Windows** from [git-scm.com](https://git-scm.com) and install
+  it with the defaults. It includes **Git Credential Manager**, which handles signing in to
+  GitHub for you.
+
+Then tell git who you are (use the email of your GitHub account):
+
+```bash
+git config --global user.name "Ada Lovelace"
+git config --global user.email "you@example.com"
+```
+
+✅ **Check:** `git --version` prints a version; `git config user.name` prints your name.
+
+**B3. Signing in to GitHub from the terminal.** The course repo is private, so git needs to
+know it's you.
+
+- **Easiest on both systems:** install the **GitHub CLI** ([cli.github.com](https://cli.github.com);
+  macOS `brew install gh`, Windows the `.msi` installer), then run `gh auth login`, choose
+  **GitHub.com → HTTPS → Login with a web browser**, and follow the prompts.
+- **Windows alternative:** skip `gh`; the first `git clone` of a private repo opens a GitHub
+  sign-in window (Git Credential Manager).
+
+✅ **Check:** `gh auth status` says you're logged in (if you installed `gh`).
+
+**B4. VS Code.** Download from [code.visualstudio.com](https://code.visualstudio.com) and
+install.
+
+- **macOS:** drag it into Applications. Then open VS Code, press **Cmd+Shift+P**, run **Shell
+  Command: Install 'code' command in PATH**, so `code .` opens a folder from the terminal.
+- **Windows:** keep **"Add to PATH"** ticked in the installer.
+
+✅ **Check:** `code --version` prints a version (restart the terminal first).
+
+**B5. Codex.** Two parts: the command-line tool and the VS Code extension. Both sign in with
+your ChatGPT account.
+
+```bash
+npm install -g @openai/codex
+codex --version
+```
+
+On macOS, if `npm install -g` fails with a permission error, run it again with the standalone
+installer from the [Codex CLI docs](https://learn.chatgpt.com/docs/codex/cli) instead. On
+Windows, if the npm install fails or `codex` isn't found afterwards, use the Windows install
+option on the same page. Don't spend more than 10 minutes on it: the VS Code extension is
+enough to do this week's exercise.
+
+Then in VS Code: **Extensions** (the squares icon) → search **Codex** → install **Codex**
+by OpenAI (id `openai.chatgpt`). Open it from the side bar and choose **Sign in with ChatGPT**.
+
+Run `codex` once in any folder and choose **Sign in with ChatGPT** there too. Press Ctrl+C to
+quit.
+
+✅ **Check:** `codex --version` prints a version, and the Codex panel in VS Code answers a
+question like "what is a WebSocket?".
+
+### C. The course code
+
+**C1. Fork the starter repo.** On GitHub, open the course starter repo (the link is in the
+invitation), click **Fork**, and create the fork under your own account. Your fork stays
+private.
+
+**C2. Clone your fork, connect it to the course, and make your `work` branch.** In the terminal,
+go to the folder where you keep projects, then:
+
+```bash
+git clone https://github.com/<you>/<starter-repo>.git netsim
+cd netsim
+git remote add upstream https://github.com/<instructor>/<starter-repo>.git
+git fetch upstream
+git switch -c work upstream/week-1-start   # your branch for the whole course
+git push -u origin work
+```
+
+- `origin` is **your fork**: where you push your work, and what gets graded.
+- `upstream` is **the course repo**: where each new week comes from.
+- `work` is **the one branch you'll use all course**. Every week you merge the new week into
+  it; you never switch branches.
+
+✅ **Check:** `git remote -v` shows both `origin` (your fork) and `upstream` (the course), and
+`git branch --show-current` prints `work`.
+
+**C3. Install and run the doctor.**
+
+```bash
+npm install
+npm run doctor
+```
+
+`npm run doctor` checks everything above in one go and prints one line per check: ✓ passed,
+✗ failed (with a `→` hint underneath saying how to fix it), or ! a warning you can ignore. The
+seven checks are:
+
+1. Node 22 or newer
+2. git knows who you are
+3. on the 'work' branch
+4. 'upstream' remote set
+5. origin is your fork
+6. dependencies installed
+7. Codex CLI installed
+
+plus a warning-only check for VS Code's `code` command. Fix whatever is ✗ and run it again
+until the last line says:
+
+```
+doctor: all 7 checks passed
+```
+
+✅ **Check:** the last line is `doctor: all 7 checks passed`. Open the project in VS Code:
+`code .`
+
+## In class
+
+1. **Setup clinic** (first hour). Finish the checklist, in pairs. When you're green, help the
+   pair next to you. Put a green sticky note on your laptop when `npm run doctor` passes, a pink
+   one if you're stuck.
+
+2. **System roles, unplugged.** Five volunteers play CLOCK, CPU, MEMORY, BUTTON and LED. Memory
+   holds four index cards (addresses 0–3). The clock says "tick", and nobody may act between
+   ticks. The CPU asks for card 0 by saying it out loud *to the bus* (the instructor), never
+   straight to Memory. Then the button gets pressed mid-tick… Everyone else draws the system as
+   it happens. Questions we'll answer together:
+   - Who owns time? Why not let everyone keep their own clock?
+   - What does the bus know about CPUs? (Nothing. It just carries messages.)
+   - When the button is pressed in the middle of a tick, when does the CPU find out?
+
+3. **Watch the real thing.** The instructor runs the finished computer on the projector: the
+   bus, the CPU with two cores, memory, a button, an LED, and the dashboard drawing every message
+   live. Match each box on screen to a role from the activity. Watch a `mem.read` go out and a
+   `mem.data` come back, and press the button.
+
+4. **Map the code.** In VS Code, open [ARCHITECTURE.md](../ARCHITECTURE.md) at "The big picture"
+   and "File layout". Find each part from the activity in the file tree: which folder is the
+   bus? Where will the CPU's logic live? Where does the dashboard live?
+
+5. **First Codex session, with the rules on.** Open the Codex panel and ask:
+   *"What is this project, and what am I supposed to do in week 1?"* It answers from the course
+   files, including `AGENTS.md` (see "Using Codex in this course" below). Then try asking it to
+   "write the handshake in components/client.ts". Notice what it does instead.
 
 ## Take-home
 
-Due before next session. Work alone or in a pair (both of you must pass explain-it-back).
+Due before next session.
 
-1. **Handle ticks** in `handleTick` (`components/client.ts`, `TODO(week 1, handle-tick)`). When
-   a `tick` message arrives: remember its tick number, call every handler registered with
-   `client.onTick(...)`, then send `tick.done` to the bus. Messages you send are stamped with the
-   tick you remembered, so `tick.done` carries **the same tick number** as the tick it answers.
-2. **Finish `hello()` in `scripts/hello.ts`** (`TODO(week 1, hello-script)`). It connects with
-   the id it's given, prints the other components listed in `welcome`, then prints a line each
-   time someone joins or leaves, and one every 10th tick. Print through `options.print`, not
-   `console.log`, so the test can read your lines.
+1. **Finish setup.** `npm run doctor` all green on the laptop you'll bring every week.
+2. **Write your week-1 notes** in `docs/notes/week-01.md`. The file is there with three
+   headings, each with a `<!-- TODO(week 1, …) -->` comment under it. Write under each heading
+   (you can delete the comment; comments don't count toward anything):
+   - **`## npm run doctor output`:** paste everything it prints inside a ```` ```text ````
+     block, ending with `doctor: all 7 checks passed`.
+   - **`## Codex: what bus/server.ts does`:** ask Codex to explain `bus/server.ts` to you (ask
+     follow-up questions too). Then close the chat and write, **in your own words**, what the
+     bus does: who connects to it, what it does on each tick, and why it waits before starting
+     the next tick. At least 60 words.
+   - **`## One thing I checked myself`:** pick one thing Codex told you and check it by
+     reading the code yourself. Say what the claim was, where in `bus/server.ts` you found the
+     answer (a function name or line), and whether Codex was right.
+3. **Commit and push your `work` branch.**
 
+   ```bash
+   git add -A
+   git commit -m "week 1: setup and notes"
+   git push
    ```
-   connected as ada-laptop at tick 812
-   already here: cpu (cpu), memory (memory)
-   + sam-laptop joined as peripheral
-   tick 820
-   - sam-laptop left
-   ```
-
-3. Commit on your `work` branch and push it to your fork. Paste your script's output into the
-   commit message.
 
 ### Acceptance criteria
 
-- [ ] `npx vitest run tests/week-01` passes (`handshake.test.ts`, `ticks.test.ts`, `hello.test.ts`).
-- [ ] Your `tick.done` always carries the tick number of the `tick` it answers, never
-      "the latest tick" or a counter of your own.
-- [ ] `npm run hello` against a running `npm run bus` prints the lines above. Start a second
-      one in another terminal with a different `HELLO_ID` and watch the first print `joined`.
-      (The `tick` lines only appear while a clock is running, e.g. on the class bus.)
-- [ ] Ctrl-C on the second script makes the first print `left`.
-- [ ] `work` pushed to your fork, with the script's output in a commit message.
+- [ ] `npm run doctor` ends with `doctor: all 7 checks passed` on your laptop.
+- [ ] `npx vitest run tests/week-01` passes. `setup.test.ts` checks your notes are really
+      filled in: the doctor output, your own summary, and the thing you checked.
+- [ ] Your summary is in your own words: you could say the same thing out loud, without notes.
+- [ ] `work` is pushed to your fork (check on GitHub that your commit is there).
 
 ## Tests and commands this week
 
 | Command | What it does | Works this week? |
 |---|---|---|
-| `npm run bus` | starts the bus on port 3006 | ✅ |
-| `npx vitest tests/week-01` | week-1 tests in watch mode | ✅ |
-| `npx vitest run tests/week-01` | same, run once (what CI and grading use) | ✅ |
-| `npm run hello` | runs `scripts/hello.ts` (`HELLO_ID=you`; add `BUS_URL=ws://…:3006` to join another bus) | ✅ once you write it |
-| `npm run component -- cpu` / `memory` | CPU / Memory components | ❌ throws `todo` until weeks 3–4 |
-| `npm run dev:all` | the whole system + dashboard | ❌ useful from week 4 |
+| `npm install` | installs the project's packages | ✅ |
+| `npm run doctor` | checks your setup: 7 checks, one line each, `→` hints for failures | ✅ |
+| `npx vitest run tests/week-01` | this week's test (your notes) | ✅ once your notes are written |
+| `npm run bus` | starts the bus on port 3006 (Ctrl+C to stop) | ✅ it runs; nothing connects yet |
+| `npm run hello`, `npm run component -- …`, `npm run dev:all` | the parts you build later | ❌ from week 2 onwards |
 
 Tests that gate this week (`tests/week-01/`):
 
-- `handshake.test.ts`: a client that connects gets `welcome` and knows the bus's current tick.
-- `ticks.test.ts`: the client answers every `tick` with `tick.done` for the same tick number,
-  and the handler you registered is called once per tick.
-- `hello.test.ts`: `hello()` reports who is here, who joins and leaves, and every 10th tick.
+- `setup.test.ts`, four tests. It fails on a fresh copy of the course until you've done the
+  setup and written your notes:
+  - *runs on Node 22 or newer*
+  - *has the npm run doctor output pasted in, with every check passing*
+  - *explains bus/server.ts in your own words (60+ words)*
+  - *says one thing you checked yourself*
 
 ## Explain it back
 
-At the start of next session you'll have a 5-minute conversation with the instructor, no notes
+At the start of next session you'll have a short conversation with the instructor, no notes
 and no AI. Be ready to:
 
 1. **Draw the system on paper**: bus, clock, CPU, memory, a couple of devices, the dashboard.
-   Point to where your `handshake()` sits.
+   Say what each one's job is.
 2. **Why does the bus hold the clock** instead of each component keeping its own time?
-3. **What happens if your client never sends `tick.done`?** (Hint: what is the bus waiting for?)
-4. Open your `handshake()` and walk through it line by line: when does the promise resolve, and
-   what would happen if the `welcome` never came?
+3. **Explain `bus/server.ts` in your own words**, the way you wrote it in your notes. Then
+   answer one follow-up question about it.
+4. **Show your setup:** `origin` vs `upstream` vs `work`. Where do new weeks come from, and
+   where does your work go?
 
-## Using AI this week
+## Using Codex in this course
 
-| Fine to ask an AI | You must be able to explain yourself |
+You're allowed, and encouraged, to use Codex. The course is set up so it helps you learn
+instead of doing the work for you.
+
+**What `AGENTS.md` makes it do.** Your copy of the course has an `AGENTS.md` file at the top.
+Codex reads it automatically and follows it. It tells Codex to act as a **tutor**: explain
+ideas, give hints, point you to the right test or section of the docs, and help you read error
+messages. It will **not** write the body of a region marked `TODO(week N, …)` for you. If you
+ask, it explains the approach and leaves the writing to you. That's on purpose, not a bug.
+
+**Good things to ask Codex:**
+
+- "Explain what this function does, line by line."
+- "This test fails with this error. What is it telling me?"
+- "What's the difference between `origin` and `upstream`?"
+- "Give me a hint for this TODO without writing the code."
+- "Quiz me on this week's ideas before my explain-it-back."
+
+**What you must do yourself:** write the code inside the `TODO` regions, and be able to explain
+every line of it: what it does, and why.
+
+**Why explain-it-back is no-AI.** Each week starts with a short conversation where you explain
+your own work without notes or AI. That's what's graded, together with the tests. An AI can
+help you understand; it can't understand *for* you. A good rule: if you can't explain a line,
+you don't have it yet.
+
+| Fine to ask Codex this week | You must be able to explain yourself |
 |---|---|
-| "How do I wrap a WebSocket `open` event in a Promise?" | Why `connect()` must wait for `welcome` before returning |
-| "What does `JSON.parse` throw on bad input?" | What each envelope field (`from`, `to`, `id`, `tick`) is for |
-| "Explain this TypeScript error to me" | Why `tick.done` carries the tick number it answers |
-| Help formatting the output of `hello.ts` | What the bus does while it waits for you |
-
-If an AI writes a line you can't explain, delete it and write it again yourself. The instructor
-will point at a random line of your code and ask what it does.
+| "How do I install Node 22 on Windows?" | What `origin`, `upstream` and `work` are for |
+| "Explain what `bus/server.ts` does" | What the bus does, in your own words |
+| "What does this `npm run doctor` error mean?" | Why the bus owns the clock |
+| "What is a WebSocket?" | What each part of the system is for |
 
 ## Stretch
 
-- Make `hello.ts` print a live count: `3 components connected`, updated on each join/leave.
-- Make `handshake()` reject with a clear error if `welcome` doesn't arrive within 2 seconds.
-- Read ARCHITECTURE.md's "A clock tick, step by step" diagram and find the line where your
-  `tick.done` appears in it.
+- Run `npm run bus` in one terminal and `npx vitest tests/week-02` in another. Read the failing
+  test names: that's next week's work.
+- Read ARCHITECTURE.md's "A clock tick, step by step" diagram. Which messages in it did you see
+  on the projector today?
+- Ask Codex to quiz you with five questions about the big picture. Answer them without looking.

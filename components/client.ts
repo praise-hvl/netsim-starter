@@ -87,10 +87,10 @@ export async function connect(options: ClientOptions): Promise<BusClient> {
   }
 
   function handleTick(message: MessageOf<"tick">): void {
-    // @student week=1 part=home id=handle-tick "Remember the tick, run the tick handlers, then send tick.done to the bus"
-    // TODO(week 1, handle-tick): Remember the tick, run the tick handlers, then send tick.done to the bus
-    // Tests: tests/week-01/   Guide: docs/weeks/week-01.md
-    return todo("week 1: handle-tick", message);
+    // @student week=2 part=home id=handle-tick "Remember the tick, run the tick handlers, then send tick.done to the bus"
+    // TODO(week 2, handle-tick): Remember the tick, run the tick handlers, then send tick.done to the bus
+    // Tests: tests/week-02/   Guide: docs/weeks/week-02.md
+    return todo("week 2: handle-tick", message);
     // @end
   }
 
@@ -162,9 +162,9 @@ export async function connect(options: ClientOptions): Promise<BusClient> {
 
 /** Open the socket, send `hello`, and wait for the bus to answer with `welcome`. */
 function handshake(socket: WebSocket, options: ClientOptions): Promise<MessageOf<"welcome">> {
-  // @student week=1 part=class id=handshake "Wait for the socket to open, send hello, resolve on welcome, reject on error"
-  // TODO(week 1, handshake): Wait for the socket to open, send hello, resolve on welcome, reject on error
-  // Tests: tests/week-01/   Guide: docs/weeks/week-01.md
-  return todo("week 1: handshake", socket, options);
+  // @student week=2 part=class id=handshake "Wait for the socket to open, send hello, resolve on welcome, reject on error"
+  // TODO(week 2, handshake): Wait for the socket to open, send hello, resolve on welcome, reject on error
+  // Tests: tests/week-02/   Guide: docs/weeks/week-02.md
+  return todo("week 2: handshake", socket, options);
   // @end
 }

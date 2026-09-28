@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "doctor": "tsx scripts/doctor.ts",
     "bus": "tsx bus/start.ts",
     "component": "tsx components/run.ts",
     "hello": "tsx scripts/hello.ts",
