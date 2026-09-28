@@ -1,7 +1,7 @@
 # Week 1: Setup & System Roles
 
 This week is about getting ready. By the end of it you'll have every tool installed, your own
-copy of the course code on your laptop, an AI tutor that knows the course rules, and a picture
+copy of the course code on your laptop, an AI coding assistant that knows the course rules, and a picture
 in your head of the computer you're going to build. You'll also watch the finished computer run
 on the projector: by week 8, the one on your screen will be yours.
 
@@ -235,8 +235,11 @@ doctor: all 7 checks passed
 
 5. **First Codex session, with the rules on.** Open the Codex panel and ask:
    *"What is this project, and what am I supposed to do in week 1?"* It answers from the course
-   files, including `AGENTS.md` (see "Using Codex in this course" below). Then try asking it to
-   "write the handshake in components/client.ts". Notice what it does instead.
+   files, including `AGENTS.md` (see "Using Codex in this course" below). Then ask it to
+   "write the handshake in components/client.ts" (that's next week's work; don't keep what it
+   writes). Notice that it asks you how you want to approach it, or offers you two options,
+   before it writes anything. That's the course's rule: **you decide the design, Codex can do the
+   typing.**
 
 ## Take-home
 
@@ -305,30 +308,41 @@ and no AI. Be ready to:
 
 ## Using Codex in this course
 
-You're allowed, and encouraged, to use Codex. The course is set up so it helps you learn
-instead of doing the work for you.
+You're allowed, and encouraged, to use Codex, including to write code for the `TODO(week N, …)`
+regions. The rule is: **Codex can help with the writing, but you guide the design.** You decide
+what to build, how it's structured and which approach to take; Codex types it and explains it;
+you make sure you understand every line before you keep it.
 
 **What `AGENTS.md` makes it do.** Your copy of the course has an `AGENTS.md` file at the top.
-Codex reads it automatically and follows it. It tells Codex to act as a **tutor**: explain
-ideas, give hints, point you to the right test or section of the docs, and help you read error
-messages. It will **not** write the body of a region marked `TODO(week N, …)` for you. If you
-ask, it explains the approach and leaves the writing to you. That's on purpose, not a bug.
+Codex reads it automatically and follows it:
 
-**Good things to ask Codex:**
+- Before writing code, it **asks how you want to approach it**, or offers two short options with
+  the trade-off, and lets you choose. It doesn't pick for you.
+- It **follows your design**, even if it would have done it differently. If it sees a real
+  problem, it says so and you decide.
+- It **explains what it wrote**, including the hardware idea behind it, and asks you to run the
+  tests.
+- It **never edits the tests** to make them pass.
+- It leaves the **own-words sections of your notes** (like "Codex: what bus/server.ts does") to
+  you: those check *your* understanding.
 
-- "Explain what this function does, line by line."
+**Good ways to use Codex:**
+
+- "I want to do this with a Map from id to callback. Write it that way and explain each line."
+- "Give me two ways to structure this, with the trade-off, and I'll pick."
 - "This test fails with this error. What is it telling me?"
-- "What's the difference between `origin` and `upstream`?"
-- "Give me a hint for this TODO without writing the code."
+- "Walk me through what you just wrote, line by line. Why this and not that?"
 - "Quiz me on this week's ideas before my explain-it-back."
 
-**What you must do yourself:** write the code inside the `TODO` regions, and be able to explain
-every line of it: what it does, and why.
+**What you must do yourself:** make the design decisions (the approach, the structure, what
+goes where), and be able to explain every line you keep: what it does, why it's there, and the
+hardware idea behind it. If Codex writes something you can't explain yet, don't keep it until
+you can: ask it to walk you through it, or rewrite it your way.
 
-**Why explain-it-back is no-AI.** Each week starts with a short conversation where you explain
-your own work without notes or AI. That's what's graded, together with the tests. An AI can
-help you understand; it can't understand *for* you. A good rule: if you can't explain a line,
-you don't have it yet.
+**Why explain-it-back is no-AI.** Each week's work is checked in a short conversation at the
+next session, without notes or AI, where you explain your code and the design choices you made.
+That's what's graded, together with the tests. Codex can write code with you; it can't
+understand it *for* you. A good rule: if you can't explain a line, you don't have it yet.
 
 | Fine to ask Codex this week | You must be able to explain yourself |
 |---|---|

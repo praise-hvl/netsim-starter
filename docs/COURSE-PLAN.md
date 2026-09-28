@@ -1,9 +1,11 @@
 # NetSim Course Plan
 
 Eight weeks, 2–3 hours each. Every week has an **in-class build** (done together, live) and a
-**take-home portion** (done alone or in pairs). Students may use AI tools, but each week ends with
-an **explain-it-back** check they must pass without one: understanding of the hardware idea and
-of the code is what is graded, not only the green tests.
+**take-home portion** (done alone or in pairs). Students use an AI coding assistant (Codex) that
+may write code for them, but **the student guides the design**: they choose the approach and the
+structure, and must be able to explain every line. Each week's work is checked in an
+**explain-it-back** conversation at the next session, without AI or notes: understanding of the
+hardware idea and of the code is what is graded, not only the green tests.
 
 System architecture, protocol, ISA and FSMs: see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
@@ -91,8 +93,10 @@ teaches validation, so `parseMessage` ships as a trusting cast:
 
    Other fields in `course.json` (such as `peripheral`, the student's week-6 choice) are kept.
 
-   Every branch also gets an `AGENTS.md` (from `course/AGENTS.student.md`), which Codex reads: it
-   tutors instead of writing `TODO` regions for the student. Instructor-only files never ship:
+   Every branch also gets an `AGENTS.md` (from `course/AGENTS.student.md`), which Codex reads:
+   before writing code it asks how the student wants to approach it (or offers two options),
+   follows the student's design, explains what it wrote, and never edits tests to make them
+   pass. Instructor-only files never ship:
    `course/`, `.github/` and the generator itself.
 4. `vitest.config.ts` reads `course.json` and only includes `tests/week-01` … `tests/week-NN`.
    On `netsim`, `course.json` says 8, so everything runs.
@@ -164,7 +168,7 @@ session. Pass = the student can answer without notes or AI, pointing at their ow
 
 **Hardware idea:** the roles of CPU, memory and I/O; what a bus and a clock are for.
 **Software idea:** the toolchain (Node, npm, git, VS Code), forks and remotes, and working with an
-AI assistant you can check.
+AI assistant: you decide the design, it can write the code, and you check what it says.
 
 Some students arrive with nothing installed, so this week gets everyone to a working setup. There
 is no `@student` code this week.

@@ -271,11 +271,12 @@ At the start of next session, no notes and no AI. Be ready to:
 | "How do I read the `issues` in a zod `safeParse` error?" | Why validation happens once, at the socket, and nowhere else |
 | "What's the difference between `parse` and `safeParse`?" | How `id` and `replyTo` connect a reply to its request |
 | "Explain this TypeScript error" | Why `tick.done` carries the tick number it answers |
-| "Give me a hint for `write()` without writing it" | Why a partly-out-of-range write must change nothing |
+| "I'll check the whole range first, then copy. Write `write()` that way and explain it" | Why a partly-out-of-range write must change nothing |
 
-Don't have Codex write `isMemRead` for you (the course's `AGENTS.md` tells it not to write
-`TODO` regions anyway). Its whole point is that *you* feel how tedious and error-prone hand
-validation is, so you know what the schema is doing.
+Codex may write code with you, but **you decide the design**: for `request()`, for example,
+*you* choose how pending requests are stored and matched before it types anything. Write
+`isMemRead` by hand in class, though: its whole point is that *you* feel how tedious and
+error-prone hand validation is, so you know what the schema is doing.
 
 ## Stretch
 
