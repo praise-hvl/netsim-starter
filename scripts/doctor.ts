@@ -40,6 +40,9 @@ export function commandRunner(cwd: string): Runner {
   };
 }
 
+/** What `remote.upstream.fetch` is when upstream brings every branch (every week). */
+export const ALL_UPSTREAM_BRANCHES = "+refs/heads/*:refs/remotes/upstream/*";
+
 /** The output of a command that should succeed, or null. */
 function outputOf(run: Runner, command: string, args: string[]): string | null {
   const result = run(command, args);
@@ -212,11 +215,16 @@ export function runChecks(root: string = process.cwd(), run: Runner = commandRun
   );
 
   const upstreamUrl = outputOf(run, "git", ["remote", "get-url", "upstream"]);
+  // `gh repo clone` of a fork can link upstream for one branch only; then later weeks never arrive.
+  const upstreamFetch = upstreamUrl === null ? null : outputOf(run, "git", ["config", "--get-all", "remote.upstream.fetch"]);
+  const allWeeks = upstreamFetch === null || upstreamFetch.split("\n").some((line) => line.trim() === ALL_UPSTREAM_BRANCHES);
   add(
     "'upstream' remote set",
-    upstreamUrl !== null,
-    upstreamUrl ?? "no remote called upstream",
-    "Run `git remote add upstream <the starter repo URL from Praise>`, then `git fetch upstream`.",
+    upstreamUrl !== null && allWeeks,
+    upstreamUrl === null ? "no remote called upstream" : allWeeks ? upstreamUrl : `${upstreamUrl}, but it only fetches some branches`,
+    upstreamUrl === null
+      ? "Run `git remote add upstream <the starter repo URL from Praise>`, then `git fetch upstream`."
+      : 'Run `git remote set-branches upstream "*"`, then `git fetch upstream`, so every week\'s branch comes down.',
   );
 
   // Compare repos, not URL text: https://… and git@… can point at the same repo.

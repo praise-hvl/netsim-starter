@@ -232,27 +232,28 @@ curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-s
 <span class="c"># Windows (PowerShell)</span>
 irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -OutFile setup.mjs; node setup.mjs</code></pre>
       <ul class="plain">
+        <li>It opens <b>NetSim Studio</b> in your browser. Keep the terminal window open (Ctrl+C there stops it).</li>
         <li>Each step <b>checks first</b>. Anything already done shows ✓ and waits for you to press Enter.</li>
-        <li>For anything not done, it shows the command <b>greyed out</b>. <b>You type it yourself</b>, and it runs when it matches. After 3 misses it offers to run it for you.</li>
-        <li><code>s</code> skips a step, <code>q</code> quits. Run it again anytime; finished steps are re-checked. Inside your clone: <code>npm run setup</code>.</li>
+        <li>For anything not done, the command is shown <b>greyed out</b> and <b>you type it yourself</b> in the studio: correct characters turn white, a wrong one turns red until Backspace. When it's all typed, <b>Run ↵</b> appears.</li>
+        <li>Optional steps have <b>Skip</b>. Run it again anytime; finished steps are re-checked. Inside your clone: <code>npm run setup</code>. Prefer the terminal? <code>node setup.mjs --terminal</code>.</li>
       </ul>
       <p>The 15 steps:</p>
       <ol class="compact">
-        <li>Node 22 or newer</li>
-        <li>git installed</li>
-        <li>git knows who you are</li>
-        <li>GitHub CLI (gh)</li>
-        <li>Signed in to GitHub</li>
-        <li>git signs in with that account</li>
-        <li>ChatGPT account and the student offer (optional)</li>
-        <li>Your fork of the starter repo</li>
-        <li>Your fork on this laptop</li>
-        <li>upstream remote</li>
-        <li>The work branch, on GitHub</li>
-        <li>VS Code, with the code command (optional)</li>
-        <li>Codex CLI, signed in</li>
-        <li>Course dependencies</li>
-        <li>npm run doctor</li>
+        <li>Is Node installed?</li>
+        <li>Is git installed?</li>
+        <li>Who should your work be signed by?</li>
+        <li>Install the GitHub tool</li>
+        <li>Sign in to GitHub</li>
+        <li>Let git use that sign-in</li>
+        <li>ChatGPT and the student offer (optional)</li>
+        <li>Make your own copy of the course</li>
+        <li>Download it to this laptop</li>
+        <li>Connect it to the course</li>
+        <li>Make your work branch</li>
+        <li>Put your branch on GitHub</li>
+        <li>Install VS Code (optional)</li>
+        <li>Install and sign in to Codex</li>
+        <li>Get the course's packages, then check everything</li>
       </ol>
       <p class="check"><b>Done when:</b> the last step says <span class="ok">doctor: all 8 checks passed</span>. Then install the <b>Codex</b> extension in VS Code (Extensions → search Codex → Codex by OpenAI → Sign in with ChatGPT).</p>
       <p class="sketch-note">Windows support is new: if anything goes wrong, tell me, and use the manual steps below.</p>

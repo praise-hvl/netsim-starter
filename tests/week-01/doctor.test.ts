@@ -29,6 +29,20 @@ const keychain = { "git config --get-all credential.helper": ok("osxkeychain") }
 
 const check = (checks: ReturnType<typeof runChecks>, name: string) => checks.find((c) => c.name === name)!;
 
+describe("the upstream check", () => {
+  it("fails when upstream only fetches one branch (how gh repo clone links a fork), so later weeks would never arrive", () => {
+    const run = laptop({ ...setUp, "git config --get-all remote.upstream.fetch": ok("+refs/heads/week-1-start:refs/remotes/upstream/week-1-start\n") });
+    const upstream = check(runChecks(process.cwd(), run), "'upstream' remote set");
+    expect(upstream.status).toBe("fail");
+    expect(upstream.fix).toContain('git remote set-branches upstream "*"');
+  });
+
+  it("passes when upstream fetches every branch", () => {
+    const run = laptop({ ...setUp, "git config --get-all remote.upstream.fetch": ok("+refs/heads/*:refs/remotes/upstream/*\n") });
+    expect(check(runChecks(process.cwd(), run), "'upstream' remote set").status).toBe("pass");
+  });
+});
+
 describe("the push check", () => {
   it("fails when git would push as a different account than the fork's owner", () => {
     const checks = runChecks(
