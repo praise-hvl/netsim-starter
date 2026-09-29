@@ -111,35 +111,38 @@ irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/se
 (The Windows path hasn't been tried on a real Windows machine yet. If something goes wrong,
 tell me what it printed, and use "If the setup tool doesn't work for you" below.)
 
-**How it works:**
+**How it works:** it opens **NetSim Studio** in your browser (keep the terminal window open;
+Ctrl+C there stops it). The studio goes through the 15 steps **one at a time**:
 
-- It shows a checklist of all the steps, then goes through them **one at a time**.
-- For each step it says **why** it matters and **checks first** whether it's already done. Done
-  steps get a ✓ and you press Enter to move on.
-- If a step isn't done, it shows the command **greyed out**, and **you type it yourself**. It
-  runs only once you've typed it correctly. After three misses it offers to run it for you.
-- It **pauses between steps**, so you can read what happened.
-- **s** skips a step, **q** quits. Nothing is lost: **rerun it any time** and it checks
-  everything again from the top. Once the course is cloned, rerun it from inside the course
-  folder with `npm run setup`.
+- Each step says in plain words what it's for, explains every technical word, and **checks
+  first** whether it's already done. Done steps get a ✓ and you press Enter to move on.
+- If a step isn't done, the command is shown **greyed out** and **you type it yourself**, right
+  in the studio: each correct character turns white, a wrong one turns red until you press
+  Backspace. When it's all typed, **Run ↵** appears: press Enter and the studio runs it and shows
+  what happened (**Show full output** for everything it printed).
+- Nothing moves on by itself: every step ends with you pressing Enter. Optional steps have
+  **Skip**. If something fails, the studio says what went wrong and how to fix it.
+- **Rerun it any time** and it checks everything again from the top. Once the course is cloned,
+  rerun it from inside the course folder with `npm run setup`. Prefer the terminal?
+  `node setup.mjs --terminal` walks the same steps there.
 
-**The steps**, exactly as it prints them:
+**The steps**, exactly as the studio shows them:
 
-1. Node 22 or newer
-2. git installed
-3. git knows who you are
-4. GitHub CLI (gh)
-5. Signed in to GitHub
-6. git signs in with that account
-7. ChatGPT account and the student offer (optional)
-8. Your fork of the starter repo
-9. Your fork on this laptop
-10. upstream remote
-11. The work branch, on GitHub
-12. VS Code, with the code command (optional)
-13. Codex CLI, signed in
-14. Course dependencies
-15. npm run doctor
+1. Is Node installed?
+2. Is git installed?
+3. Who should your work be signed by?
+4. Install the GitHub tool
+5. Sign in to GitHub
+6. Let git use that sign-in
+7. ChatGPT and the student offer (optional)
+8. Make your own copy of the course
+9. Download it to this laptop
+10. Connect it to the course
+11. Make your work branch
+12. Put your branch on GitHub
+13. Install VS Code (optional)
+14. Install and sign in to Codex
+15. Get the course's packages, then check everything
 
 It asks you which folder the course should go in (step 9) and clones your fork into a `netsim`
 folder there. Step 5 makes sure you're signed in as **your** GitHub account; if the laptop is
