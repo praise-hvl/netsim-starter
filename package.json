@@ -15,6 +15,7 @@
     "bus": "tsx bus/start.ts",
     "component": "tsx components/run.ts",
     "hello": "tsx scripts/hello.ts",
+    "stall-demo": "tsx scripts/stall-demo.ts",
     "demo": "tsx scripts/demo.ts",
     "asm": "tsx scripts/asm.ts",
     "weeks": "tsx scripts/make-week-branches.ts",

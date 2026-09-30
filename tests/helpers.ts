@@ -2,7 +2,8 @@
 import { afterEach } from "vitest";
 import { startBus, type Bus, type BusOptions } from "@/bus/server";
 import { connect, type BusClient, type ClientOptions } from "@/components/client";
-import type { Message } from "@/protocol/messages";
+import type { Json, Message } from "@/protocol/messages";
+import type { PeripheralDefinition } from "@/components/peripherals/peripheral";
 import { assemble } from "@/core/asm";
 import { createCore, loadContext, stepCore, type Core, type MemReply, type Phase } from "@/core/cpu-core";
 import { createMemory, read, write, type Memory } from "@/core/memory";
@@ -220,4 +221,12 @@ export async function testSystem(options: { host?: boolean; busOptions?: BusOpti
     memoryByte: (address) => memory.memory().bytes[address],
     cpu: () => cpu.cpu(),
   };
+}
+
+// ── Peripherals ────────────────────────────────────────────────────────────
+
+/** The status a freshly started peripheral would send, with its default config. */
+export function firstStatus<S extends Json, I, C>(definition: PeripheralDefinition<S, I, C>) {
+  const view = definition.view(definition.init(definition.configSchema.parse({})));
+  return { ...view, label: definition.label };
 }

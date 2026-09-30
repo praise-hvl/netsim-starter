@@ -13,7 +13,9 @@ export const timerFsm = defineFsm<TimerFsmState>("Timer", ["STOPPED", "COUNTING"
 ]);
 
 const configSchema = z.object({
-  interval: z.number().int().min(1).default(10),
+  // The default handler (programs/isr-counter.asm) takes 22 ticks. Much below that, the handler
+  // runs more often than it can finish and the programs starve; 30 leaves them room to run.
+  interval: z.number().int().min(1).default(30),
   /** Start counting as soon as the timer is added, without waiting for a "start". */
   running: z.boolean().default(true),
 });
