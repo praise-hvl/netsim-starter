@@ -97,9 +97,11 @@ teaches validation, so `parseMessage` ships as a trusting cast:
    before writing code it asks how the student wants to approach it (or offers two options),
    follows the student's design, explains what it wrote, and never edits tests to make them
    pass. Instructor-only files never ship:
-   `course/`, `.github/` and the generator itself.
-4. `vitest.config.ts` reads `course.json` and only includes `tests/week-01` … `tests/week-NN`.
-   On `netsim`, `course.json` says 8, so everything runs.
+   `course/`, `.github/`, the generator itself, and the studio's own tests and tools
+   (`tests/studio/`, `scripts/studio/`).
+4. `vitest.config.ts` reads `course.json` and only includes `tests/week-01` … `tests/week-NN`,
+   plus `tests/studio/` (which only exists on `netsim`). On `netsim`, `course.json` says 8, so
+   everything runs.
 5. `--verify` checks every week N in a temporary copy, twice:
    - weeks `< N` filled in, week N stubbed: **no test outside week N fails**, and some week-N
      test does fail (so every week with regions is actually gated);
@@ -368,7 +370,11 @@ Vitest because it gives students watch mode, readable diffs and one command to r
 per-week folders are how branches are gated.
 
 - `tests/week-NN/*.test.ts`, one folder per week. Tests import from `core/`, `protocol/`,
-  `components/` and `bus/`.
+  `components/` and `bus/`. A week's folder holds only tests that gate student work (plus
+  week 1's `doctor.test.ts`, a pure check of the doctor students run).
+- `tests/studio/*.test.ts`: the studio and `setup.mjs` themselves (the command line, the local
+  server, the 15 setup steps, "Get this week's work", the machine replay). Instructor-only: never
+  in a week branch, not part of `--verify`'s per-week results; CI runs them on `netsim`.
 - Pure logic is tested directly: no sockets, no timers.
 - Integration tests call `startBus({ port: 0 })` and the component `start…` functions in the same
   process, drive ticks with `control step`, and close everything in `afterEach`. No test depends
