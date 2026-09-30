@@ -13,7 +13,9 @@ export type Phase = (typeof PHASES)[number];
 
 export const coreFsm = defineFsm<Phase>("CPU core", PHASES, "IDLE", [
   { from: "IDLE", to: "FETCH", on: "program assigned / interrupt" },
+  { from: "FETCH", to: "FETCH", on: "interrupt taken: PC = vector" },
   { from: "FETCH", to: "WAIT_FETCH", on: "read(PC, 4)" },
+  { from: "WAIT_FETCH", to: "WAIT_FETCH", on: "no bytes yet (stall)" },
   { from: "WAIT_FETCH", to: "DECODE", on: "bytes arrived" },
   { from: "DECODE", to: "EXECUTE", on: "valid instruction" },
   { from: "EXECUTE", to: "FETCH", on: "ALU / jump / IRET" },

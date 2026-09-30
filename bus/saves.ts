@@ -57,18 +57,38 @@ export async function restoreSave(dir: string, name: string, io: SaveIo): Promis
 
   const connected = new Set(io.components().map((c) => c.id));
   const host = io.components().find((c) => c.role === "host");
+  /** Peripherals started just for this restore, removed again if it fails. */
+  const spawned: string[] = [];
 
-  for (const [id, saved] of Object.entries(save.components)) {
-    if (!connected.has(id)) {
+  try {
+    for (const [id, saved] of Object.entries(save.components)) {
+      if (connected.has(id)) continue;
       // A peripheral that isn't running any more: ask the host to start it again, in its old slot.
       const { kind, config, slot } = peripheralSpawnInfo(saved.data);
       if (saved.role !== "peripheral" || !host || kind === undefined) throw new Error(`${id} is not connected`);
       const reply = await io.ask("host.spawn", host.id, { kind, id, label: saved.label, config, slot });
       if (reply.type !== "ok") throw new Error(`the host could not start ${id}`);
+      spawned.push(id);
       await io.waitForComponent(id);
     }
-    const reply = await io.ask("snapshot.set", id, { data: saved.data });
-    if (reply.type !== "ok") throw new Error(`${id} refused its snapshot`);
+
+    // All or nothing: every component checks its part first, and only if they all can does
+    // anyone change. Restoring each part as it's read would leave a half-restored machine when
+    // a later part turns out to be bad.
+    for (const [id, saved] of Object.entries(save.components)) {
+      const reply = await io.ask("snapshot.check", id, { data: saved.data });
+      if (reply.type !== "ok") {
+        const why = reply.type === "error" || reply.type === "fault" ? `: ${reply.payload.message}` : "";
+        throw new Error(`${id} refused its snapshot${why}; nothing was restored`);
+      }
+    }
+    for (const [id, saved] of Object.entries(save.components)) {
+      const reply = await io.ask("snapshot.set", id, { data: saved.data });
+      if (reply.type !== "ok") throw new Error(`${id} refused its snapshot after checking it`);
+    }
+  } catch (error) {
+    if (host) for (const id of spawned) await io.ask("host.remove", host.id, { id }).catch(() => undefined);
+    throw error;
   }
   io.setTick(save.tick);
   return save;

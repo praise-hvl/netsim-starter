@@ -50,6 +50,14 @@ export async function startMemory(options: { url?: string; id?: string } = {}): 
     publishStatus();
   });
   client.on("snapshot.get", (message) => client.reply(message, "snapshot", { data: snapshotMemory(memory) }));
+  client.on("snapshot.check", (message) => {
+    try {
+      restoreMemory(message.payload.data); // only checking: the result is thrown away
+      client.reply(message, "ok", {});
+    } catch (error) {
+      client.reply(message, "error", { message: `bad memory snapshot: ${(error as Error).message}` });
+    }
+  });
   client.on("snapshot.set", (message) => {
     try {
       memory = restoreMemory(message.payload.data);

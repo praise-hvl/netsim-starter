@@ -163,6 +163,7 @@ has you write one tiny validator by hand first, so you know what zod is doing fo
 | `host.spawn` / `host.remove` | dashboard → host | `{ kind, id, config }` / `{ id }` | Start / stop a peripheral |
 | `save` / `restore` | dashboard → bus | `{ name }` | Persist or reload the whole system |
 | `snapshot.get` / `snapshot` / `snapshot.set` | bus ↔ component | `{ data }` | How the bus collects and restores each component's state |
+| `snapshot.check` | bus → component | `{ data }` | "Could you restore from this?" Answered `ok` or `error`; nothing changes yet |
 | `error` | any → sender | `{ message }` | Your message was invalid or unknown |
 
 ### A clock tick, step by step
@@ -518,8 +519,20 @@ bus (which must be `STOPPED`) sends `snapshot.get` to every component, waits for
   "components": { "cpu": { ... }, "memory": { ... }, "btn-1": { "kind": "button", ... } } }
 ```
 
-to `saves/<name>.json`. `restore` reads the file, validates it with zod, asks the host to spawn
-any peripheral that is missing, and sends each component its `snapshot.set`.
+to `saves/<name>.json`. `restore` reads the file, validates it with zod, and asks the host to
+spawn any peripheral that is missing. Then it restores **all or nothing**:
+
+1. Every component gets a `snapshot.check` with its part and answers `ok` or `error`, using the
+   same `restore` function it would use for real, without applying the result.
+2. Only if every part is `ok` does each component get its `snapshot.set`, and the bus sets its tick.
+
+If any check fails, nothing changes (peripherals started just for this restore are removed again)
+and the dashboard gets an error naming the component. Restoring each part as soon as it's read
+would leave a half-restored machine when a later part turns out to be bad: memory rewound, the CPU
+not.
+
+A peripheral's snapshot includes the inputs it latched but hasn't used yet (a button pressed while
+the clock was stopped), just as the CPU's includes its inbox.
 
 ## Running it
 
