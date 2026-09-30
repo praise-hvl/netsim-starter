@@ -298,8 +298,10 @@ switching.
   node (state, PC, registers, current instruction) together.
 - **Take-home:** the LED peripheral: FSM (`OFF`/`ON` from its register), `view`, dashboard node,
   a program that blinks it. Improve the Memory node to highlight the last read/write.
-- **Tests:** `button.test.ts`, `led.test.ts` (pure FSMs), `status.test.ts` (every component's
-  `view` output is a valid `status` payload).
+- **Tests:** `button.test.ts`, `led.test.ts` (pure FSMs); `status.test.ts` (the Button's, LED's,
+  Timer's, seven-segment's and Screen's `view` output is a valid `status` payload, and the CPU's
+  view matches what the CPU node reads); `button-over-bus.test.ts`, `host.test.ts`,
+  `config-fields.test.ts` and the `dashboard-*.test.ts` files.
 - **Explain it back:** Trace what happens, message by message, from clicking the LED program's
   "run" to the LED lighting up. How does the dashboard know where to draw your node? Why doesn't
   the dashboard ask components for their state?
@@ -313,12 +315,19 @@ watchdogs.
 - **In class:** the interrupt queue; core interrupt entry at instruction boundaries and `IRET`.
 - **Take-home:** the Timer peripheral (`timer-input`, `timer-tick`); watch a timer ISR increment
   its counter on the dashboard while two programs run. Then pick one of Sensor, Proximity or
-  Potentiometer: FSM, register writes, IRQ rule, and its ISR in `programs/`. Add the bus watchdog: a component that misses `tickTimeoutMs` is
-  reported `stalled`. Demonstrate a fault (e.g. `LOAD` from `0x500`) on the dashboard.
+  Potentiometer: FSM, register writes, IRQ rule, and its ISR in `programs/`. Add the bus
+  watchdog: a component that misses `tickTimeoutMs` is reported `stalled`. See it with
+  `npm run stall-demo`, a peripheral that joins and never answers a tick (stopping a component
+  with Ctrl-C closes its connection instead, so the bus reports `left`, not `stalled`).
+  Demonstrate a fault on the dashboard with `JMP 0x3FE`: the next fetch would run off the end of
+  memory, so the core goes to `FAULT` and only that program fails. (An address outside memory
+  can't even be assembled or decoded; Memory's own out-of-range fault only answers requests from
+  other components, which `tests/week-02/memory-over-bus.test.ts` shows.)
 - **Tests:** `interrupts.test.ts`, `cpu-core-irq.test.ts` (taken only between instructions;
   registers identical after `IRET`), `timer.test.ts`, one test file per optional peripheral
-  (only the one the student chose needs to pass; the file name is set in `course.json`), and
-  `watchdog.test.ts`.
+  (only the one the student chose, set as `peripheral` in `course.json`, needs to pass),
+  `status.test.ts` (that peripheral's view is a valid `status` payload), and `watchdog.test.ts`
+  (including `npm run stall-demo`).
 - **Explain it back:** Press the button while a program is mid-`LOAD`: what happens and when?
   Why is the Timer's interrupt lower priority than the Button's? What would break if `IRET`
   forgot to restore the flags?

@@ -145,7 +145,7 @@ has you write one tiny validator by hand first, so you know what zod is doing fo
 | type | from → to | payload | meaning |
 |---|---|---|---|
 | `hello` | component → bus | `{ role, kind?, label }` | "I'm here." `role` is `cpu`, `memory`, `peripheral` or `dashboard` |
-| `welcome` | bus → component | `{ tick, running, components }` | Handshake reply: current clock and who else is connected |
+| `welcome` | bus → component | `{ running, speedMs, components }` | Handshake reply: whether the clock is running, its speed, and who else is connected (the current tick is in the envelope's `tick`) |
 | `joined` / `left` | bus → `*` | `{ id, role, kind? }` | Someone connected / disconnected |
 | `tick` | bus → `*` | `{}` | One clock edge. The number is in the envelope's `tick` |
 | `tick.done` | component → bus | `{}` | "I've finished reacting to this tick" |
@@ -327,7 +327,7 @@ With `LOADI` and `JNZ`, programs can finally loop:
 ; count down from 5 and show each value on the seven-segment display
         LOADI R0, 5
         LOADI R1, 1
-loop:   STORE R0, 0x3F1     ; seven-segment register
+loop:   STORE R0, 0x3F2     ; seven-segment register (slot 2 in the demo; the LED is 0x3F1)
         SUB   R0, R1
         JNZ   loop
         HALT
@@ -350,17 +350,21 @@ One tick = one transition. An `ADD` takes 4 ticks (FETCH, WAIT_FETCH, DECODE, EX
 | `IDLE` | tick | scheduler gave this core a program | `FETCH` | – |
 | `IDLE`, `FETCH` | tick | interrupt pending, not in handler | `FETCH` | push frame, `PC = vector` |
 | `FETCH` | tick | – | `WAIT_FETCH` | `read(PC, 4)` |
+| `FETCH` | tick | the 4 bytes at PC would run past the end of memory | `FAULT` | – |
 | `WAIT_FETCH` | tick | bytes arrived | `DECODE` | `IR = bytes` |
 | `WAIT_FETCH` | tick | no bytes yet | `WAIT_FETCH` | count a stall |
 | `DECODE` | tick | valid instruction | `EXECUTE` | – |
 | `DECODE` | tick | invalid | `FAULT` | – |
 | `EXECUTE` | tick | ALU / jump / NOP / IRET | `FETCH` | update regs, flags, PC |
+| `EXECUTE` | tick | `IRET` back to a core that was idle | `IDLE` | restore regs, flags, PC |
+| `EXECUTE` | tick | `IRET` outside a handler | `FAULT` | – |
 | `EXECUTE` | tick | `LOAD` | `WAIT_DATA` | `read(addr, 1)` |
 | `EXECUTE` | tick | `STORE` | `WAIT_DATA` | `write(addr, Rs)` |
 | `EXECUTE` | tick | `HALT` | `HALTED` | – |
 | `WAIT_DATA` | tick | reply arrived | `FETCH` | `LOAD`: set `Rd`; `PC += 4` |
 | any waiting state | `fault` reply | – | `FAULT` | – |
 | `HALTED`, `FAULT` | scheduler unassigns | – | `IDLE` | – |
+| `FETCH` | scheduler preempts (quantum used up) | – | `IDLE` | context saved to the process |
 
 ```mermaid
 stateDiagram-v2
@@ -374,11 +378,15 @@ stateDiagram-v2
   EXECUTE --> FETCH: ALU / jump / IRET
   EXECUTE --> WAIT_DATA: LOAD / STORE
   EXECUTE --> HALTED: HALT
+  EXECUTE --> IDLE: IRET to an idle core
+  FETCH --> FAULT: PC runs off the end
+  EXECUTE --> FAULT: IRET outside a handler
   WAIT_DATA --> FETCH: reply
   WAIT_FETCH --> FAULT: fault reply
   WAIT_DATA --> FAULT: fault reply
   HALTED --> IDLE: scheduler unassigns
   FAULT --> IDLE: scheduler unassigns
+  FETCH --> IDLE: preempted
 ```
 
 Interrupts are only taken **between instructions** (`IDLE` or `FETCH`), never halfway through
