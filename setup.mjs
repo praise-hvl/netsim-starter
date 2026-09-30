@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// NetSim Studio, week 1: gets a laptop ready for the course, one step at a time.
+// NetSim Studio, week 1: gets a laptop ready for the course, one step at a time. Once that's done,
+// running it again gets the next week's work (fetch, merge, push, install, check), every week.
 //
 //   macOS:   curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -o setup.mjs && node setup.mjs
 //   Windows: irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -OutFile setup.mjs; node setup.mjs
@@ -8,6 +9,7 @@
 //   node setup.mjs              the studio: a local page in your browser where you type each command
 //   node setup.mjs --terminal   the same steps, in this terminal
 //   add --dry-run               commands are typed but never run (add --fresh to pretend nothing is set up yet)
+//   add --setup                 the week-1 setup steps, even when setup is already done
 //
 // Every step checks first. If it's already done you see ✓ and press Enter to go on. If not, you
 // type the command yourself (it's shown in grey), and the step checks again after it runs.
@@ -36,7 +38,7 @@ const CODEX_FLAGS = ["-c", "check_for_update_on_startup=false"];
 /**
  * @typedef {{ code: number, stdout: string, stderr: string }} RunResult
  * @typedef {"mac" | "windows" | "linux"} Platform
- * @typedef {{ done: boolean, found: string, ask?: string }} CheckResult
+ * @typedef {{ done: boolean, found: string, ask?: string, items?: { check: string, found: string, fix: string }[] }} CheckResult
  *   `found` is one plain line. `ask` is a yes/no question the student answers before the step counts as done.
  * @typedef {{
  *   display: string,
@@ -53,16 +55,18 @@ const CODEX_FLAGS = ["-c", "check_for_update_on_startup=false"];
  *   slowAfterMs?: number,
  *   timeoutMs?: number,
  *   record?: (ctx: Context, output: string) => void,
+ *   stop?: boolean,
  * }} Command
  *   `display` is what the student types; `argv` is what actually runs. `what` is "what this does" in one
  *   line and `words` explains the terms in it. `waitFor`: the student finishes in the browser, in a window
  *   that pops up, or in a real terminal (commands that ask for the Mac password). `judge` decides the step
  *   from the command's output instead of checking again. `note` is shown while it runs (and `slowNote`
  *   once it has taken `slowAfterMs`); `timeoutMs` stops it; `record` keeps something from its output.
+ *   `stop`: when its judge says not done, that's where the student stops for today (Try again isn't the next thing).
  * @typedef {{ name: string, label: string, hint?: string, placeholder?: string, type?: string }} Field
  * @typedef {{ kind: "command", command: Command | ((ctx: Context) => Command) }
  *   | { kind: "auto", command: Command }
- *   | { kind: "form", fields: Field[], button: string, submit: (ctx: Context, values: Record<string, string>) => { error?: string, commands?: Command[] } }
+ *   | { kind: "form", fields: Field[], button: string, submit: (ctx: Context, values: Record<string, string>) => { error?: string, commands?: Command[], found?: string } }
  *   | { kind: "choice", question: string, links: { label: string, url: string }[], yes: string, submit: (ctx: Context) => void }
  *   | { kind: "folder", label: string, hint: string, initial: (ctx: Context) => string, submit: (ctx: Context, value: string) => string | null }} Action
  *   `auto` runs without typing (the student has nothing to do; the studio shows what it ran).
@@ -78,15 +82,27 @@ const CODEX_FLAGS = ["-c", "check_for_update_on_startup=false"];
  *   example: string,
  *   check: (ctx: Context) => Promise<CheckResult>,
  *   confirm?: (ctx: Context, yes: boolean) => void,
- *   pretend?: (ctx: Context) => void,
+ *   pretend?: (ctx: Context) => CheckResult | void,
  *   preview?: string[],
+ *   changeable?: boolean,
  *   plan: (ctx: Context) => Action[],
  *   hint: (ctx: Context) => string,
  * }} Step
  *   `title` is a plain question or task, `technical` its technical name, and `explain` says what that
  *   name means in one line. `example` is what a dry run shows once the step "passes", and `pretend`
- *   fills in what a real run would have learned (the GitHub login).
+ *   fills in what a real run would have learned; it can return a question to ask first (the GitHub login).
  * @typedef {{ done: Promise<number>, kill: () => void }} Running
+ * @typedef {{
+ *   kind: string, display?: string, what?: string, words?: [string, string][], label?: string, waitFor?: string,
+ *   pasteOk?: boolean, runs?: string, cwd?: string, fields?: Field[], button?: string, question?: string,
+ *   links?: { label: string, url: string }[], yes?: string, hint?: string, initial?: string,
+ * }} ActionView
+ *   One action as the page sees it: a command to type, a form, a question or a folder.
+ * @typedef {[type: string, from: string, to: string, address?: number, value?: number]} TraceEvent
+ * @typedef {[phase: string, pc: number, instruction: string | null, process: string | null, inHandler: number]} TraceCore
+ * @typedef {{ t: number, e: TraceEvent[], c: TraceCore[], p: [string, string][], q: number, led: number, d: number, b: string, n: number }} TraceTick
+ *   One tick of the machine replay: its bus messages, each core, each process, and the devices.
+ * @typedef {{ about: string, parts: Record<string, string>, ticks: TraceTick[] }} MachineTrace
  * @typedef {{
  *   platform: Platform,
  *   cwd: string,
@@ -103,9 +119,10 @@ const CODEX_FLAGS = ["-c", "check_for_update_on_startup=false"];
  *   print: (line: string) => void,
  *   exists: (path: string) => boolean,
  *   isDir?: (path: string) => boolean,
+ *   mtime?: (path: string) => number | null,
  *   readText: (path: string) => string | null,
  *   save?: () => void,
- *   state: { login?: string, seenLogin?: string, parent?: string, repoDir?: string, chatgpt?: string, doctorOk?: boolean, codexVersion?: string, dryDone?: Record<string, boolean> },
+ *   state: { login?: string, seenLogin?: string, parent?: string, repoDir?: string, chatgpt?: string, doctorOk?: boolean, opened?: number, codexVersion?: string, dryDone?: Record<string, boolean>, dryFound?: Record<string, string> },
  * }} Context
  */
 
@@ -372,8 +389,10 @@ function ghLogin(ctx) {
  * @param {Context} ctx
  */
 function findClone(ctx) {
+  // The folder you're in comes first, then a netsim folder inside it, and only then the one
+  // remembered from last time (a second copy elsewhere must not win over the one you're in).
   const here = output(ctx, ["git", "rev-parse", "--show-toplevel"], ctx.cwd);
-  const candidates = [ctx.state.repoDir ?? null, here, join(ctx.state.parent ?? ctx.cwd, "netsim")].filter((d) => d !== null);
+  const candidates = [here, join(ctx.cwd, "netsim"), ctx.state.repoDir ?? null, join(ctx.state.parent ?? ctx.cwd, "netsim")].filter((d) => d !== null);
   for (const dir of candidates) {
     const pkg = ctx.readText(join(dir, "package.json"));
     if (pkg && ctx.exists(join(dir, ".git")) && /"name":\s*"simulated-cpu"/.test(pkg)) return dir;
@@ -433,6 +452,7 @@ export function courseSteps() {
       explain: "the name and email git writes on every commit (a saved point in your work's history).",
       why: "Every commit carries a name and email. Use the email on your GitHub account, so GitHub knows the work is yours.",
       example: "Your commits will be signed Ada Obi <ada@example.com>.",
+      changeable: true, // already set? the student can still change the name or email
       check: async (ctx) => {
         const name = output(ctx, ["git", "config", "--global", "user.name"]);
         const email = output(ctx, ["git", "config", "--global", "user.email"]);
@@ -456,6 +476,7 @@ export function courseSteps() {
                 { display: `git config --global user.name "${name}"`, argv: ["git", "config", "--global", "user.name", name] },
                 { display: `git config --global user.email "${email}"`, argv: ["git", "config", "--global", "user.email", email] },
               ],
+              found: `Your commits will be signed ${name} <${email}>.`,
             };
           },
         },
@@ -493,8 +514,10 @@ export function courseSteps() {
       confirm: (ctx, yes) => {
         if (yes && ctx.state.seenLogin) ctx.state.login = ctx.state.seenLogin;
       },
+      // A dry run still asks the account question, about a pretend login.
       pretend: (ctx) => {
-        ctx.state.login ??= "your-github-name";
+        ctx.state.seenLogin = ctx.state.login ?? "your-github-name";
+        return { done: false, found: `Signed in to GitHub as ${ctx.state.seenLogin}.`, ask: `Is ${ctx.state.seenLogin} the GitHub account you'll use for this course?` };
       },
       plan: () => [
         cmd("gh auth login", ["gh", "auth", "login", "--web", "-h", "github.com", "-p", "https"], {
@@ -661,6 +684,7 @@ export function courseSteps() {
         return [
           cmd(`git remote ${verb} upstream ${STARTER_URL}`, ["git", "remote", verb, "upstream", STARTER_URL], {
             cwd: dir,
+            label: url ? "upstream points somewhere else: type this once to fix it" : "This folder isn't linked yet (gh does it when step 9 downloads): type this once",
             what: "Links your folder to the course's repository, under the name upstream.",
             words: [["remote", "a named link to a copy on GitHub"], ["upstream", "the name for the course's copy"]],
           }),
@@ -712,7 +736,7 @@ export function courseSteps() {
         cmd("git push -u origin work", ["git", "push", "-u", "origin", "work"], {
           cwd: repoDir(ctx),
           what: "Sends your work branch to your fork, and remembers the link, so later a plain git push is enough.",
-          words: [["push", "send commits to GitHub"], ["-u", "remember this link (u for upstream)"], ["origin", "your fork on GitHub"], ["work", "the branch to send"]],
+          words: [["push", "send commits to GitHub"], ["-u", "from now on, work goes to origin/work, so later a plain git push is enough"], ["origin", "your fork on GitHub"], ["work", "the branch to send"]],
         }),
       ],
       hint: () => "If GitHub refused, check you're signed in to your own account (step 5) and git uses it (step 6).",
@@ -815,23 +839,357 @@ export function courseSteps() {
                   words: [["npm", "Node's package installer"], ["install", "get everything package.json lists"]],
                 }),
               ]),
-          cmd("npm run doctor", ["npm", "run", "doctor"], {
+          doctorCommand(ctx, dir),
+        ];
+      },
+      hint: () => "Fix each one as it says (most are earlier steps: Go back to that step), then try again.",
+    },
+  ];
+}
+
+/**
+ * `npm run doctor`, passing only when it ends with "all 8 checks passed".
+ * @param {Context} ctx
+ * @param {string} dir
+ * @returns {Action}
+ */
+function doctorCommand(ctx, dir) {
+  return cmd("npm run doctor", ["npm", "run", "doctor"], {
+    cwd: dir,
+    what: "Runs the course's checks of your setup (8 must pass; a couple more are only advice). It must end with: doctor: all 8 checks passed.",
+    words: [["run", "run one of the course's scripts, from package.json"], ["doctor", "the setup check"]],
+    judge: (result) => {
+      const text = `${result.stdout}\n${result.stderr}`;
+      const ok = /doctor: all 8 checks passed/.test(text);
+      ctx.state.doctorOk = ok;
+      if (ok) return { done: true, found: "doctor: all 8 checks passed" };
+      const items = doctorFailures(text);
+      return {
+        done: false,
+        found: items.length === 0 ? "The doctor didn't pass (Show full output has what it printed)." : items.length === 1 ? "One of the doctor's checks didn't pass:" : `${items.length} of the doctor's checks didn't pass:`,
+        items,
+      };
+    },
+  });
+}
+
+/**
+ * The doctor's failed checks, each with what it found and how to fix it. The doctor prints
+ * "✗ <check, padded> <what it found>" and, on the next line, "→ <how to fix it>".
+ * @param {string} text
+ * @returns {{ check: string, found: string, fix: string }[]}
+ */
+export function doctorFailures(text) {
+  const lines = cleanOutput(text).split("\n");
+  /** @type {{ check: string, found: string, fix: string }[]} */
+  const items = [];
+  lines.forEach((line, i) => {
+    const m = /^\s*[✗×] (.{27}) (.*)$/.exec(line) ?? /^\s*[✗×] (\S.*?)\s{2,}(.*)$/.exec(line);
+    if (!m) return;
+    const next = /^\s*→\s*(.*)$/.exec(lines[i + 1] ?? "");
+    items.push({ check: m[1].trim(), found: m[2].trim(), fix: next ? next[1].trim() : "" });
+  });
+  return items;
+}
+
+// ── Get this week's work (every week from week 2) ──────────────────────────
+
+/** @param {number} n */
+const weekBranch = (n) => `week-${n}-start`;
+/** @param {number} n */
+const pad2 = (n) => String(n).padStart(2, "0");
+
+/**
+ * Is setup finished in this course folder? The work branch exists and is on GitHub (origin/work).
+ * @param {Context} ctx
+ * @param {string} dir
+ */
+export function setupComplete(ctx, dir) {
+  return output(ctx, ["git", "rev-parse", "--abbrev-ref", "work@{upstream}"], dir) === "origin/work";
+}
+
+/**
+ * Which week to get: the first week-N-start on upstream that isn't in `work` yet. Looks at GitHub
+ * (git ls-remote, read-only) and at what was fetched before, so it works offline too.
+ * @param {Context} ctx
+ * @param {string} dir
+ * @returns {{ week: number, published: true } | { week: number, published: false }}
+ */
+export function findWeek(ctx, dir) {
+  // Each week's latest commit: GitHub's when it answers (a fix Praise pushed to a published week
+  // counts as new), else what was fetched before.
+  /** @type {Map<number, string>} */
+  const tips = new Map();
+  const local = output(ctx, ["git", "for-each-ref", "--format=%(objectname) %(refname:short)", "refs/remotes/upstream/"], dir) ?? "";
+  for (const m of local.matchAll(/^([0-9a-f]{40}) upstream\/week-(\d+)-start$/gm)) tips.set(Number(m[2]), m[1]);
+  for (const [n, sha] of remoteWeeks(ctx, dir)) tips.set(n, sha);
+  const sorted = [...tips.keys()].sort((a, b) => a - b);
+  // In work already: that commit is here and work contains it.
+  const merged = (/** @type {number} */ n) => ctx.capture(["git", "merge-base", "--is-ancestor", /** @type {string} */ (tips.get(n)), "work"], dir)?.code === 0;
+  for (const n of sorted) if (!merged(n)) return { week: n, published: true };
+  return { week: (sorted.at(-1) ?? 1) + 1, published: false };
+}
+
+/**
+ * The weeks published on upstream (GitHub), with each one's latest commit. Empty when offline.
+ * @param {Context} ctx
+ * @param {string} dir
+ * @returns {Map<number, string>}
+ */
+function remoteWeeks(ctx, dir) {
+  const remote = output(ctx, ["git", "ls-remote", "--heads", "upstream", "week-*-start"], dir) ?? "";
+  return new Map([...remote.matchAll(/^([0-9a-f]{40})\s+refs\/heads\/week-(\d+)-start$/gm)].map((m) => [Number(m[2]), m[1]]));
+}
+
+/**
+ * Is a merge stopped halfway (conflicts not resolved)? Then nothing may be committed until it's undone.
+ * @param {Context} ctx
+ * @param {string} dir
+ */
+export function mergeInProgress(ctx, dir) {
+  return output(ctx, ["git", "rev-parse", "-q", "--verify", "MERGE_HEAD"], dir) !== null;
+}
+
+/**
+ * What week N brings, in plain words, from the course files on its branch.
+ * @param {Context} ctx
+ * @param {string} dir
+ * @param {number} week
+ */
+export function whatArrived(ctx, dir, week) {
+  const ref = `upstream/${weekBranch(week)}`;
+  // A task is a stubbed region: a comment line that starts with TODO(week N, …), in the course code
+  // (not the guide's prose, the tests or the design mockups).
+  const region = `^[[:space:]]*(//|#|<!--)[[:space:]]*TODO\\(week ${week},`;
+  const counts = output(ctx, ["git", "grep", "-c", "-E", region, ref, "--", ".", ":(exclude)tests", ":(exclude)docs", ":(exclude)design"], dir) ?? "";
+  const tasks = counts.split("\n").reduce((n, line) => n + (Number(line.split(":").pop()) || 0), 0);
+  const guide = ctx.capture(["git", "cat-file", "-e", `${ref}:docs/weeks/week-${pad2(week)}.md`], dir)?.code === 0;
+  const tests = (output(ctx, ["git", "ls-tree", "-r", "--name-only", ref, `tests/week-${pad2(week)}/`], dir) ?? "").split("\n").filter(Boolean).length;
+  const parts = [
+    ...(tasks ? [`${tasks} task${tasks === 1 ? "" : "s"} (marked TODO(week ${week}, …) in the code)`] : []),
+    ...(guide ? [`the week-${week} guide (docs/weeks/week-${pad2(week)}.md)`] : []),
+    ...(tests ? [`the tests that check your work (tests/week-${pad2(week)}, ${tests} file${tests === 1 ? "" : "s"})`] : []),
+  ];
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : (parts[0] ?? "");
+  return list ? `New this week: ${list}.` : "";
+}
+
+/**
+ * The files git couldn't merge by itself, while a merge is stopped.
+ * @param {Context} ctx
+ * @param {string} dir
+ */
+function conflictedFiles(ctx, dir) {
+  return (output(ctx, ["git", "diff", "--name-only", "--diff-filter=U"], dir) ?? "").split("\n").filter(Boolean);
+}
+
+/**
+ * The steps to get week N into the student's work: the same studio, one flow for every week.
+ * @param {number} week
+ * @param {{ onWork?: boolean }} [options]  onWork: false adds a first step back to the work branch
+ * @returns {Step[]}
+ */
+export function weekSteps(week, { onWork = true } = {}) {
+  const branch = weekBranch(week);
+  const ref = `upstream/${branch}`;
+  const guide = `docs/weeks/week-${pad2(week)}.md`;
+  /** @type {Step[]} */
+  const steps = [
+    {
+      id: "half-merged",
+      title: "Finish up from last time",
+      technical: "unfinished merge",
+      explain: "a merge that stopped halfway because of a conflict, and was never undone.",
+      why: "If a merge stopped last time and wasn't undone, saving now would save the half-merged files (with git's conflict marks in them). So it's undone first.",
+      example: "Nothing is half-merged.",
+      check: async (ctx) => {
+        const dir = repoDir(ctx);
+        if (!mergeInProgress(ctx, dir)) return { done: true, found: "Nothing is half-merged." };
+        const files = conflictedFiles(ctx, dir);
+        return { done: false, found: `A merge from last time is still half-done${files.length ? ` (in ${files.join(", ")})` : ""}. Undo it first: your work comes back exactly as it was.` };
+      },
+      plan: (ctx) => [
+        cmd("git merge --abort", ["git", "merge", "--abort"], {
+          cwd: repoDir(ctx),
+          label: "Undo the half-done merge",
+          what: "Puts everything back the way it was before that merge, so nothing half-merged gets saved.",
+          words: [["merge", "combine another branch into this one"], ["--abort", "stop the merge and undo it"]],
+        }),
+      ],
+      hint: () => "If git won't undo it, show me in class.",
+    },
+  ];
+  if (!onWork)
+    steps.push({
+      id: "on-work",
+      title: "Go back to your work branch",
+      technical: "branch",
+      explain: "a named line of work in git; all your course work is on the one called work.",
+      why: "The new week goes into your work branch, so that's where you need to be.",
+      example: "You're on your work branch.",
+      check: async (ctx) => {
+        const current = output(ctx, ["git", "branch", "--show-current"], repoDir(ctx));
+        return { done: current === "work", found: current === "work" ? "You're on your work branch." : `You're on '${current ?? "?"}', not work.` };
+      },
+      plan: (ctx) => [cmd("git switch work", ["git", "switch", "work"], { cwd: repoDir(ctx), what: "Moves you onto your work branch.", words: [["switch", "move to a branch"]] })],
+      hint: () => "If git says your changes would be overwritten, save them first (commit), then try again.",
+    });
+  steps.push(
+    {
+      id: "saved",
+      title: "Check your work is saved",
+      technical: "clean working tree",
+      explain: "every change in your folder is saved in git (committed), so nothing can get mixed up.",
+      why: `Before week ${week} arrives, everything you've done so far is saved as a commit, so it's safe and you can always get back to it.`,
+      example: "Everything is saved.",
+      check: async (ctx) => {
+        const changes = (output(ctx, ["git", "status", "--porcelain"], repoDir(ctx)) ?? "").split("\n").filter(Boolean);
+        return { done: changes.length === 0, found: changes.length === 0 ? "Everything is saved." : `${changes.length} file${changes.length === 1 ? " isn't" : "s aren't"} saved yet.` };
+      },
+      plan: (ctx) => [
+        // Never save half-merged files: undo a stopped merge instead (step 1 normally already has).
+        ...(mergeInProgress(ctx, repoDir(ctx))
+          ? [
+              cmd("git merge --abort", ["git", "merge", "--abort"], {
+          cwd: repoDir(ctx),
+          label: "Undo the half-done merge",
+          what: "Puts everything back the way it was before that merge, so nothing half-merged gets saved.",
+          words: [["merge", "combine another branch into this one"], ["--abort", "stop the merge and undo it"]],
+        }),
+            ]
+          : [
+              cmd("git add -A", ["git", "add", "-A"], { cwd: repoDir(ctx), what: "Marks every change in the folder to be saved.", words: [["add", "choose what goes in the next save"], ["-A", "all changes"]] }),
+              cmd(`git commit -m "week ${Math.max(1, week - 1)}"`, ["git", "commit", "-m", `week ${Math.max(1, week - 1)}`], {
+                cwd: repoDir(ctx),
+                what: "Saves them as one commit, named after last week.",
+                words: [["commit", "save a snapshot of your work in git"], ["-m", "the commit's message (its name)"]],
+              }),
+            ]),
+      ],
+      hint: () => "If git says it doesn't know who you are, run node setup.mjs --setup (step 3).",
+    },
+    {
+      id: "fetch",
+      title: "Get this week's files from the course",
+      technical: "fetch",
+      explain: "downloading what's new on GitHub, without changing your files yet.",
+      why: `Week ${week}'s files are on the course's repository (upstream). Fetching brings them to this laptop.`,
+      example: `${ref} is here.`,
+      check: async (ctx) => {
+        const dir = repoDir(ctx);
+        const local = output(ctx, ["git", "rev-parse", "--verify", "--quiet", `refs/remotes/${ref}`], dir);
+        const latest = remoteWeeks(ctx, dir).get(week); // undefined when offline: then what's here counts
+        if (local === null) return { done: false, found: `Week ${week} isn't on this laptop yet.` };
+        if (latest && latest !== local) return { done: false, found: `The course updated week ${week} since you last fetched it.` };
+        return { done: true, found: `Week ${week}'s files are on this laptop (${ref}).` };
+      },
+      plan: (ctx) => [cmd("git fetch upstream", ["git", "fetch", "upstream"], { cwd: repoDir(ctx), what: "Downloads the course's new branches, including this week's.", words: [["fetch", "download what's new, without changing your files"], ["upstream", "the course's repository"]] })],
+      hint: () => `If it worked but week ${week} still isn't here, it isn't published yet: check back before class.`,
+    },
+    {
+      id: "merge",
+      title: "Add them to your work",
+      technical: "merge",
+      explain: "combining two lines of work: your work branch and this week's files.",
+      why: `Your work keeps everything you did; merging adds week ${week}'s new files and tasks on top.`,
+      example: `Week ${week} is in your work.`,
+      check: async (ctx) => {
+        const dir = repoDir(ctx);
+        if (output(ctx, ["git", "rev-parse", "-q", "--verify", "MERGE_HEAD"], dir) !== null) {
+          const files = conflictedFiles(ctx, dir);
+          return { done: false, found: `The merge stopped: your copy and the course both changed ${files.length ? files.join(", ") : "the same file"}.` };
+        }
+        const merged = ctx.capture(["git", "merge-base", "--is-ancestor", ref, "HEAD"], dir)?.code === 0;
+        return { done: merged, found: merged ? `Week ${week} is in your work. ${whatArrived(ctx, dir, week)}`.trim() : `Week ${week} isn't in your work yet.` };
+      },
+      plan: (ctx) => {
+        const dir = repoDir(ctx);
+        if (output(ctx, ["git", "rev-parse", "-q", "--verify", "MERGE_HEAD"], dir) !== null)
+          return [
+            cmd("git merge --abort", ["git", "merge", "--abort"], {
+              cwd: dir,
+              label: "Undo the merge",
+              what: "Puts everything back the way it was before the merge, so nothing is left half-merged.",
+              words: [["--abort", "stop the merge and undo it"]],
+              judge: () => ({ done: false, found: "The merge is undone: your work is exactly as it was before. Show me the files in class and we'll sort it out together." }),
+              stop: true,
+            }),
+          ];
+        return [
+          cmd(`git merge ${ref}`, ["git", "merge", "--no-edit", ref], {
             cwd: dir,
-            what: "Runs the course's checks. It must end with: doctor: all 8 checks passed.",
-            words: [["run", "run one of the course's scripts, from package.json"], ["doctor", "the setup check"]],
-            judge: (result) => {
-              const text = `${result.stdout}\n${result.stderr}`;
-              const ok = /doctor: all 8 checks passed/.test(text);
-              ctx.state.doctorOk = ok;
-              const failing = text.split("\n").filter((l) => l.trim().startsWith("✗")).map((l) => l.trim());
-              return { done: ok, found: ok ? "doctor: all 8 checks passed" : failing.length ? `Still failing: ${failing.join("; ")}` : "The doctor didn't pass (see the output)." };
-            },
+            what: `Adds week ${week}'s files to your work branch, as one merge commit.`,
+            words: [["merge", "combine another branch into this one"], [ref, `week ${week}, as fetched from the course`]],
           }),
         ];
       },
-      hint: () => "Each ✗ line says how to fix it; most are covered by the earlier steps.",
+      hint: () => "Nothing else to do here today: bring it to class.",
     },
-  ];
+    {
+      id: "push-week",
+      title: "Put it on GitHub",
+      technical: "push",
+      explain: "sending your commits from this laptop to your fork on GitHub.",
+      why: `So your fork on GitHub has week ${week} too, and Praise sees the same thing you do.`,
+      example: "Your fork on GitHub has it too.",
+      check: async (ctx) => {
+        const ahead = output(ctx, ["git", "rev-list", "--count", "origin/work..work"], repoDir(ctx));
+        return { done: ahead === "0", found: ahead === "0" ? "Your fork on GitHub has it too." : `GitHub doesn't have ${ahead ?? "your latest"} of your commits yet.` };
+      },
+      plan: (ctx) => [cmd("git push", ["git", "push"], { cwd: repoDir(ctx), what: "Sends your work branch to your fork on GitHub.", words: [["push", "send commits to GitHub"]] })],
+      hint: () => "If GitHub refused, run node setup.mjs --setup and check steps 5 and 6.",
+    },
+    {
+      id: "install-week",
+      title: "Install anything new",
+      technical: "npm install",
+      explain: "npm downloads the packages (code other people wrote) that package.json lists.",
+      why: "If this week added a package, it gets installed now. If not, this is quick.",
+      example: "Everything the course needs is installed.",
+      check: async (ctx) => {
+        const dir = repoDir(ctx);
+        const lock = ctx.mtime?.(join(dir, "package-lock.json")) ?? null;
+        const installed = ctx.mtime?.(join(dir, "node_modules", ".package-lock.json")) ?? null;
+        const ok = installed !== null && (lock === null || installed >= lock);
+        return { done: ok, found: ok ? "Everything the course needs is installed." : "There's something new to install." };
+      },
+      plan: (ctx) => [cmd("npm install", ["npm", "install"], { cwd: repoDir(ctx), what: "Installs the packages package.json lists, including any new ones.", words: [["npm", "Node's package installer"], ["install", "get everything package.json lists"]] })],
+      hint: () => "Check the Wi-Fi, then try again.",
+    },
+    {
+      id: "doctor-week",
+      title: "Check everything",
+      technical: "doctor",
+      explain: "the course's own check of your whole setup.",
+      why: "The same check as week 1: 8 checks must still pass.",
+      example: "doctor: all 8 checks passed",
+      check: async () => ({ done: false, found: "The doctor hasn't run yet." }),
+      plan: (ctx) => [doctorCommand(ctx, repoDir(ctx))],
+      hint: () => "Fix each one as it says, then try again. Stuck? Show me in class.",
+    },
+    {
+      id: "open-week",
+      title: "Open this week's work",
+      technical: "the week's guide",
+      explain: `docs/weeks/week-${pad2(week)}.md: what week ${week} is about, and its tasks in order.`,
+      why: `Everything for week ${week} is in your folder now. The guide walks you through it.`,
+      example: `You've opened the week-${week} guide.`,
+      check: async (ctx) => ({ done: ctx.state.opened === week, found: ctx.state.opened === week ? `You've opened the week-${week} guide.` : "Not opened yet." }),
+      plan: (ctx) => [
+        {
+          kind: "choice",
+          question: `Open the week-${week} guide and start reading.`,
+          links: [{ label: `The week-${week} guide (${guide}) on GitHub`, url: `https://github.com/${ctx.state.login ?? "praiseisaac"}/netsim-starter/blob/work/${guide}` }],
+          yes: "I've opened it",
+          submit: (c) => {
+            c.state.opened = week;
+          },
+        },
+      ],
+      hint: () => `It's also in your folder: ${guide}.`,
+    },
+  );
+  return steps;
 }
 
 /**
@@ -846,6 +1204,15 @@ function commandOf(action, ctx) {
 }
 
 /**
+ * A step's dry-run result, with the GitHub login filled in when it's known.
+ * @param {Step} step
+ * @param {Context} ctx
+ */
+function exampleOf(step, ctx) {
+  return step.example.replace(/your-github-name/g, ctx.state.login ?? "your-github-name");
+}
+
+/**
  * The step's check. In a dry run, a step whose commands were "run" counts as done, and --fresh
  * pretends nothing else is (so the whole flow can be walked on a laptop that's already set up).
  * @param {Step} step
@@ -853,7 +1220,7 @@ function commandOf(action, ctx) {
  * @returns {Promise<CheckResult>}
  */
 export async function checkStep(step, ctx) {
-  if (ctx.dryRun && ctx.state.dryDone?.[step.id]) return { done: true, found: `(dry run) ${step.example}` };
+  if (ctx.dryRun && ctx.state.dryDone?.[step.id]) return { done: true, found: `(dry run) ${ctx.state.dryFound?.[step.id] ?? exampleOf(step, ctx)}` };
   if (ctx.dryRun && ctx.fresh && step.id !== "node") return { done: false, found: "(dry run) pretending this isn't done yet." };
   return step.check(ctx);
 }
@@ -885,6 +1252,13 @@ export function diagnose(step, command, text, code, ctx) {
     const installs = { gh: 4, git: 2, codex: 14, npm: 1, brew: 4 };
     const back = /** @type {Record<string, number>} */ (installs)[program];
     return { what: `The ${program} program isn't installed (or the studio can't find it yet).`, fix: back ? `Install it in step ${back}, then come back.` : step.hint(ctx), back };
+  }
+  if (/CONFLICT|Automatic merge failed/.test(text)) {
+    const files = [...text.matchAll(/Merge conflict in (.+)/g)].map((m) => m[1].trim());
+    return {
+      what: `Your copy and the course both changed the same file${files.length === 1 ? "" : "s"}${files.length ? `: ${files.join(", ")}` : ""}. Undo the merge first, then show me in class.`,
+      fix: "Press Try again ↵: the studio offers Undo the merge. Don't close the studio before you've undone it.",
+    };
   }
   if (/invalid reference|not a commit|couldn't find remote ref/i.test(text))
     return { what: "Week 1's starting point wasn't found.", fix: "Go back to step 10 so the studio fetches it, then come back.", back: 10 };
@@ -939,11 +1313,12 @@ function printChecklist(ctx, steps, marks) {
  * student didn't type (or ask to have run after three tries).
  * @param {Step[]} steps
  * @param {Context} ctx
+ * @param {{ week?: number }} [options]  week: getting week N's work (not the week-1 setup)
  */
-export async function runSteps(steps, ctx) {
+export async function runSteps(steps, ctx, { week } = {}) {
   const { bold } = ctx.style;
   ctx.print(bold("NetSim: Building a Simulated Computer System"));
-  ctx.print("I'll walk you through setting up your laptop, one step at a time.");
+  ctx.print(week ? `Let's get week ${week}'s work into your folder, one step at a time.` : "I'll walk you through setting up your laptop, one step at a time.");
   ctx.print("Each step checks first. Nothing runs until you type it yourself.\n");
 
   /** @type {Mark[]} */
@@ -967,10 +1342,12 @@ export async function runSteps(steps, ctx) {
   ctx.print(`\n${bold("Your checklist")}`);
   printChecklist(ctx, steps, marks);
   const left = steps.filter((s, i) => marks[i] !== "done" && !s.optional);
+  const guide = `docs/weeks/week-${String(week ?? 1).padStart(2, "0")}.md`;
+  const next = week ? `open ${guide} and do the tasks marked TODO(week ${week}, …)` : `open ${guide} and do the take-home`;
   ctx.print(
     left.length === 0
-      ? `\n${ctx.style.green("All set.")} Next: open docs/weeks/week-01.md and do the take-home.`
-      : `\nNext: finish the skipped steps (run \`node setup.mjs\` again), then open docs/weeks/week-01.md and do the take-home.`,
+      ? `\n${ctx.style.green(week ? `Week ${week} is in your work.` : "All set.")} Next: ${next}.`
+      : `\nNext: finish the skipped steps (run \`node setup.mjs\` again), then ${next}.`,
   );
   return { marks, quit: false };
 }
@@ -1139,8 +1516,10 @@ const OUTPUT_LIMIT = 200_000;
  * current step planned, and only once the typed text matches.
  * @param {Context} ctx
  * @param {Step[]} steps
+ * @param {{ mode?: "setup" | "week", week?: number, published?: boolean }} [meta]  what the page is for:
+ *   setup (week 1), or getting week N (published: false when week N isn't out yet)
  */
-export function createStudio(ctx, steps) {
+export function createStudio(ctx, steps, meta = {}) {
   /** @type {Set<(event: string, data: unknown) => void>} */
   const listeners = new Set();
   /** @type {Mark[]} */
@@ -1162,8 +1541,17 @@ export function createStudio(ctx, steps) {
       return [];
     }
   };
+  // Worked out again when the GitHub login changes, so the clone command shows the student's name.
   /** @type {string[][]} */
-  const previews = steps.map(preview);
+  let previews = steps.map(preview);
+  let previewLogin = ctx.state.login;
+  const previewsNow = () => {
+    if (ctx.state.login !== previewLogin) {
+      previewLogin = ctx.state.login;
+      previews = steps.map(preview);
+    }
+    return previews;
+  };
   // A fresh dry run plans as if nothing were installed on this laptop, like a student's.
   const planCtx = ctx.dryRun && ctx.fresh ? looking : ctx;
   let current = 0;
@@ -1176,7 +1564,7 @@ export function createStudio(ctx, steps) {
   /** @type {Running | null} */
   let child = null;
   /**
-   * @type {{ phase: string, already: boolean, index: number, error: { what: string, fix: string, back?: number } | null,
+   * @type {{ phase: string, already: boolean, index: number, error: { what: string, fix: string, back?: number, stop?: boolean, items?: { check: string, found: string, fix: string }[] } | null,
    *   ask: string, note: string, slowNote: string, slowAfterMs: number, startedAt: number, code: string, url: string, waitFor: string, formError: string }}
    */
   let view = blank("checking");
@@ -1186,7 +1574,10 @@ export function createStudio(ctx, steps) {
     return { phase, already: false, index: 0, error: null, ask: "", note: "", slowNote: "", slowAfterMs: 0, startedAt: 0, code: "", url: "", waitFor: "", formError: "" };
   }
 
-  /** @param {Action} action */
+  /**
+   * @param {Action} action
+   * @returns {ActionView}
+   */
   function describe(action) {
     const command = commandOf(action, ctx);
     if (command) {
@@ -1216,6 +1607,11 @@ export function createStudio(ctx, steps) {
       platform: ctx.platform,
       current,
       total: steps.length,
+      mode: meta.mode ?? "setup",
+      week: meta.week ?? 1,
+      published: meta.published ?? true,
+      // Only on the finish screen: it asks git.
+      arrived: meta.mode === "week" && current >= steps.length && ctx.state.repoDir && meta.published !== false ? whatArrived(ctx, ctx.state.repoDir, meta.week ?? 2) : "",
       login: ctx.state.login ?? "",
       codexVersion: ctx.state.codexVersion ?? "",
       repoDir: ctx.state.repoDir ? tildify(ctx.state.repoDir) : "",
@@ -1228,10 +1624,11 @@ export function createStudio(ctx, steps) {
         why: s.why,
         optional: Boolean(s.optional),
         diagram: Boolean(s.diagram),
+        changeable: Boolean(s.changeable),
         mark: marks[i],
         found: found[i],
         ran: ran[i],
-        preview: previews[i],
+        preview: previewsNow()[i],
       })),
       view: current < steps.length ? { ...view, attempt, outputId, actions: plan.map(describe) } : null,
     };
@@ -1252,6 +1649,10 @@ export function createStudio(ctx, steps) {
     if (!again) {
       ranHere = false;
       if (ran[i]) ran[i] = [];
+      // A new step starts with no output (the page closes Show full output too).
+      out = "";
+      outputId++;
+      for (const l of listeners) l("output", { id: outputId, text: "", reset: true });
     }
     current = i;
     plan = [];
@@ -1289,9 +1690,13 @@ export function createStudio(ctx, steps) {
     publish();
   }
 
-  /** @param {{ what: string, fix: string, back?: number }} error */
+  /** @param {{ what: string, fix: string, back?: number, stop?: boolean, items?: { check: string, found: string, fix: string }[] }} error */
   function fail(error) {
-    view = { ...view, phase: "failed", error: error.back && error.back - 1 < current ? error : { what: error.what, fix: error.fix } };
+    view = {
+      ...view,
+      phase: "failed",
+      error: { what: error.what, fix: error.fix, ...(error.back && error.back - 1 < current && { back: error.back }), ...(error.stop && { stop: true }), ...(error.items?.length && { items: error.items }) },
+    };
     publish();
   }
 
@@ -1346,13 +1751,17 @@ export function createStudio(ctx, steps) {
     if (ctx.dryRun) {
       if (code !== 0) return fail(diagnose(step, command, cleanOutput(out), code, ctx));
       if (!last) return next(mine);
+      const pretended = step.pretend?.(ctx);
+      if (pretended?.ask) {
+        view = { ...blank("confirm"), ask: pretended.ask };
+        return publish();
+      }
       (ctx.state.dryDone ??= {})[step.id] = true;
-      step.pretend?.(ctx);
-      return pass(`(dry run) ${step.example}`);
+      return pass(`(dry run) ${exampleOf(step, ctx)}`);
     }
     if (command.judge) {
       const r = command.judge({ code, stdout: cleanOutput(out), stderr: "" });
-      return r.done ? pass(r.found) : fail({ what: r.found, fix: step.hint(ctx) });
+      return r.done ? pass(r.found) : fail({ what: r.found, fix: step.hint(ctx), stop: command.stop, items: r.items });
     }
     if (code === 0 && !last) return next(mine);
     const r = await checkStep(step, ctx);
@@ -1387,6 +1796,13 @@ export function createStudio(ctx, steps) {
    * @returns {Promise<{ ok: boolean, status: number, error: string }>}
    */
   async function act(a) {
+    // Going back to an earlier step works from anywhere, the finish screen included.
+    if (a.type === "back") {
+      const to = Number(a.to);
+      if (!Number.isInteger(to) || to < 1 || to > Math.min(current, steps.length)) return reject(409, "You can only go back to an earlier step.");
+      void enter(to - 1);
+      return ok;
+    }
     const step = steps[current];
     if (!step) return reject(409, "Setup is finished.");
     if (a.stepId !== step.id) return reject(409, "That isn't the current step. Steps go in order.");
@@ -1414,7 +1830,10 @@ export function createStudio(ctx, steps) {
             if (!ctx.dryRun) ctx.execute(c.argv, c.cwd);
             ran[current].push(c.display);
           }
-          if (ctx.dryRun) (ctx.state.dryDone ??= {})[step.id] = true;
+          if (ctx.dryRun) {
+            (ctx.state.dryDone ??= {})[step.id] = true;
+            if (result.found) (ctx.state.dryFound ??= {})[step.id] = result.found;
+          }
         } else if (action.kind === "folder") {
           const error = action.submit(ctx, String(values.folder ?? ""));
           if (error) {
@@ -1437,6 +1856,7 @@ export function createStudio(ctx, steps) {
         if (view.phase !== "confirm" || !step.confirm) return reject(409, "There's no question right now.");
         step.confirm(ctx, a.answer === "yes");
         if (a.answer === "yes") {
+          if (ctx.dryRun) (ctx.state.dryDone ??= {})[step.id] = true;
           await enter(current, true);
           return ok;
         }
@@ -1485,10 +1905,12 @@ export function createStudio(ctx, steps) {
         publish();
         return ok;
       }
-      case "back": {
-        const to = Number(a.to);
-        if (!Number.isInteger(to) || to < 1 || to > current) return reject(409, "You can only go back to an earlier step.");
-        void enter(to - 1);
+      case "change": {
+        if (!step.changeable || view.phase !== "passed") return reject(409, "This step can't be changed here.");
+        attempt++;
+        plan = step.plan(planCtx);
+        view = blank("ready");
+        publish();
         return ok;
       }
       default:
@@ -1639,6 +2061,7 @@ export function serveStudio(studio, { token = randomBytes(24).toString("base64ur
 // One recorded run of the finished system (the course's reference solution): the countdown and
 // blink demo programs and one button press. Only what travelled on the bus and small status
 // snapshots, one entry per tick. Made by scripts/studio/record-machine.ts --write; don't edit by hand.
+/** @type {MachineTrace | null} */
 const MACHINE_TRACE = /* @machine-trace-begin */ {"about":"One recorded run of the finished NetSim system: countdown and blink, and one button press. Messages and status only.","parts":{"cpu":"CPU","memory":"Memory","button-1":"Button","led-1":"LED","display-1":"Display"},"ticks":[{"t":1,"e":[["mem.read","cpu","memory",0,4],["mem.read","cpu","memory",128,4],["mem.data","memory","cpu",0,4],["mem.data","memory","cpu",128,4]],"c":[["WAIT_FETCH",0,null,"countdown",0],["WAIT_FETCH",128,null,"blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":0},{"t":2,"e":[],"c":[["DECODE",0,null,"countdown",0],["DECODE",128,null,"blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":0},{"t":3,"e":[],"c":[["EXECUTE",0,"LOADI R0, 9","countdown",0],["EXECUTE",128,"LOADI R2, 4","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":0},{"t":4,"e":[],"c":[["FETCH",4,"LOADI R0, 9","countdown",0],["FETCH",132,"LOADI R2, 4","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":0},{"t":5,"e":[["mem.read","cpu","memory",4,4],["mem.read","cpu","memory",132,4],["mem.data","memory","cpu",4,4],["mem.data","memory","cpu",132,4]],"c":[["WAIT_FETCH",4,"LOADI R0, 9","countdown",0],["WAIT_FETCH",132,"LOADI R2, 4","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":0},{"t":6,"e":[],"c":[["DECODE",4,"LOADI R0, 9","countdown",0],["DECODE",132,"LOADI R2, 4","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":0},{"t":7,"e":[],"c":[["EXECUTE",4,"LOADI R1, 1","countdown",0],["EXECUTE",132,"LOADI R3, 1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":0},{"t":8,"e":[],"c":[["FETCH",8,"LOADI R1, 1","countdown",0],["FETCH",136,"LOADI R3, 1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":0},{"t":9,"e":[["mem.read","cpu","memory",8,4],["mem.read","cpu","memory",136,4],["mem.data","memory","cpu",8,4],["mem.data","memory","cpu",136,4]],"c":[["WAIT_FETCH",8,"LOADI R1, 1","countdown",0],["WAIT_FETCH",136,"LOADI R3, 1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":0},{"t":10,"e":[],"c":[["DECODE",8,"LOADI R1, 1","countdown",0],["DECODE",136,"LOADI R3, 1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":0},{"t":11,"e":[],"c":[["EXECUTE",8,"STORE R0, 0x3F2","countdown",0],["EXECUTE",136,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":0},{"t":12,"e":[["mem.write","cpu","memory",1010,9],["mem.read","display-1","memory",1010,1],["mem.ack","memory","cpu",1010],["mem.data","memory","display-1",1010,9]],"c":[["WAIT_DATA",8,"STORE R0, 0x3F2","countdown",0],["FETCH",140,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":0},{"t":13,"e":[["mem.read","cpu","memory",140,4],["mem.data","memory","cpu",140,4]],"c":[["FETCH",12,"STORE R0, 0x3F2","countdown",0],["WAIT_FETCH",140,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":9,"b":"RELEASED","n":0},{"t":14,"e":[["mem.read","cpu","memory",12,4],["mem.data","memory","cpu",12,4]],"c":[["WAIT_FETCH",12,"STORE R0, 0x3F2","countdown",0],["DECODE",140,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":9,"b":"RELEASED","n":0},{"t":15,"e":[],"c":[["DECODE",12,"STORE R0, 0x3F2","countdown",0],["EXECUTE",140,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":9,"b":"RELEASED","n":0},{"t":16,"e":[["mem.write","cpu","memory",1009,255],["mem.read","led-1","memory",1009,1],["mem.ack","memory","cpu",1009],["mem.data","memory","led-1",1009,255]],"c":[["EXECUTE",12,"SUB R0, R1","countdown",0],["WAIT_DATA",140,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":9,"b":"RELEASED","n":0},{"t":17,"e":[],"c":[["FETCH",16,"SUB R0, R1","countdown",0],["FETCH",144,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":9,"b":"RELEASED","n":0},{"t":18,"e":[["mem.read","cpu","memory",16,4],["mem.read","cpu","memory",144,4],["mem.data","memory","cpu",16,4],["mem.data","memory","cpu",144,4]],"c":[["WAIT_FETCH",16,"SUB R0, R1","countdown",0],["WAIT_FETCH",144,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":9,"b":"RELEASED","n":0},{"t":19,"e":[],"c":[["DECODE",16,"SUB R0, R1","countdown",0],["DECODE",144,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":9,"b":"RELEASED","n":0},{"t":20,"e":[],"c":[["EXECUTE",16,"JNZ 0x008","countdown",0],["EXECUTE",144,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":9,"b":"RELEASED","n":0},{"t":21,"e":[],"c":[["FETCH",8,"JNZ 0x008","countdown",0],["FETCH",148,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":9,"b":"RELEASED","n":0},{"t":22,"e":[["mem.read","cpu","memory",8,4],["mem.read","cpu","memory",148,4],["mem.data","memory","cpu",8,4],["mem.data","memory","cpu",148,4]],"c":[["WAIT_FETCH",8,"JNZ 0x008","countdown",0],["WAIT_FETCH",148,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":9,"b":"RELEASED","n":0},{"t":23,"e":[],"c":[["DECODE",8,"JNZ 0x008","countdown",0],["DECODE",148,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":9,"b":"RELEASED","n":0},{"t":24,"e":[],"c":[["EXECUTE",8,"STORE R0, 0x3F2","countdown",0],["EXECUTE",148,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":9,"b":"RELEASED","n":0},{"t":25,"e":[["input","you","button-1"],["mem.write","cpu","memory",1010,8],["mem.write","cpu","memory",1009,0],["mem.read","display-1","memory",1010,1],["mem.read","led-1","memory",1009,1],["mem.ack","memory","cpu",1010],["mem.ack","memory","cpu",1009],["mem.data","memory","display-1",1010,8],["mem.data","memory","led-1",1009,0]],"c":[["WAIT_DATA",8,"STORE R0, 0x3F2","countdown",0],["WAIT_DATA",148,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":9,"b":"RELEASED","n":0},{"t":26,"e":[["irq","button-1","cpu",512]],"c":[["FETCH",12,"STORE R0, 0x3F2","countdown",0],["FETCH",152,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":27,"e":[["mem.read","cpu","memory",512,4],["mem.read","cpu","memory",152,4],["mem.data","memory","cpu",512,4],["mem.data","memory","cpu",152,4]],"c":[["WAIT_FETCH",512,"STORE R0, 0x3F2","countdown",1],["WAIT_FETCH",152,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":28,"e":[],"c":[["DECODE",512,"STORE R0, 0x3F2","countdown",1],["DECODE",152,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":29,"e":[],"c":[["EXECUTE",512,"LOAD R0, 0x3E0","countdown",1],["EXECUTE",152,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":30,"e":[["mem.read","cpu","memory",992,1],["mem.data","memory","cpu",992,0]],"c":[["WAIT_DATA",512,"LOAD R0, 0x3E0","countdown",1],["FETCH",156,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":31,"e":[["mem.read","cpu","memory",156,4],["mem.data","memory","cpu",156,4]],"c":[["FETCH",516,"LOAD R0, 0x3E0","countdown",1],["WAIT_FETCH",156,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":32,"e":[["mem.read","cpu","memory",516,4],["mem.data","memory","cpu",516,4]],"c":[["WAIT_FETCH",516,"LOAD R0, 0x3E0","countdown",1],["DECODE",156,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":33,"e":[],"c":[["DECODE",516,"LOAD R0, 0x3E0","countdown",1],["EXECUTE",156,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":34,"e":[],"c":[["EXECUTE",516,"LOADI R1, 1","countdown",1],["FETCH",136,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":35,"e":[["mem.read","cpu","memory",136,4],["mem.data","memory","cpu",136,4]],"c":[["FETCH",520,"LOADI R1, 1","countdown",1],["WAIT_FETCH",136,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":36,"e":[["mem.read","cpu","memory",520,4],["mem.data","memory","cpu",520,4]],"c":[["WAIT_FETCH",520,"LOADI R1, 1","countdown",1],["DECODE",136,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":37,"e":[],"c":[["DECODE",520,"LOADI R1, 1","countdown",1],["EXECUTE",136,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":38,"e":[],"c":[["EXECUTE",520,"ADD R0, R1","countdown",1],["FETCH",140,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":39,"e":[["mem.read","cpu","memory",140,4],["mem.data","memory","cpu",140,4]],"c":[["FETCH",524,"ADD R0, R1","countdown",1],["WAIT_FETCH",140,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":40,"e":[["mem.read","cpu","memory",524,4],["mem.data","memory","cpu",524,4]],"c":[["WAIT_FETCH",524,"ADD R0, R1","countdown",1],["DECODE",140,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":41,"e":[],"c":[["DECODE",524,"ADD R0, R1","countdown",1],["EXECUTE",140,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":42,"e":[["mem.write","cpu","memory",1009,255],["mem.read","led-1","memory",1009,1],["mem.ack","memory","cpu",1009],["mem.data","memory","led-1",1009,255]],"c":[["EXECUTE",524,"STORE R0, 0x3E0","countdown",1],["WAIT_DATA",140,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":43,"e":[["mem.write","cpu","memory",992,1],["mem.ack","memory","cpu",992]],"c":[["WAIT_DATA",524,"STORE R0, 0x3E0","countdown",1],["FETCH",144,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":8,"b":"RELEASED","n":1},{"t":44,"e":[["mem.read","cpu","memory",144,4],["mem.data","memory","cpu",144,4]],"c":[["FETCH",528,"STORE R0, 0x3E0","countdown",1],["WAIT_FETCH",144,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":8,"b":"RELEASED","n":1},{"t":45,"e":[["mem.read","cpu","memory",528,4],["mem.data","memory","cpu",528,4]],"c":[["WAIT_FETCH",528,"STORE R0, 0x3E0","countdown",1],["DECODE",144,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":8,"b":"RELEASED","n":1},{"t":46,"e":[],"c":[["DECODE",528,"STORE R0, 0x3E0","countdown",1],["EXECUTE",144,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":8,"b":"RELEASED","n":1},{"t":47,"e":[],"c":[["EXECUTE",528,"IRET","countdown",1],["FETCH",148,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":8,"b":"RELEASED","n":1},{"t":48,"e":[["mem.read","cpu","memory",148,4],["mem.data","memory","cpu",148,4]],"c":[["FETCH",12,"IRET","countdown",0],["WAIT_FETCH",148,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":8,"b":"RELEASED","n":1},{"t":49,"e":[["mem.read","cpu","memory",12,4],["mem.data","memory","cpu",12,4]],"c":[["WAIT_FETCH",12,"IRET","countdown",0],["DECODE",148,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":8,"b":"RELEASED","n":1},{"t":50,"e":[],"c":[["DECODE",12,"IRET","countdown",0],["EXECUTE",148,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":8,"b":"RELEASED","n":1},{"t":51,"e":[["mem.write","cpu","memory",1009,0],["mem.read","led-1","memory",1009,1],["mem.ack","memory","cpu",1009],["mem.data","memory","led-1",1009,0]],"c":[["EXECUTE",12,"SUB R0, R1","countdown",0],["WAIT_DATA",148,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":8,"b":"RELEASED","n":1},{"t":52,"e":[],"c":[["FETCH",16,"SUB R0, R1","countdown",0],["FETCH",152,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":53,"e":[["mem.read","cpu","memory",16,4],["mem.read","cpu","memory",152,4],["mem.data","memory","cpu",16,4],["mem.data","memory","cpu",152,4]],"c":[["WAIT_FETCH",16,"SUB R0, R1","countdown",0],["WAIT_FETCH",152,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":54,"e":[],"c":[["DECODE",16,"SUB R0, R1","countdown",0],["DECODE",152,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":55,"e":[],"c":[["EXECUTE",16,"JNZ 0x008","countdown",0],["EXECUTE",152,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":56,"e":[],"c":[["FETCH",8,"JNZ 0x008","countdown",0],["FETCH",156,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":57,"e":[["mem.read","cpu","memory",8,4],["mem.read","cpu","memory",156,4],["mem.data","memory","cpu",8,4],["mem.data","memory","cpu",156,4]],"c":[["WAIT_FETCH",8,"JNZ 0x008","countdown",0],["WAIT_FETCH",156,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":58,"e":[],"c":[["DECODE",8,"JNZ 0x008","countdown",0],["DECODE",156,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":59,"e":[],"c":[["EXECUTE",8,"STORE R0, 0x3F2","countdown",0],["EXECUTE",156,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":60,"e":[["mem.write","cpu","memory",1010,7],["mem.read","display-1","memory",1010,1],["mem.ack","memory","cpu",1010],["mem.data","memory","display-1",1010,7]],"c":[["WAIT_DATA",8,"STORE R0, 0x3F2","countdown",0],["FETCH",136,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":8,"b":"RELEASED","n":1},{"t":61,"e":[["mem.read","cpu","memory",136,4],["mem.data","memory","cpu",136,4]],"c":[["FETCH",12,"STORE R0, 0x3F2","countdown",0],["WAIT_FETCH",136,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":7,"b":"RELEASED","n":1},{"t":62,"e":[["mem.read","cpu","memory",12,4],["mem.data","memory","cpu",12,4]],"c":[["WAIT_FETCH",12,"STORE R0, 0x3F2","countdown",0],["DECODE",136,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":7,"b":"RELEASED","n":1},{"t":63,"e":[],"c":[["DECODE",12,"STORE R0, 0x3F2","countdown",0],["EXECUTE",136,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":7,"b":"RELEASED","n":1},{"t":64,"e":[],"c":[["EXECUTE",12,"SUB R0, R1","countdown",0],["FETCH",140,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":7,"b":"RELEASED","n":1},{"t":65,"e":[["mem.read","cpu","memory",140,4],["mem.data","memory","cpu",140,4]],"c":[["FETCH",16,"SUB R0, R1","countdown",0],["WAIT_FETCH",140,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":7,"b":"RELEASED","n":1},{"t":66,"e":[["mem.read","cpu","memory",16,4],["mem.data","memory","cpu",16,4]],"c":[["WAIT_FETCH",16,"SUB R0, R1","countdown",0],["DECODE",140,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":7,"b":"RELEASED","n":1},{"t":67,"e":[],"c":[["DECODE",16,"SUB R0, R1","countdown",0],["EXECUTE",140,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":7,"b":"RELEASED","n":1},{"t":68,"e":[["mem.write","cpu","memory",1009,255],["mem.read","led-1","memory",1009,1],["mem.ack","memory","cpu",1009],["mem.data","memory","led-1",1009,255]],"c":[["EXECUTE",16,"JNZ 0x008","countdown",0],["WAIT_DATA",140,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":7,"b":"RELEASED","n":1},{"t":69,"e":[],"c":[["FETCH",8,"JNZ 0x008","countdown",0],["FETCH",144,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":7,"b":"RELEASED","n":1},{"t":70,"e":[["mem.read","cpu","memory",8,4],["mem.read","cpu","memory",144,4],["mem.data","memory","cpu",8,4],["mem.data","memory","cpu",144,4]],"c":[["WAIT_FETCH",8,"JNZ 0x008","countdown",0],["WAIT_FETCH",144,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":7,"b":"RELEASED","n":1},{"t":71,"e":[],"c":[["DECODE",8,"JNZ 0x008","countdown",0],["DECODE",144,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":7,"b":"RELEASED","n":1},{"t":72,"e":[],"c":[["EXECUTE",8,"STORE R0, 0x3F2","countdown",0],["EXECUTE",144,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":7,"b":"RELEASED","n":1},{"t":73,"e":[["mem.write","cpu","memory",1010,6],["mem.read","display-1","memory",1010,1],["mem.ack","memory","cpu",1010],["mem.data","memory","display-1",1010,6]],"c":[["WAIT_DATA",8,"STORE R0, 0x3F2","countdown",0],["FETCH",148,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":7,"b":"RELEASED","n":1},{"t":74,"e":[["mem.read","cpu","memory",148,4],["mem.data","memory","cpu",148,4]],"c":[["FETCH",12,"STORE R0, 0x3F2","countdown",0],["WAIT_FETCH",148,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":6,"b":"RELEASED","n":1},{"t":75,"e":[["mem.read","cpu","memory",12,4],["mem.data","memory","cpu",12,4]],"c":[["WAIT_FETCH",12,"STORE R0, 0x3F2","countdown",0],["DECODE",148,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":6,"b":"RELEASED","n":1},{"t":76,"e":[],"c":[["DECODE",12,"STORE R0, 0x3F2","countdown",0],["EXECUTE",148,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":6,"b":"RELEASED","n":1},{"t":77,"e":[["mem.write","cpu","memory",1009,0],["mem.read","led-1","memory",1009,1],["mem.ack","memory","cpu",1009],["mem.data","memory","led-1",1009,0]],"c":[["EXECUTE",12,"SUB R0, R1","countdown",0],["WAIT_DATA",148,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":6,"b":"RELEASED","n":1},{"t":78,"e":[],"c":[["FETCH",16,"SUB R0, R1","countdown",0],["FETCH",152,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":6,"b":"RELEASED","n":1},{"t":79,"e":[["mem.read","cpu","memory",16,4],["mem.read","cpu","memory",152,4],["mem.data","memory","cpu",16,4],["mem.data","memory","cpu",152,4]],"c":[["WAIT_FETCH",16,"SUB R0, R1","countdown",0],["WAIT_FETCH",152,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":6,"b":"RELEASED","n":1},{"t":80,"e":[],"c":[["DECODE",16,"SUB R0, R1","countdown",0],["DECODE",152,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":6,"b":"RELEASED","n":1},{"t":81,"e":[],"c":[["EXECUTE",16,"JNZ 0x008","countdown",0],["EXECUTE",152,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":6,"b":"RELEASED","n":1},{"t":82,"e":[],"c":[["FETCH",8,"JNZ 0x008","countdown",0],["FETCH",156,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":6,"b":"RELEASED","n":1},{"t":83,"e":[["mem.read","cpu","memory",8,4],["mem.read","cpu","memory",156,4],["mem.data","memory","cpu",8,4],["mem.data","memory","cpu",156,4]],"c":[["WAIT_FETCH",8,"JNZ 0x008","countdown",0],["WAIT_FETCH",156,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":6,"b":"RELEASED","n":1},{"t":84,"e":[],"c":[["DECODE",8,"JNZ 0x008","countdown",0],["DECODE",156,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":6,"b":"RELEASED","n":1},{"t":85,"e":[],"c":[["EXECUTE",8,"STORE R0, 0x3F2","countdown",0],["EXECUTE",156,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":6,"b":"RELEASED","n":1},{"t":86,"e":[["mem.write","cpu","memory",1010,5],["mem.read","display-1","memory",1010,1],["mem.ack","memory","cpu",1010],["mem.data","memory","display-1",1010,5]],"c":[["WAIT_DATA",8,"STORE R0, 0x3F2","countdown",0],["FETCH",136,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":6,"b":"RELEASED","n":1},{"t":87,"e":[["mem.read","cpu","memory",136,4],["mem.data","memory","cpu",136,4]],"c":[["FETCH",12,"STORE R0, 0x3F2","countdown",0],["WAIT_FETCH",136,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":5,"b":"RELEASED","n":1},{"t":88,"e":[["mem.read","cpu","memory",12,4],["mem.data","memory","cpu",12,4]],"c":[["WAIT_FETCH",12,"STORE R0, 0x3F2","countdown",0],["DECODE",136,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":5,"b":"RELEASED","n":1},{"t":89,"e":[],"c":[["DECODE",12,"STORE R0, 0x3F2","countdown",0],["EXECUTE",136,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":5,"b":"RELEASED","n":1},{"t":90,"e":[],"c":[["EXECUTE",12,"SUB R0, R1","countdown",0],["FETCH",140,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":5,"b":"RELEASED","n":1},{"t":91,"e":[["mem.read","cpu","memory",140,4],["mem.data","memory","cpu",140,4]],"c":[["FETCH",16,"SUB R0, R1","countdown",0],["WAIT_FETCH",140,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":5,"b":"RELEASED","n":1},{"t":92,"e":[["mem.read","cpu","memory",16,4],["mem.data","memory","cpu",16,4]],"c":[["WAIT_FETCH",16,"SUB R0, R1","countdown",0],["DECODE",140,"LOADI R0, 255","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":5,"b":"RELEASED","n":1},{"t":93,"e":[],"c":[["DECODE",16,"SUB R0, R1","countdown",0],["EXECUTE",140,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":5,"b":"RELEASED","n":1},{"t":94,"e":[["mem.write","cpu","memory",1009,255],["mem.read","led-1","memory",1009,1],["mem.ack","memory","cpu",1009],["mem.data","memory","led-1",1009,255]],"c":[["EXECUTE",16,"JNZ 0x008","countdown",0],["WAIT_DATA",140,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":5,"b":"RELEASED","n":1},{"t":95,"e":[],"c":[["FETCH",8,"JNZ 0x008","countdown",0],["FETCH",144,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":5,"b":"RELEASED","n":1},{"t":96,"e":[["mem.read","cpu","memory",8,4],["mem.read","cpu","memory",144,4],["mem.data","memory","cpu",8,4],["mem.data","memory","cpu",144,4]],"c":[["WAIT_FETCH",8,"JNZ 0x008","countdown",0],["WAIT_FETCH",144,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":5,"b":"RELEASED","n":1},{"t":97,"e":[],"c":[["DECODE",8,"JNZ 0x008","countdown",0],["DECODE",144,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":5,"b":"RELEASED","n":1},{"t":98,"e":[],"c":[["EXECUTE",8,"STORE R0, 0x3F2","countdown",0],["EXECUTE",144,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":5,"b":"RELEASED","n":1},{"t":99,"e":[["mem.write","cpu","memory",1010,4],["mem.read","display-1","memory",1010,1],["mem.ack","memory","cpu",1010],["mem.data","memory","display-1",1010,4]],"c":[["WAIT_DATA",8,"STORE R0, 0x3F2","countdown",0],["FETCH",148,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":5,"b":"RELEASED","n":1},{"t":100,"e":[["mem.read","cpu","memory",148,4],["mem.data","memory","cpu",148,4]],"c":[["FETCH",12,"STORE R0, 0x3F2","countdown",0],["WAIT_FETCH",148,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":4,"b":"RELEASED","n":1},{"t":101,"e":[["mem.read","cpu","memory",12,4],["mem.data","memory","cpu",12,4]],"c":[["WAIT_FETCH",12,"STORE R0, 0x3F2","countdown",0],["DECODE",148,"LOADI R0, 0","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":4,"b":"RELEASED","n":1},{"t":102,"e":[],"c":[["DECODE",12,"STORE R0, 0x3F2","countdown",0],["EXECUTE",148,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":4,"b":"RELEASED","n":1},{"t":103,"e":[["mem.write","cpu","memory",1009,0],["mem.read","led-1","memory",1009,1],["mem.ack","memory","cpu",1009],["mem.data","memory","led-1",1009,0]],"c":[["EXECUTE",12,"SUB R0, R1","countdown",0],["WAIT_DATA",148,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":1,"d":4,"b":"RELEASED","n":1},{"t":104,"e":[],"c":[["FETCH",16,"SUB R0, R1","countdown",0],["FETCH",152,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":4,"b":"RELEASED","n":1},{"t":105,"e":[["mem.read","cpu","memory",16,4],["mem.read","cpu","memory",152,4],["mem.data","memory","cpu",16,4],["mem.data","memory","cpu",152,4]],"c":[["WAIT_FETCH",16,"SUB R0, R1","countdown",0],["WAIT_FETCH",152,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":4,"b":"RELEASED","n":1},{"t":106,"e":[],"c":[["DECODE",16,"SUB R0, R1","countdown",0],["DECODE",152,"STORE R0, 0x3F1","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":4,"b":"RELEASED","n":1},{"t":107,"e":[],"c":[["EXECUTE",16,"JNZ 0x008","countdown",0],["EXECUTE",152,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":4,"b":"RELEASED","n":1},{"t":108,"e":[],"c":[["FETCH",8,"JNZ 0x008","countdown",0],["FETCH",156,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":4,"b":"RELEASED","n":1},{"t":109,"e":[["mem.read","cpu","memory",8,4],["mem.read","cpu","memory",156,4],["mem.data","memory","cpu",8,4],["mem.data","memory","cpu",156,4]],"c":[["WAIT_FETCH",8,"JNZ 0x008","countdown",0],["WAIT_FETCH",156,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":4,"b":"RELEASED","n":1},{"t":110,"e":[],"c":[["DECODE",8,"JNZ 0x008","countdown",0],["DECODE",156,"SUB R2, R3","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":4,"b":"RELEASED","n":1},{"t":111,"e":[],"c":[["EXECUTE",8,"STORE R0, 0x3F2","countdown",0],["EXECUTE",156,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":4,"b":"RELEASED","n":1},{"t":112,"e":[["mem.write","cpu","memory",1010,3],["mem.read","display-1","memory",1010,1],["mem.ack","memory","cpu",1010],["mem.data","memory","display-1",1010,3]],"c":[["WAIT_DATA",8,"STORE R0, 0x3F2","countdown",0],["FETCH",160,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":4,"b":"RELEASED","n":1},{"t":113,"e":[["mem.read","cpu","memory",160,4],["mem.data","memory","cpu",160,4]],"c":[["FETCH",12,"STORE R0, 0x3F2","countdown",0],["WAIT_FETCH",160,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":114,"e":[["mem.read","cpu","memory",12,4],["mem.data","memory","cpu",12,4]],"c":[["WAIT_FETCH",12,"STORE R0, 0x3F2","countdown",0],["DECODE",160,"JNZ 0x088","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":115,"e":[],"c":[["DECODE",12,"STORE R0, 0x3F2","countdown",0],["EXECUTE",160,"HALT","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":116,"e":[],"c":[["EXECUTE",12,"SUB R0, R1","countdown",0],["HALTED",160,"HALT","blink",0]],"p":[["countdown","RUNNING"],["blink","RUNNING"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":117,"e":[],"c":[["FETCH",16,"SUB R0, R1","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":118,"e":[["mem.read","cpu","memory",16,4],["mem.data","memory","cpu",16,4]],"c":[["WAIT_FETCH",16,"SUB R0, R1","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":119,"e":[],"c":[["DECODE",16,"SUB R0, R1","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":120,"e":[],"c":[["EXECUTE",16,"JNZ 0x008","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":121,"e":[],"c":[["FETCH",8,"JNZ 0x008","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":122,"e":[["mem.read","cpu","memory",8,4],["mem.data","memory","cpu",8,4]],"c":[["WAIT_FETCH",8,"JNZ 0x008","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":123,"e":[],"c":[["DECODE",8,"JNZ 0x008","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":124,"e":[],"c":[["EXECUTE",8,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":125,"e":[["mem.write","cpu","memory",1010,2],["mem.read","display-1","memory",1010,1],["mem.ack","memory","cpu",1010],["mem.data","memory","display-1",1010,2]],"c":[["WAIT_DATA",8,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":3,"b":"RELEASED","n":1},{"t":126,"e":[],"c":[["FETCH",12,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":127,"e":[["mem.read","cpu","memory",12,4],["mem.data","memory","cpu",12,4]],"c":[["WAIT_FETCH",12,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":128,"e":[],"c":[["DECODE",12,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":129,"e":[],"c":[["EXECUTE",12,"SUB R0, R1","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":130,"e":[],"c":[["FETCH",16,"SUB R0, R1","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":131,"e":[["mem.read","cpu","memory",16,4],["mem.data","memory","cpu",16,4]],"c":[["WAIT_FETCH",16,"SUB R0, R1","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":132,"e":[],"c":[["DECODE",16,"SUB R0, R1","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":133,"e":[],"c":[["EXECUTE",16,"JNZ 0x008","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":134,"e":[],"c":[["FETCH",8,"JNZ 0x008","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":135,"e":[["mem.read","cpu","memory",8,4],["mem.data","memory","cpu",8,4]],"c":[["WAIT_FETCH",8,"JNZ 0x008","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":136,"e":[],"c":[["DECODE",8,"JNZ 0x008","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":137,"e":[],"c":[["EXECUTE",8,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":138,"e":[["mem.write","cpu","memory",1010,1],["mem.read","display-1","memory",1010,1],["mem.ack","memory","cpu",1010],["mem.data","memory","display-1",1010,1]],"c":[["WAIT_DATA",8,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":2,"b":"RELEASED","n":1},{"t":139,"e":[],"c":[["FETCH",12,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":140,"e":[["mem.read","cpu","memory",12,4],["mem.data","memory","cpu",12,4]],"c":[["WAIT_FETCH",12,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":141,"e":[],"c":[["DECODE",12,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":142,"e":[],"c":[["EXECUTE",12,"SUB R0, R1","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":143,"e":[],"c":[["FETCH",16,"SUB R0, R1","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":144,"e":[["mem.read","cpu","memory",16,4],["mem.data","memory","cpu",16,4]],"c":[["WAIT_FETCH",16,"SUB R0, R1","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":145,"e":[],"c":[["DECODE",16,"SUB R0, R1","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":146,"e":[],"c":[["EXECUTE",16,"JNZ 0x008","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":147,"e":[],"c":[["FETCH",20,"JNZ 0x008","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":148,"e":[["mem.read","cpu","memory",20,4],["mem.data","memory","cpu",20,4]],"c":[["WAIT_FETCH",20,"JNZ 0x008","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":149,"e":[],"c":[["DECODE",20,"JNZ 0x008","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":150,"e":[],"c":[["EXECUTE",20,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":151,"e":[["mem.write","cpu","memory",1010,0],["mem.read","display-1","memory",1010,1],["mem.ack","memory","cpu",1010],["mem.data","memory","display-1",1010,0]],"c":[["WAIT_DATA",20,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":1,"b":"RELEASED","n":1},{"t":152,"e":[],"c":[["FETCH",24,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":1},{"t":153,"e":[["mem.read","cpu","memory",24,4],["mem.data","memory","cpu",24,4]],"c":[["WAIT_FETCH",24,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":1},{"t":154,"e":[],"c":[["DECODE",24,"STORE R0, 0x3F2","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":1},{"t":155,"e":[],"c":[["EXECUTE",24,"HALT","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":1},{"t":156,"e":[],"c":[["HALTED",24,"HALT","countdown",0],["IDLE",0,null,null,0]],"p":[["countdown","RUNNING"],["blink","DONE"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":1},{"t":157,"e":[],"c":[["IDLE",0,null,null,0],["IDLE",0,null,null,0]],"p":[["blink","DONE"],["countdown","DONE"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":1},{"t":158,"e":[],"c":[["IDLE",0,null,null,0],["IDLE",0,null,null,0]],"p":[["blink","DONE"],["countdown","DONE"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":1},{"t":159,"e":[],"c":[["IDLE",0,null,null,0],["IDLE",0,null,null,0]],"p":[["blink","DONE"],["countdown","DONE"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":1},{"t":160,"e":[],"c":[["IDLE",0,null,null,0],["IDLE",0,null,null,0]],"p":[["blink","DONE"],["countdown","DONE"]],"q":0,"led":0,"d":0,"b":"RELEASED","n":1}]} /* @machine-trace-end */;
 
 // Praise's sketches, shrunk (from design/assets/sketches).
@@ -1665,26 +2088,32 @@ export function corePhase(phase) {
 /**
  * The plain-language captions for one tick of the machine replay.
  * A tick: { t, e: [type, from, to, address?, value?][], c: [phase, pc, instruction, process, inHandler][], p: [name, state][], led, d, b, n }
- * @param {any} tick
- * @param {any} prev  the tick before (or null)
+ * @param {TraceTick} tick
+ * @param {TraceTick | null} prev  the tick before (or null)
  * @returns {string[]}
  */
 export function describeTick(tick, prev) {
   const hex = (/** @type {number} */ n) => `0x${n.toString(16).toUpperCase().padStart(3, "0")}`;
   const cores = tick.c ?? [];
   const coreName = (/** @type {number} */ i) => (i < 0 ? "The CPU" : `Core ${i + 1}${cores[i]?.[3] ? ` (running ${cores[i][3]})` : ""}`);
-  const byPc = (/** @type {number} */ a) => cores.findIndex((/** @type {any[]} */ c) => c[1] === a);
-  const byInstruction = (/** @type {number} */ a) => cores.findIndex((/** @type {any[]} */ c) => typeof c[2] === "string" && c[2].includes(hex(a)));
+  const byPc = (/** @type {number} */ a) => cores.findIndex((c) => c[1] === a);
+  const byInstruction = (/** @type {number} */ a) => cores.findIndex((c) => typeof c[2] === "string" && c[2].includes(hex(a)));
   const place = (/** @type {number} */ a) =>
     a === 0x3f1 ? "the LED's byte" : a === 0x3f2 ? "the display's byte" : a === 0x3e0 ? "the button's press counter" : a >= 0x200 && a < 0x3e0 ? "the button's handler" : "the program";
   /** @type {string[]} */
   const out = [];
-  for (const [type, from, to, address, value] of tick.e ?? []) {
+  // Every message but the button's "input" carries an address; reads and writes a value too.
+  for (const [type, from, to, address = 0, value = 0] of tick.e ?? []) {
     if (type === "input") out.push("You pressed the button. The button remembers the press and acts on it at the next tick.");
     else if (type === "irq")
       out.push("The button sends an interrupt to the CPU: a signal that means “something happened, deal with me”. The CPU will handle it at the next tick.");
     else if (type === "mem.read" && from === "cpu" && value === 4) {
-      const where = address >= 0x200 && address < 0x3e0 ? `the first instruction of the button's handler (address ${hex(address)})` : `the 4 bytes at address ${hex(address)}`;
+      const inHandler = address >= 0x200 && address < 0x3e0;
+      const where = !inHandler
+        ? `the 4 bytes at address ${hex(address)}`
+        : address % 0x20 === 0
+          ? `the first instruction of the button's handler (address ${hex(address)})`
+          : `the next instruction of the button's handler (address ${hex(address)})`;
       out.push(`${coreName(byPc(address))} asks Memory for its next instruction: ${where}. Memory sends it back straight away.`);
     } else if (type === "mem.read" && from === "cpu") out.push(`${coreName(byInstruction(address))} asks Memory for a number it needs: ${place(address)} at ${hex(address)}.`);
     else if (type === "mem.write" && from === "cpu") {
@@ -1692,23 +2121,27 @@ export function describeTick(tick, prev) {
       if (address === 0x3f1) out.push(`${who} writes ${value} into the LED's byte in Memory (${hex(address)}). ${value >= 128 ? "128 or more means “on”." : "Under 128 means “off”."}`);
       else if (address === 0x3f2) out.push(`${who} writes ${value} into the display's byte in Memory (${hex(address)}): the number to show.`);
       else out.push(`${who} writes ${value} into ${place(address)} (${hex(address)}).`);
-    } else if (type === "mem.data" && to === "led-1") out.push(`The LED reads its byte from Memory (it checks every tick) and turns ${value >= 128 ? "on" : "off"}.`);
-    else if (type === "mem.data" && to === "display-1") out.push(`The display reads its byte from Memory (it checks every tick) and now shows ${value}.`);
+    } else if (type === "mem.data" && to === "led-1")
+      out.push(`The LED reads its byte from Memory (it checks every tick): ${value}. It turns ${value >= 128 ? "on" : "off"} at the next tick.`);
+    else if (type === "mem.data" && to === "display-1") out.push(`The display reads its byte from Memory (it checks every tick): ${value}. It shows it from the next tick.`);
   }
-  cores.forEach((/** @type {any[]} */ c, /** @type {number} */ i) => {
+  // What the devices show changes the tick after they read their byte.
+  if (prev && tick.d !== prev.d) out.push(`The display now shows ${tick.d}.`);
+  if (prev && tick.led !== prev.led) out.push(`The LED is now ${tick.led ? "on" : "off"}.`);
+  cores.forEach((c, i) => {
     const before = prev?.c?.[i];
     if (c[4] && !before?.[4]) out.push(`Core ${i + 1} puts ${c[3] ?? "its program"} aside and runs the button's handler: a short program that runs when the button interrupts.`);
     if (!c[4] && before?.[4]) out.push(`Core ${i + 1} has finished the handler and goes back to ${c[3] ?? "its program"}, where it left off.`);
   });
   for (const [name, state] of tick.p ?? []) {
-    const was = (prev?.p ?? []).find((/** @type {any[]} */ p) => p[0] === name)?.[1];
+    const was = (prev?.p ?? []).find((p) => p[0] === name)?.[1];
     if (state === "DONE" && was !== "DONE") out.push(`${name} has finished: its last instruction was HALT (stop).`);
   }
   if (out.length === 0) {
-    const busy = cores.filter((/** @type {any[]} */ c) => c[0] !== "HALTED" && c[0] !== "IDLE");
+    const busy = cores.filter((c) => c[0] !== "HALTED" && c[0] !== "IDLE");
     out.push(
       busy.length
-        ? `Nothing on the bus this tick. Inside the CPU: ${busy.map((/** @type {any[]} */ c) => `Core ${cores.indexOf(c) + 1} is ${corePhase(c[0])}`).join("; ")}.`
+        ? `Nothing on the bus this tick. Inside the CPU: ${busy.map((c) => `Core ${cores.indexOf(c) + 1} is ${corePhase(c[0])}`).join("; ")}.`
         : "Nothing on the bus: both programs have finished.",
     );
   }
@@ -1718,7 +2151,7 @@ export function describeTick(tick, prev) {
 /**
  * The machine view in the page: parts around a bus, messages moving along it, a caption per tick,
  * and play / pause / step. It plays a recorded trace; later the same view can follow a live bus.
- * @param {any} trace
+ * @param {MachineTrace | null} trace
  * @param {Record<string, string>} sketches
  */
 function machinePlayer(trace, sketches) {
@@ -1777,10 +2210,11 @@ function machinePlayer(trace, sketches) {
     const q = (/** @type {string} */ k) => /** @type {SVGElement | HTMLElement} */ (root?.querySelector(`[data-m="${k}"]`));
     q("tick").textContent = `tick ${tick.t}`;
     q("cores").innerHTML = (tick.c ?? [])
-      .map((/** @type {any[]} */ c, /** @type {number} */ k) => {
+      .map((c, k) => {
         const y = 92 + k * 32;
-        return `<text x="112" y="${y}" font-weight="700" font-size="12">Core ${k + 1}${c[3] ? ` · ${esc(c[3])}` : ""}${c[4] ? " · in the button's handler" : ""}</text>
-          <text x="112" y="${y + 15}" font-size="11.5" fill="#5b6660">${esc(corePhase(c[0]))}${c[2] ? ` · <tspan font-family="JetBrains Mono, monospace" fill="#16201b">${esc(c[2])}</tspan>` : ""}</text>`;
+        return `<text x="112" y="${y}" font-weight="700" font-size="12">Core ${k + 1}${c[3] ? ` · ${esc(c[3])}` : ""}${c[4] ? " · handler" : ""}</text>
+          ${c[2] ? `<text x="435" y="${y}" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11.5">${esc(c[2])}</text>` : ""}
+          <text x="112" y="${y + 15}" font-size="11.5" fill="#5b6660">${esc(corePhase(c[0]))}</text>`;
       })
       .join("");
     // Memory's last read/write, from the messages so far.
@@ -1791,10 +2225,10 @@ function machinePlayer(trace, sketches) {
         if (e[0] === "mem.read" && e[1] === "cpu") read = e;
         if (e[0] === "mem.write") write = e;
       }
-    q("lastread").textContent = read ? `last asked for: ${hex(read[3])}` : "last asked for: –";
-    q("lastwrite").textContent = write ? `last written: ${hex(write[3])} ← ${write[4]}` : "last written: –";
-    const pressed = (tick.e ?? []).some((/** @type {any[]} */ e) => e[0] === "input");
-    const presses = ticks.slice(0, i + 1).reduce((/** @type {number} */ n, /** @type {any} */ t) => n + (t.e ?? []).filter((/** @type {any[]} */ e) => e[0] === "input").length, 0);
+    q("lastread").textContent = read ? `last asked for: ${hex(read[3] ?? 0)}` : "last asked for: –";
+    q("lastwrite").textContent = write ? `last written: ${hex(write[3] ?? 0)} ← ${write[4] ?? 0}` : "last written: –";
+    const pressed = (tick.e ?? []).some((e) => e[0] === "input");
+    const presses = ticks.slice(0, i + 1).reduce((/** @type {number} */ n, /** @type {TraceTick} */ t) => n + (t.e ?? []).filter((e) => e[0] === "input").length, 0);
     q("presses").textContent = pressed ? "pressed!" : `pressed ${presses} time${presses === 1 ? "" : "s"}`;
     q("ledlamp").setAttribute("fill", tick.led ? "#f4061e" : "#e9eceb");
     q("ledlamp").setAttribute("filter", tick.led ? "drop-shadow(0 0 8px #f4061e)" : "");
@@ -1808,9 +2242,9 @@ function machinePlayer(trace, sketches) {
     const dots = q("dots");
     dots.innerHTML = "";
     if (!animate) return;
-    const events = (tick.e ?? []).filter((/** @type {any[]} */ e) => stubs[e[1]] && stubs[e[2]]);
+    const events = (tick.e ?? []).filter((e) => stubs[e[1]] && stubs[e[2]]);
     const each = (TICK_MS / speed) * 0.8;
-    events.forEach((/** @type {any[]} */ e, /** @type {number} */ k) => {
+    events.forEach((e, k) => {
       const [x1, y1] = stubs[e[1]];
       const [x2, y2] = stubs[e[2]];
       const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
@@ -2011,6 +2445,8 @@ h1.q { font-size: 32px; }
 .elapsed { font-weight: 500; color: var(--muted); font-family: "JetBrains Mono", monospace; font-size: 13px; }
 .summary { font: 13.5px/1.4 "JetBrains Mono", monospace; color: var(--muted); margin-top: 4px; word-break: break-all; }
 .otp { font: 700 28px/1 "JetBrains Mono", monospace; letter-spacing: .08em; background: #fff; border: 2px solid var(--ink); border-radius: 8px; padding: 10px 14px; display: inline-block; margin: 8px 0 4px; }
+.failures { margin: 8px 0 8px; padding-left: 18px; display: grid; gap: 8px; font-size: 14.5px; }
+.failures .sub { margin-top: 2px; }
 .ranlist { font: 13px/1.6 "JetBrains Mono", monospace; background: var(--well); border-radius: 8px; padding: 10px 14px; }
 .ranlist .h { font-family: "Inter", sans-serif; font-size: 12px; color: var(--muted); }
 details.out summary { cursor: pointer; font-weight: 600; font-size: 13.5px; color: var(--muted); }
@@ -2058,12 +2494,18 @@ input[data-scrub] { width: 100%; accent-color: var(--green); }
 const LOGO_SVG = `<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="7" width="18" height="18" rx="2" fill="#5fc79a" stroke="#fff" stroke-width="2"/><rect x="12" y="12" width="8" height="8" fill="#173627"/><path d="M11 3v4M16 3v4M21 3v4M11 25v4M16 25v4M21 25v4M3 11h4M3 16h4M3 21h4M25 11h4M25 16h4M25 21h4" stroke="#fff" stroke-width="2"/></svg>`;
 
 /**
- * The page's own code. It runs in the browser (it's copied into the page as text), after the
- * command-line functions above.
- * @param {string} TOKEN
+ * @typedef {ReturnType<ReturnType<typeof createStudio>["snapshot"]>} Snapshot  what the page is sent
+ * @typedef {Snapshot["steps"][number]} StepView
  */
-function studioClient(TOKEN) {
-  /** @type {any} */
+
+/**
+ * The page's own code. It runs in the browser (it's copied into the page as text), after the
+ * command-line functions above. Everything it needs from here comes in as parameters.
+ * @param {string} TOKEN  this run's token
+ * @param {string} WEEK1_GUIDE_URL  the week-1 guide on GitHub
+ */
+function studioClient(TOKEN, WEEK1_GUIDE_URL) {
+  /** @type {Snapshot | null} */
   let snap = null;
   /** @type {null | number} the step being looked at (null = the current one) */
   let viewing = null;
@@ -2071,12 +2513,18 @@ function studioClient(TOKEN) {
   let lineFor = "";
   let out = { id: -1, text: "" };
   let showOutput = false;
+  let outputFor = -1; // the step Show full output was opened on
   let pasteNote = "";
   /** @type {Record<string, string>} */
   const formValues = {};
   const machine = machinePlayer(MACHINE_TRACE, SKETCHES);
   let machineOpen = location.hash === "#machine";
   const $ = (/** @type {string} */ sel) => /** @type {HTMLElement} */ (document.querySelector(sel));
+  /** The studio's state: the page only draws once the first one has arrived. */
+  const present = () => {
+    if (!snap) throw new Error("The studio hasn't sent its state yet.");
+    return snap;
+  };
   const esc = (/** @type {unknown} */ s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
   async function act(/** @type {Record<string, unknown>} */ body) {
@@ -2122,8 +2570,8 @@ function studioClient(TOKEN) {
   }, 1000);
   // Back from the browser or another window: check again straight away.
   window.addEventListener("focus", () => {
-    const step = snap && snap.steps[snap.current];
-    if (step && snap.view && ["waiting", "failed", "running"].includes(snap.view.phase)) act({ type: "recheck", stepId: step.id });
+    const step = snap?.steps[snap.current];
+    if (step && snap?.view && ["waiting", "failed", "running"].includes(snap.view.phase)) act({ type: "recheck", stepId: step.id });
   });
 
   function paintOutput() {
@@ -2164,8 +2612,13 @@ function studioClient(TOKEN) {
   }
 
   function diagram(/** @type {string} */ id) {
+    const snap = present();
     const login = esc(snap.login || "you");
-    const folder = esc(snap.repoDir || "~/netsim");
+    // The last part of the path only, so it fits in the box: "~/code/netsim" → "…/netsim".
+    const full = String(snap.repoDir || "~/netsim");
+    const last = full.split(/[\\/]/).filter(Boolean).pop() ?? full;
+    const short = last.length > 18 ? `${last.slice(0, 17)}…` : last;
+    const folder = esc(full === last ? short : `…/${short}`);
     const hot = { fork: "fork", clone: "clone", upstream: "upstream", work: "work", push: "push" }[id] ?? "";
     const stroke = (/** @type {string} */ k) => (k === hot ? "#f4061e" : "#16201b");
     const w = (/** @type {string} */ k) => (k === hot ? 3 : 1.6);
@@ -2197,7 +2650,7 @@ function studioClient(TOKEN) {
     return list.length ? `<dl class="words">${list.map(([w, d]) => `<dt>${esc(w)}</dt><dd>${esc(d)}</dd>`).join("")}</dl>` : "";
   }
 
-  function head(/** @type {any} */ step, /** @type {string} */ eyebrow) {
+  function head(/** @type {StepView} */ step, /** @type {string} */ eyebrow) {
     return `<div>${eyebrow ? `<p class="eyebrow">${eyebrow}</p>` : ""}<h1 class="q">${esc(step.title)}</h1>
       <p class="tech"><code>${esc(step.technical)}</code> — ${esc(step.explain)}</p></div>
       <p class="why">${esc(step.why)}</p>${step.diagram ? `<div class="diagram">${diagram(step.id)}</div>` : ""}`;
@@ -2207,13 +2660,15 @@ function studioClient(TOKEN) {
     return `<details class="out" ${showOutput ? "open" : ""} data-outbox><summary>Show full output</summary><pre data-output></pre></details>`;
   }
 
-  function currentView(/** @type {any} */ step) {
+  function currentView(/** @type {StepView} */ step) {
+    const snap = present();
     const v = snap.view;
+    if (!v) return ""; // only while a step is current (not on the finish screen)
     const a = v.actions[v.index];
     const earlier = v.actions
       .slice(0, v.phase === "passed" ? v.actions.length : v.index)
-      .filter((/** @type {any} */ x) => x.display)
-      .map((/** @type {any} */ x) => `<div class="cmd doneline"><span class="p">$</span>${esc(x.display)}<span class="ok">✓ done</span></div>`)
+      .filter((x) => x.display)
+      .map((x) => `<div class="cmd doneline"><span class="p">$</span>${esc(x.display)}<span class="ok">✓ done</span></div>`)
       .join("");
     const skip = step.optional ? `<button class="btn ghost" data-do="skip">Skip for now</button>` : "";
     let body = "";
@@ -2222,15 +2677,18 @@ function studioClient(TOKEN) {
       body = `${v.already ? "" : earlier}
         <div class="status ok"><span class="icon">✓</span><div><b>${esc(step.found)}</b>${v.already ? `<div class="sub">Already done: nothing to type.</div>` : ""}</div></div>
         ${step.ran.length ? `<div class="ranlist"><div class="h">The studio ran:</div>${step.ran.map((/** @type {string} */ r) => `<div>$ ${esc(r)}</div>`).join("")}</div>` : ""}
-        <div class="row"><button class="btn primary" data-do="next">${snap.current + 1 === snap.total ? "Finish" : "Next step"} <kbd>↵</kbd></button></div>
+        <div class="row"><button class="btn primary" data-do="next">${snap.current + 1 === snap.total ? "Finish" : "Next step"} <kbd>↵</kbd></button>${step.changeable ? `<button class="btn ghost" data-do="change">Change it</button>` : ""}</div>
         ${v.already ? "" : outputBlock()}`;
     } else if (v.phase === "confirm") {
       body = `<div class="status wait"><span class="icon">?</span><div><b>${esc(v.ask)}</b><div class="sub">Your fork and your work will belong to this account.</div></div></div>
         <div class="row"><button class="btn primary" data-do="yes">Yes <kbd>↵</kbd></button><button class="btn" data-do="switch">Switch account</button></div>`;
     } else if (v.phase === "failed") {
       const e = v.error ?? { what: "Something went wrong.", fix: "" };
-      body = `${earlier}<div class="status bad"><span class="icon">!</span><div><b>${esc(e.what)}</b><div class="sub"><b style="display:inline">Fix:</b> ${esc(e.fix)}</div></div></div>
-        <div class="row"><button class="btn primary" data-do="retry">Try again <kbd>↵</kbd></button>${e.back ? `<button class="btn" data-do="back" data-to="${e.back}">Go back to step ${e.back}</button>` : ""}${skip}</div>
+      const items = (e.items ?? [])
+        .map((it) => `<li><b>${esc(it.check)}</b>: ${esc(it.found)}${it.fix ? `<div class="sub"><b style="display:inline">Fix:</b> ${esc(it.fix)}</div>` : ""}</li>`)
+        .join("");
+      body = `${earlier}<div class="status bad"><span class="icon">!</span><div><b>${esc(e.what)}</b>${items ? `<ul class="failures">${items}</ul>` : ""}<div class="sub">${items ? "" : `<b style="display:inline">Fix:</b> `}${esc(e.fix)}</div></div></div>
+        <div class="row">${e.stop ? `<button class="btn ghost" data-do="retry">Try again</button>` : `<button class="btn primary" data-do="retry">Try again <kbd>↵</kbd></button>`}${e.back ? `<button class="btn" data-do="back" data-to="${e.back}">Go back to step ${e.back}</button>` : ""}${skip}</div>
         ${outputBlock()}`;
     } else if (v.phase === "running" || v.phase === "waiting") {
       const browser = v.waitFor === "browser";
@@ -2248,28 +2706,30 @@ function studioClient(TOKEN) {
         ${outputBlock()}`;
     } else if (v.phase === "ready" && a) {
       if (a.kind === "command") {
-        const key = `${step.id}:${v.attempt}:${v.index}:${a.display}`;
+        const display = a.display ?? "";
+        const key = `${step.id}:${v.attempt}:${v.index}:${display}`;
         if (lineFor !== key) {
           lineFor = key;
-          line = lineStart(a.display);
+          line = lineStart(display);
           pasteNote = "";
         }
         body = `${earlier}<div class="block"><h3>${esc(a.label || "Type this command")}</h3>
           <label class="cmd" data-cmdline><input class="sink" data-sink aria-label="Type: ${esc(a.display)}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><span class="cmdtext" data-cmdtext></span></label>
           <p class="cmdnote" data-cmdnote></p>
-          <p class="what"><b>What this does:</b> ${esc(a.what)}</p>${words(a.words)}
+          <p class="what"><b>What this does:</b> ${esc(a.what)}</p>${words(a.words ?? [])}
           ${a.cwd || a.runs ? `<p class="runs">${a.cwd ? `Runs in <code>${esc(a.cwd)}</code>. ` : ""}${a.runs ? `The studio runs it as <code>${esc(a.runs)}</code>.` : ""}</p>` : ""}
           ${a.pasteOk ? `<p class="runs">It's a long one, so you can paste it.</p>` : ""}</div>
           ${skip ? `<div class="row">${skip}</div>` : ""}`;
       } else if (a.kind === "form" || a.kind === "folder") {
-        const fields = a.kind === "form" ? a.fields : [{ name: "folder", label: a.label, hint: a.hint, placeholder: a.initial }];
-        if (a.kind === "folder" && formValues.folder === undefined) formValues.folder = a.initial;
+        /** @type {Field[]} */
+        const fields = a.kind === "form" ? (a.fields ?? []) : [{ name: "folder", label: a.label ?? "", hint: a.hint, placeholder: a.initial }];
+        if (a.kind === "folder" && formValues.folder === undefined) formValues.folder = a.initial ?? "";
         body = `${earlier}<form class="fields" data-form novalidate>
-          ${fields.map((/** @type {any} */ f) => `<label>${esc(f.label)} ${f.hint ? `<small>${esc(f.hint)}</small>` : ""}<input name="${esc(f.name)}" type="${esc(f.type || "text")}" placeholder="${esc(f.placeholder || "")}" value="${esc(formValues[f.name] ?? "")}" autocomplete="off" spellcheck="false"></label>`).join("")}
+          ${fields.map((f) => `<label>${esc(f.label)} ${f.hint ? `<small>${esc(f.hint)}</small>` : ""}<input name="${esc(f.name)}" type="${esc(f.type || "text")}" placeholder="${esc(f.placeholder || "")}" value="${esc(formValues[f.name] ?? "")}" autocomplete="off" spellcheck="false"></label>`).join("")}
           ${v.formError ? `<p class="formerror">${esc(v.formError)}</p>` : ""}
           <div class="row"><button class="btn primary" type="submit">${esc(a.button || "Use this folder")} <kbd>↵</kbd></button></div></form>`;
       } else if (a.kind === "choice") {
-        body = `<div class="block"><h3>Do this in your browser</h3><div class="links">${a.links.map((/** @type {any} */ l) => `<a href="${esc(l.url)}" target="_blank" rel="noreferrer">${esc(l.label)} ↗</a>`).join("")}</div></div>
+        body = `<div class="block"><h3>Do this in your browser</h3><div class="links">${(a.links ?? []).map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noreferrer">${esc(l.label)} ↗</a>`).join("")}</div></div>
           <div class="status wait"><span class="icon">?</span><div><b>${esc(a.question)}</b><div class="sub">The studio can't check this one, so it takes your word for it.</div></div></div>
           <div class="row"><button class="btn primary" data-do="submit">${esc(a.yes)} <kbd>↵</kbd></button>${skip}</div>`;
       }
@@ -2277,20 +2737,39 @@ function studioClient(TOKEN) {
     return `${head(step, step.optional ? "Optional: you can skip this one" : "")}${body}`;
   }
 
-  function otherView(/** @type {any} */ step) {
+  function otherView(/** @type {StepView} */ step) {
+    const snap = present();
     const cur = snap.steps[snap.current];
     const back = cur ? `<button class="btn" data-do="view" data-n="">Back to step ${cur.n}</button>` : `<button class="btn" data-do="view" data-n="">Back</button>`;
     if (step.n - 1 < snap.current) {
       return `<div class="banner">You're looking at step ${step.n}. ${back}</div>${head(step, `Step ${step.n} · ${step.mark === "skipped" ? "skipped" : "done"}`)}
         <div class="status ${step.mark === "skipped" ? "run" : "ok"}"><span class="icon">${step.mark === "skipped" ? "–" : "✓"}</span><div><b>${esc(step.found)}</b></div></div>
         ${step.ran.length ? `<div class="ranlist"><div class="h">The studio ran:</div>${step.ran.map((/** @type {string} */ r) => `<div>$ ${esc(r)}</div>`).join("")}</div>` : ""}
-        ${snap.current < snap.total ? `<div class="row"><button class="btn ghost" data-do="back" data-to="${step.n}">Do step ${step.n} again</button></div>` : ""}`;
+        <div class="row"><button class="btn ghost" data-do="back" data-to="${step.n}">${step.mark === "skipped" ? "Do it now" : `Do step ${step.n} again`}</button></div>`;
     }
     return `<div class="banner">Steps go in order: you'll do this one after step ${step.n - 1}. ${back}</div>${head(step, `Step ${step.n} of ${snap.total} · later`)}
       ${step.preview.length ? `<div class="block"><h3>You'll type</h3>${step.preview.map((/** @type {string} */ p) => `<div class="cmd preview" style="margin-bottom:8px"><span class="p">$</span>${esc(p)}</div>`).join("")}</div>` : `<p class="note">Nothing to type on this one.</p>`}`;
   }
 
+  function weekFinishView() {
+    const snap = present();
+    if (!snap.published)
+      return `<div class="finish"><p class="eyebrow">Get this week's work</p><h1>Week ${esc(snap.week)} isn't out yet.</h1>
+        <p class="why" style="margin-top:10px">Check back before Monday's class.</p></div>
+        <p class="note">You can close this tab: the studio stops when you do.</p>`;
+    return `<div class="finish"><p class="eyebrow">Week ${esc(snap.week)}</p><h1>Week ${esc(snap.week)} is in your work!</h1>
+      <p class="why" style="margin-top:10px">${esc(snap.arrived || `Week ${snap.week}'s files are in your folder, and on GitHub.`)}</p></div>
+      <div class="block"><h3>What to do next</h3><ol>
+        <li><b>Read the guide:</b> <code>docs/weeks/week-${String(snap.week).padStart(2, "0")}.md</code> in your folder.</li>
+        <li><b>Do the tasks</b> marked <code>TODO(week ${esc(snap.week)}, …)</code>, in the guide's order. Codex can help write; you lead the design and explain every line.</li>
+        <li><b>See how you're doing:</b> <code>npm test</code> runs the tests that check your work.</li>
+      </ol></div>
+      <p class="note">Next week, run <code>node setup.mjs</code> again the same way. You can close this tab: the studio stops when you do.</p>`;
+  }
+
   function finishView() {
+    const snap = present();
+    if (snap.mode === "week") return weekFinishView();
     const folder = snap.repoDir || "your netsim folder";
     return `<div class="finish"><p class="eyebrow">Week 1 · Setup</p><h1>You're set up!</h1>
       <p class="why" style="margin-top:10px">Your laptop has everything the course needs, and your own copy of the course is on GitHub and on this laptop.</p>
@@ -2298,7 +2777,7 @@ function studioClient(TOKEN) {
       <div class="block"><h3>What to do next</h3><ol>
         <li><b>Open the week-1 guide:</b> <a href="${WEEK1_GUIDE_URL}" target="_blank" rel="noreferrer">docs/weeks/week-01.md</a> (it's in your folder too).</li>
         <li><b>Do the take-home:</b> paste the doctor's output into <code>docs/notes/week-01.md</code>, and try Codex on a real file.</li>
-        <li><b>From week 2:</b> open a terminal in <code>${esc(folder)}</code> and run <code>npm run netsim:studio</code>. The studio opens with that week's work.</li>
+        <li><b>From week 2:</b> open a terminal in <code>${esc(folder)}</code> and run <code>node setup.mjs</code> again. The studio gets that week's work for you.</li>
       </ol></div>
       <div class="row"><button class="btn primary" data-do="machine">See the computer you'll build <kbd>↵</kbd></button></div>
       <p class="note">You can close this tab: the studio stops when you do.</p>`;
@@ -2313,7 +2792,9 @@ function studioClient(TOKEN) {
         <dt>tick</dt><dd>one beat of the clock; every part does one small step per tick</dd>
         <dt>CPU, core</dt><dd>the part that runs programs; it has two cores, so two programs run side by side</dd>
         <dt>Memory, address</dt><dd>a row of numbered bytes; the number of a byte is its address, like 0x3F1 (0x means the number is written in hexadecimal)</dd>
-        <dt>instruction</dt><dd>one small order for the CPU, like “store this number there”</dd>
+        <dt>instruction</dt><dd>one small order for the CPU, written in assembly, like <code>STORE R0, 0x3F2</code> (“write R0 into the byte at 0x3F2”)</dd>
+        <dt>R0–R3</dt><dd>registers: four small number slots inside each core, where it keeps the numbers it's working on</dd>
+        <dt>in this demo</dt><dd><code>LOADI</code> put a number in a register · <code>LOAD</code> read a byte from Memory · <code>STORE</code> write one to Memory · <code>ADD</code>/<code>SUB</code> add, subtract · <code>JNZ</code> jump back unless the result was zero · <code>HALT</code> stop · <code>IRET</code> end the handler and go back</dd>
         <dt>interrupt</dt><dd>a signal from a device that makes the CPU stop and deal with it</dd>
         <dt>handler</dt><dd>the short program the CPU runs when an interrupt arrives</dd>
       </dl>
@@ -2322,19 +2803,33 @@ function studioClient(TOKEN) {
 
   function render() {
     if (!snap) return;
+    if (snap.current !== outputFor) {
+      outputFor = snap.current;
+      showOutput = false;
+    }
+    const weekMode = snap.mode === "week";
+    $("[data-crumb]").innerHTML = weekMode ? `Week ${esc(snap.week)} · <b>Get this week's work</b>` : "Week 1 · <b>Setup</b>";
+    document.title = weekMode ? `NetSim Studio · Get week ${snap.week}` : "NetSim Studio · Setup";
+    $("[data-panel]").textContent = weekMode ? `Get week ${snap.week}` : "Setup";
     const total = snap.total;
-    const doneCount = snap.steps.filter((/** @type {any} */ s) => s.mark !== "pending").length;
+    const doneCount = snap.steps.filter((s) => s.mark !== "pending").length;
     const finished = snap.current >= total;
-    $("[data-count]").textContent = finished ? "All done" : `${snap.current + 1} of ${total}`;
+    $("[data-count]").textContent = total === 0 ? "" : finished ? "All done" : `${snap.current + 1} of ${total}`;
     $("[data-dry]").hidden = !snap.dryRun;
+    // Nothing to do (week N isn't out yet): no steps, no progress, just the message.
+    const empty = total === 0;
+    /** @type {HTMLElement} */ (document.querySelector(".steps")).style.display = empty ? "none" : "";
+    /** @type {HTMLElement} */ (document.querySelector(".work")).style.gridTemplateColumns = empty ? "minmax(0, 1fr)" : "";
     $("[data-progress]").textContent = `${doneCount} of ${total} done`;
-    $("[data-bar]").style.width = `${(doneCount / total) * 100}%`;
+    $("[data-bar]").style.width = `${total ? (doneCount / total) * 100 : 100}%`;
     $("[data-prog]").textContent = `${doneCount}/${total}`;
 
+    const { current, view } = snap;
     $("[data-steps]").innerHTML = snap.steps
-      .map((/** @type {any} */ s, /** @type {number} */ i) => {
-        const cls = i < snap.current ? "done" : i === snap.current ? "now" : "wait";
-        const st = cls === "done" ? (s.mark === "skipped" ? "skip" : "ok") : cls === "now" ? (snap.view?.phase === "running" ? "run" : snap.view?.phase === "failed" ? "bad" : snap.view?.phase === "passed" ? "ok" : "now") : "wait";
+      .map((s, i) => {
+        const cls = i < current ? "done" : i === current ? "now" : "wait";
+        const marked = s.mark === "skipped" ? "skip" : s.mark === "done" ? "ok" : "wait";
+        const st = cls === "done" ? (s.mark === "skipped" ? "skip" : "ok") : cls === "wait" ? marked : cls === "now" ? (view?.phase === "running" ? "run" : view?.phase === "failed" ? "bad" : view?.phase === "passed" ? "ok" : "now") : "wait";
         const sub = cls === "now" && !s.optional ? `<small>${esc(s.technical)}</small>` : "";
         return `<button class="srow ${cls} ${viewing === i ? "viewing" : ""}" data-do="view" data-n="${i}"><span class="n">${s.n}</span><span class="st ${st}"></span><span><span class="t">${esc(s.title)}${s.optional ? ' <span class="opt">optional</span>' : ""}</span>${sub}</span></button>`;
       })
@@ -2343,12 +2838,17 @@ function studioClient(TOKEN) {
     const focused = document.activeElement instanceof HTMLInputElement && !document.activeElement.dataset.sink ? document.activeElement.name : "";
     const shown = viewing !== null && viewing !== snap.current ? viewing : null;
     const showMachine = machineOpen && shown === null;
-    $("[data-label]").textContent = showMachine ? "The computer you'll build" : finished && shown === null ? "Setup complete" : `Step ${(shown ?? snap.current) + 1} of ${total}`;
+    $("[data-label]").textContent = showMachine
+      ? "The computer you'll build"
+      : finished && shown === null
+        ? weekMode ? (snap.published ? `Week ${snap.week} is in` : `Week ${snap.week}`) : "Setup complete"
+        : `Step ${(shown ?? snap.current) + 1} of ${total}`;
     const phase = snap.view?.phase ?? "done";
     const tags = { ready: ["now", "your turn"], checking: ["", "checking"], running: ["", "running"], waiting: ["now", "waiting for you"], passed: ["ok", "done"], failed: ["bad", "needs a fix"], confirm: ["now", "your turn"], done: ["ok", "all done"] };
     const [tagClass, tagText] = shown === null ? /** @type {Record<string, string[]>} */ (tags)[phase] : ["", "looking back"];
     $("[data-tag]").className = `tag ${tagClass}`;
     $("[data-tag]").textContent = tagText;
+    $("[data-tag]").style.display = total === 0 ? "none" : "";
     if (showMachine) {
       // Leave a playing replay alone when the setup state changes underneath it.
       if (!document.querySelector("[data-machine]")) {
@@ -2375,17 +2875,22 @@ function studioClient(TOKEN) {
     return snap && snap.current < snap.total ? snap.steps[snap.current] : null;
   }
 
+  /** Which of the current step's actions is waiting for the student. */
+  function actionIndex() {
+    return snap?.view?.index ?? 0;
+  }
+
   function run() {
     const step = currentStep();
     if (!step || !lineComplete(line)) return;
-    act({ type: "run", stepId: step.id, index: snap.view.index, typed: line.typed });
+    act({ type: "run", stepId: step.id, index: actionIndex(), typed: line.typed });
   }
 
   function doAction(/** @type {string | null} */ what, /** @type {HTMLElement | null} */ el) {
     const step = currentStep();
     if (what === "view") {
       const n = el?.dataset.n;
-      viewing = n === "" || n === undefined || Number(n) === snap.current ? null : Number(n);
+      viewing = n === "" || n === undefined || Number(n) === snap?.current ? null : Number(n);
       machineOpen = false;
       return render();
     }
@@ -2398,13 +2903,16 @@ function studioClient(TOKEN) {
     if (what === "m-step") return machine.step(1);
     if (what === "m-back") return machine.step(-1);
     if (what === "m-restart") return machine.restart();
+    if (what === "back") {
+      viewing = null;
+      return act({ type: "back", to: Number(el?.dataset.to) });
+    }
     if (!step || !what) return;
     viewing = null;
     if (what === "run") return run();
     if (what === "yes") return act({ type: "confirm", stepId: step.id, answer: "yes" });
     if (what === "switch") return act({ type: "confirm", stepId: step.id, answer: "switch" });
-    if (what === "submit") return act({ type: "submit", stepId: step.id, index: snap.view.index, values: {} });
-    if (what === "back") return act({ type: "back", stepId: step.id, to: Number(el?.dataset.to) });
+    if (what === "submit") return act({ type: "submit", stepId: step.id, index: actionIndex(), values: {} });
     act({ type: what, stepId: step.id });
   }
 
@@ -2431,7 +2939,7 @@ function studioClient(TOKEN) {
     const step = currentStep();
     if (!step) return;
     const values = Object.fromEntries(new FormData(/** @type {HTMLFormElement} */ (e.target)).entries());
-    act({ type: "submit", stepId: step.id, index: snap.view.index, values });
+    act({ type: "submit", stepId: step.id, index: actionIndex(), values });
   });
   document.addEventListener("paste", (e) => {
     if (/** @type {HTMLElement} */ (e.target).dataset?.sink === undefined) return;
@@ -2472,6 +2980,7 @@ function studioClient(TOKEN) {
     if (e.key !== "Enter" || e.repeat || target instanceof HTMLInputElement || target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement) return;
     if (viewing !== null) return;
     if (snap && snap.current >= snap.total) {
+      if (snap.mode === "week") return;
       e.preventDefault();
       return doAction("machine", null);
     }
@@ -2479,6 +2988,7 @@ function studioClient(TOKEN) {
     const a = v?.actions?.[v.index];
     const what = v ? enterAction(v.phase, a?.kind ?? "", lineComplete(line)) : null;
     if (!what || what === "submit" && a?.kind !== "choice") return;
+    if (what === "retry" && v?.error?.stop) return; // stopping here is the point: Try again is a click, not Enter
     e.preventDefault();
     doAction(what, null);
   });
@@ -2492,27 +3002,27 @@ export function studioPage(token) {
   const shared = [pasteAllowed, lineStart, lineKey, linePaste, lineComplete, enterAction, cleanOutput, lastLine, corePhase, describeTick, machinePlayer].map((f) => f.toString()).join("\n");
   // JSON inside a <script>: escape < so no string in it can close the script tag.
   const js = (/** @type {unknown} */ value) => JSON.stringify(value).replace(/</g, "\\u003c");
-  const data = `const WEEK1_GUIDE_URL = ${js(WEEK1_GUIDE)};\nconst MACHINE_TRACE = ${js(MACHINE_TRACE)};\nconst SKETCHES = ${js(SKETCHES)};`;
-  const script = `${shared}\n${data}\n(${studioClient.toString()})(${JSON.stringify(token)});`;
+  const data = `const MACHINE_TRACE = ${js(MACHINE_TRACE)};\nconst SKETCHES = ${js(SKETCHES)};`;
+  const script = `${shared}\n${data}\n(${studioClient.toString()})(${js(token)}, ${js(WEEK1_GUIDE)});`;
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<title>NetSim Studio · Setup</title>
+<title>NetSim Studio</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap">
 <style>${STUDIO_CSS}</style>
 </head>
 <body>
 <header class="titlebar">
   <span class="brand">${LOGO_SVG}NetSim Studio</span>
-  <span class="crumbs">Week 1 · <b>Setup</b></span>
+  <span class="crumbs" data-crumb>Week 1 · <b>Setup</b></span>
   <span class="right"><span class="pill" data-dry hidden>dry run: nothing really runs</span><span class="count" data-count></span></span>
 </header>
 <main class="work">
   <section class="panel steps" aria-label="Steps">
-    <header>Setup <span class="right" data-progress></span></header>
+    <header><span data-panel>Setup</span> <span class="right" data-progress></span></header>
     <div class="prog"><div class="track"><i data-bar style="width:0"></i></div><b data-prog></b></div>
     <div class="body" data-steps></div>
   </section>
@@ -2553,7 +3063,8 @@ function widenPath(platform) {
   process.env.PATH = [...parts, ...extra.filter((p) => p && !parts.includes(p))].join(delimiter);
 }
 
-const STATE_FILE = join(homedir(), ".netsim", "setup-state.json");
+// NETSIM_HOME moves it (the week sandbox and test runs keep theirs out of your home folder).
+const STATE_FILE = join(process.env.NETSIM_HOME ?? join(homedir(), ".netsim"), "setup-state.json");
 
 /**
  * @param {{ dryRun?: boolean, fresh?: boolean, interactive?: boolean }} [options]
@@ -2585,7 +3096,8 @@ export function realContext({ dryRun = false, fresh = false, interactive = true 
       state = {};
     }
   }
-  const env = { ...process.env, NO_COLOR: "1", GH_NO_UPDATE_NOTIFIER: "1", GIT_TERMINAL_PROMPT: "0", HOMEBREW_NO_ENV_HINTS: "1" };
+  // GIT_MERGE_AUTOEDIT: a merge never opens an editor for its message (there's no terminal to type in).
+  const env = { ...process.env, NO_COLOR: "1", GH_NO_UPDATE_NOTIFIER: "1", GIT_TERMINAL_PROMPT: "0", GIT_MERGE_AUTOEDIT: "no", HOMEBREW_NO_ENV_HINTS: "1" };
   /** @param {string} program @param {string[]} args */
   const detached = (program, args) => {
     try {
@@ -2603,11 +3115,11 @@ export function realContext({ dryRun = false, fresh = false, interactive = true 
     style: makeStyle(color),
     capture: (argv, cwd) => {
       // stdin closed: a program that waits for input (codex does, without a terminal) mustn't hang the check.
-      const r = spawnSync(argv[0], argv.slice(1), { cwd, encoding: "utf8", shell: shell(argv), timeout: 30_000, stdio: ["ignore", "pipe", "pipe"] });
+      const r = spawnSync(argv[0], argv.slice(1), { cwd, env, encoding: "utf8", shell: shell(argv), timeout: 30_000, stdio: ["ignore", "pipe", "pipe"] });
       if (r.error && /** @type {NodeJS.ErrnoException} */ (r.error).code === "ENOENT") return null;
       return { code: r.status ?? 1, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
     },
-    execute: (argv, cwd) => spawnSync(argv[0], argv.slice(1), { cwd, stdio: "inherit", shell: shell(argv) }).status ?? 1,
+    execute: (argv, cwd) => spawnSync(argv[0], argv.slice(1), { cwd, env: { ...env, NO_COLOR: process.env.NO_COLOR ?? "" }, stdio: "inherit", shell: shell(argv) }).status ?? 1,
     stream: (argv, cwd, onData) => {
       if (dryRun) return dryRunStream(argv, cwd, onData);
       const child = spawn(argv[0], argv.slice(1), { cwd, shell: shell(argv), env, stdio: ["ignore", "pipe", "pipe"] });
@@ -2643,6 +3155,13 @@ export function realContext({ dryRun = false, fresh = false, interactive = true 
         return statSync(path).isDirectory();
       } catch {
         return false;
+      }
+    },
+    mtime: (path) => {
+      try {
+        return statSync(path).mtimeMs;
+      } catch {
+        return null;
       }
     },
     readText: (path) => {
@@ -2700,12 +3219,29 @@ function dryRunStream(argv, cwd, onData) {
 }
 
 /**
+ * Setup (week 1), or, once setup is done, getting the next week: which one this run is.
+ * @param {Context} ctx
+ * @param {{ forceSetup?: boolean }} [options]
+ * @returns {{ steps: Step[], meta: { mode: "setup" | "week", week?: number, published?: boolean } }}
+ */
+export function chooseFlow(ctx, { forceSetup = false } = {}) {
+  const dir = forceSetup || ctx.fresh ? null : findClone(ctx);
+  if (!dir || !setupComplete(ctx, dir)) return { steps: courseSteps(), meta: { mode: "setup" } };
+  ctx.state.repoDir = dir;
+  const { week, published } = findWeek(ctx, dir);
+  if (!published) return { steps: [], meta: { mode: "week", week, published: false } };
+  const onWork = output(ctx, ["git", "branch", "--show-current"], dir) === "work";
+  return { steps: weekSteps(week, { onWork }), meta: { mode: "week", week, published: true } };
+}
+
+/**
  * The studio: start the server, open the browser, stop when the tab closes or on Ctrl+C.
  * @param {Context & { close: () => void }} ctx
- * @param {{ open?: boolean, port?: number }} options
+ * @param {{ open?: boolean, port?: number, forceSetup?: boolean }} options
  */
-async function runStudio(ctx, { open = true, port = 0 }) {
-  const studio = createStudio(ctx, courseSteps());
+async function runStudio(ctx, { open = true, port = 0, forceSetup = false }) {
+  const { steps, meta } = chooseFlow(ctx, { forceSetup });
+  const studio = createStudio(ctx, steps, meta);
   /** @type {Awaited<ReturnType<typeof serveStudio>> | null} */
   let server = null;
   /** @param {string} why @param {number} code */
@@ -2733,8 +3269,15 @@ async function main() {
   const ctx = realContext({ dryRun, fresh: args.includes("--fresh"), interactive: terminal });
   if (ctx.platform === "windows") ctx.print("(Windows support is untested on a real Windows machine so far. Tell Praise how it goes.)");
   if (ctx.dryRun) ctx.print("(dry run: commands are shown and typed, but not run)");
-  if (!terminal) return runStudio(ctx, { open: !args.includes("--no-open"), port: portArg === -1 ? 0 : Number(args[portArg + 1]) });
-  const { quit } = await runSteps(courseSteps(), ctx);
+  const forceSetup = args.includes("--setup");
+  if (!terminal) return runStudio(ctx, { open: !args.includes("--no-open"), port: portArg === -1 ? 0 : Number(args[portArg + 1]), forceSetup });
+  const { steps, meta } = chooseFlow(ctx, { forceSetup });
+  if (meta.mode === "week" && !meta.published) {
+    ctx.print(`Week ${meta.week} isn't out yet. Check back before Monday's class.`);
+    ctx.close();
+    return;
+  }
+  const { quit } = await runSteps(steps, ctx, { week: meta.mode === "week" ? meta.week : undefined });
   ctx.close();
   process.exitCode = quit ? 1 : 0;
 }
