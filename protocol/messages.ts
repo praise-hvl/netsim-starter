@@ -103,6 +103,8 @@ export const messageSchema = z.discriminatedUnion("type", [
   message("snapshot.get", empty),
   message("snapshot", z.object({ data: json })),
   message("snapshot.set", z.object({ data: json })),
+  /** "Could you restore from this?" Answered with ok or error; nothing changes yet. */
+  message("snapshot.check", z.object({ data: json })),
 
   // Replies that aren't data
   message("ok", empty),

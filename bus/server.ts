@@ -81,7 +81,7 @@ const BUS_ONLY: readonly MessageType[] = ["tick", "reset", "welcome", "joined", 
 
 /** Only the dashboard may drive the whole system (the bus sends some of these itself too). */
 const DASHBOARD_ONLY: readonly MessageType[] = [
-  "control", "save", "restore", "program.load", "process.add", "host.spawn", "host.remove", "snapshot.get", "snapshot.set",
+  "control", "save", "restore", "program.load", "process.add", "host.spawn", "host.remove", "snapshot.get", "snapshot.set", "snapshot.check",
 ];
 
 export async function startBus(options: BusOptions = {}): Promise<Bus> {

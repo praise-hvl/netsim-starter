@@ -96,7 +96,12 @@ export async function startPeripheral<State extends Json, Input, Config>(
 
   let state = definition.init(config);
   let register: number | null = null;
-  const latchedInputs: Input[] = [];
+  /**
+   * Inputs that arrived since the last tick, applied on the next one. `raw` is the payload as
+   * sent, kept so a save made between ticks (say, a button pressed while the clock is stopped)
+   * doesn't lose it.
+   */
+  const latchedInputs: Array<{ raw: Record<string, Json>; input: Input }> = [];
 
   const client = await connect({ id: options.id, role: "peripheral", kind: definition.kind, label, url: options.url });
 
@@ -116,7 +121,7 @@ export async function startPeripheral<State extends Json, Input, Config>(
 
   client.on("input", (message) => {
     const input = definition.inputSchema.safeParse(message.payload);
-    if (input.success) latchedInputs.push(input.data);
+    if (input.success) latchedInputs.push({ raw: message.payload, input: input.data });
     else client.reply(message, "error", { message: `bad input for ${definition.kind}` });
   });
 
@@ -125,7 +130,7 @@ export async function startPeripheral<State extends Json, Input, Config>(
   });
 
   client.onTick((tick) => {
-    for (const input of latchedInputs.splice(0)) state = definition.onInput(state, input);
+    for (const { input } of latchedInputs.splice(0)) state = definition.onInput(state, input);
     const result = definition.onTick(state, { tick, register });
     state = result.state;
     for (const effect of result.effects) {
@@ -145,18 +150,41 @@ export async function startPeripheral<State extends Json, Input, Config>(
 
   client.on("snapshot.get", (message) => {
     const saved = definition.snapshot ? definition.snapshot(state) : state;
-    client.reply(message, "snapshot", { data: { kind: definition.kind, slot: wiring.slot, config: options.config ?? {}, state: saved } });
+    const inputs = latchedInputs.map((l) => l.raw);
+    client.reply(message, "snapshot", { data: { kind: definition.kind, slot: wiring.slot, config: options.config ?? {}, state: saved, inputs } });
+  });
+
+  /** Read a saved snapshot back, or explain why it can't be used. Changes nothing. */
+  function readSnapshot(data: Json): { state: State; inputs: Array<{ raw: Record<string, Json>; input: Input }> } | string {
+    const saved = typeof data === "object" && data !== null && !Array.isArray(data) ? data : {};
+    const restored = restoreState(definition, saved.state);
+    if (restored === null) return `snapshot for ${options.id} is not a valid ${definition.kind} state`;
+    const inputs: Array<{ raw: Record<string, Json>; input: Input }> = [];
+    // Older saves have no `inputs`; that just means nothing was waiting.
+    for (const raw of Array.isArray(saved.inputs) ? saved.inputs : []) {
+      const input = definition.inputSchema.safeParse(raw);
+      if (!input.success || typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        return `snapshot for ${options.id} has an input that isn't valid for ${definition.kind}`;
+      }
+      inputs.push({ raw, input: input.data });
+    }
+    return { state: restored, inputs };
+  }
+
+  client.on("snapshot.check", (message) => {
+    const read = readSnapshot(message.payload.data);
+    if (typeof read === "string") client.reply(message, "error", { message: read });
+    else client.reply(message, "ok", {});
   });
 
   client.on("snapshot.set", (message) => {
-    const data = message.payload.data;
-    const saved = typeof data === "object" && data !== null && !Array.isArray(data) ? data.state : undefined;
-    const restored = restoreState(definition, saved);
-    if (restored === null) {
-      client.reply(message, "error", { message: `snapshot for ${options.id} is not a valid ${definition.kind} state` });
+    const read = readSnapshot(message.payload.data);
+    if (typeof read === "string") {
+      client.reply(message, "error", { message: read });
       return;
     }
-    state = restored;
+    state = read.state;
+    latchedInputs.splice(0, latchedInputs.length, ...read.inputs);
     publishStatus();
     client.reply(message, "ok", {});
   });

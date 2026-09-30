@@ -65,6 +65,14 @@ export async function startCpu(options: CpuOptions = {}): Promise<RunningCpu> {
     publishStatus();
   });
   client.on("snapshot.get", (message) => client.reply(message, "snapshot", { data: snapshotCpu(cpu) }));
+  client.on("snapshot.check", (message) => {
+    try {
+      restoreCpu(message.payload.data); // only checking: the result is thrown away
+      client.reply(message, "ok", {});
+    } catch (error) {
+      client.reply(message, "error", { message: `bad cpu snapshot: ${(error as Error).message}` });
+    }
+  });
   client.on("snapshot.set", (message) => {
     try {
       cpu = restoreCpu(message.payload.data);

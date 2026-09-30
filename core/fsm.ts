@@ -38,7 +38,9 @@ export function defineFsm<S extends string>(
 ): Fsm<S> {
   const allowed = new Set(transitions.flatMap((t) => sources(t).map((from) => `${from}>${t.to}`)));
 
-  // Staying in the same state is always allowed; it is "no transition".
+  // Staying in the same state is always allowed; it is "no transition". It only shows up on the
+  // exported diagram when the table lists it, so list the ones that mean something (like a
+  // core stalling, or taking an interrupt from FETCH to FETCH with a new PC).
   const canGo = (from: S, to: S) => from === to || allowed.has(`${from}>${to}`);
 
   return {
