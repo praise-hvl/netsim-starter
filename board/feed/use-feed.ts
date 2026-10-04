@@ -1,16 +1,25 @@
 "use client";
-// The data feed as a React hook: frames from a recorded trace, or from a live bus. This and the
-// pure files next to it (trace.ts, frames.ts, stream.ts) are the whole feed; nothing here knows
-// how the board is drawn, and nothing needs Node (it runs in any browser).
+// The data feed as a React hook: frames from a recorded trace, a live bus, or a whole machine
+// running in this page. This and the pure files next to it (trace.ts, frames.ts, stream.ts) are
+// the whole feed; nothing here knows how the board is drawn, and nothing needs Node.
 import { useEffect, useRef, useState } from "react";
 import type { BusClient } from "@/components/client";
+import type { Machine } from "@/components/machine";
 import type { Message } from "@/protocol/messages";
 import { BUS_URL, connectDashboard, welcomeMessage } from "@/app/_lib/bus-connection";
 import { buildFrames, type Frame } from "@/board/feed/frames";
 import { appendMessages, createStream, withOpenTick } from "@/board/feed/stream";
 import { parseTrace } from "@/board/feed/trace";
 
-export type Source = { kind: "trace"; name: TraceName } | { kind: "live"; url: string };
+export type Source =
+  | { kind: "trace"; name: TraceName }
+  /** A bus somewhere else, e.g. the class bus: ws://... */
+  | { kind: "live"; url: string }
+  /** A whole machine (bus, memory, CPU, devices) started in this page: works with no server at all. */
+  | { kind: "machine"; cores: number };
+
+/** Core counts offered for the in-page machine. Any count 1-8 works through ?source=machine&cores=N. */
+export const MACHINE_CORES = [2, 8] as const;
 
 /** The recordings that come with the board (scripts/board/record-trace.ts makes them). */
 export const TRACES = {
@@ -19,7 +28,7 @@ export const TRACES = {
 } as const;
 export type TraceName = keyof typeof TRACES;
 
-/** What the live bus lets the board do. */
+/** What a live bus (or the in-page machine) lets the board do. */
 export type LiveControls = {
   press(id: string): void;
   control(action: "start" | "stop" | "step"): void;
@@ -37,8 +46,8 @@ const RETRY_MS = 2000;
 
 export function useFeed(source: Source): Feed {
   const trace = useTraceFeed(source.kind === "trace" ? source.name : null);
-  const live = useLiveFeed(source.kind === "live" ? source.url : null);
-  return source.kind === "trace" ? trace : live;
+  const bus = useBusFeed(source.kind === "live" ? source.url : null, source.kind === "machine" ? source.cores : null);
+  return source.kind === "trace" ? trace : bus;
 }
 
 const LOADING: Feed = { frames: [], state: "loading", about: "", error: null, live: null };
@@ -66,14 +75,16 @@ function useTraceFeed(name: TraceName | null): Feed {
   return loaded !== null && loaded.name === name ? loaded.feed : LOADING;
 }
 
-function useLiveFeed(url: string | null): Feed {
+/** Frames from a bus: the one at `url`, or (with `machineCores`) a machine started in this page. */
+function useBusFeed(url: string | null, machineCores: number | null): Feed {
   const [feed, setFeed] = useState<Feed>({ frames: [], state: "connecting", about: "", error: null, live: null });
   const stream = useRef(createStream());
 
   useEffect(() => {
-    if (url === null) return;
+    if (url === null && machineCores === null) return;
     let stopped = false;
     let client: BusClient | null = null;
+    let machine: Machine | null = null;
     let frame = 0;
     let retry: ReturnType<typeof setTimeout> | undefined;
     const queue: Message[] = [];
@@ -92,7 +103,19 @@ function useLiveFeed(url: string | null): Feed {
     async function open(): Promise<void> {
       setFeed((f) => ({ ...f, state: "connecting", error: null }));
       try {
-        client = await connectDashboard(url ?? BUS_URL);
+        let target = url ?? BUS_URL;
+        if (machineCores !== null) {
+          if (!machine) {
+            const { startMachine } = await import("@/components/machine");
+            // A fresh bus name every time: React runs effects twice in development, and a name
+            // is only free again once the machine that had it has closed.
+            const started = await startMachine({ name: `board-${Math.random().toString(36).slice(2, 8)}`, cores: machineCores, start: true });
+            if (stopped) return void started.close();
+            machine = started;
+          }
+          target = machine.url;
+        }
+        client = await connectDashboard(target);
         if (stopped) return void client.close();
         const c = client;
         enqueue(welcomeMessage(c));
@@ -112,7 +135,8 @@ function useLiveFeed(url: string | null): Feed {
             c.send("control", "bus", { action });
           },
         };
-        setFeed((f) => ({ ...f, state: "live", about: `Live: the bus at ${url}.`, live }));
+        const about = machineCores !== null ? `An in-browser machine with ${machineCores} ${machineCores === 1 ? "core" : "cores"}, running in this page.` : `Live: the bus at ${url}.`;
+        setFeed((f) => ({ ...f, state: "live", about, live }));
       } catch (error) {
         if (stopped) return;
         setFeed((f) => ({ ...f, state: "closed", error: error instanceof Error ? error.message : String(error) }));
@@ -127,7 +151,8 @@ function useLiveFeed(url: string | null): Feed {
       cancelAnimationFrame(frame);
       clearTimeout(retry);
       void client?.close();
+      void machine?.close();
     };
-  }, [url]);
+  }, [url, machineCores]);
   return feed;
 }

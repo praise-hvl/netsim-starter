@@ -9,6 +9,7 @@
     "dev:all": "trap 'kill 0' INT TERM; npm run -s programs; tsx bus/start.ts & tsx components/run.ts memory cpu host & next dev -p 3005 & wait",
     "prebuild": "npm run -s programs",
     "build": "next build",
+    "pages:check": "node scripts/board/pages-check.mjs",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",

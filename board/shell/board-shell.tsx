@@ -1,14 +1,16 @@
 "use client";
-// The frame around your board: pick a recording or the live bus, play, pause, step a tick and
-// scrub. You draw the board itself: `children` gets the frame to draw and how far through its
+// The frame around your board: pick a recording, a machine running in this page, or the live
+// bus; play, pause, step a tick and scrub. You draw the board itself: `children` gets the frame to draw and how far through its
 // tick the playback is (0..1, for things in motion).
 import type { ReactNode } from "react";
 import type { Frame } from "@/board/feed/frames";
-import { useFeed, TRACES, type Source, type TraceName } from "@/board/feed/use-feed";
+import { useFeed, type Source } from "@/board/feed/use-feed";
+import { sourceFromKey, sourceKey, sourceOptions } from "@/board/feed/source";
 import { BUS_URL } from "@/app/_lib/bus-connection";
 import { usePlayback } from "@/board/shell/use-playback";
 import { PlaybackBar } from "@/board/shell/playback-bar";
 import { SCALE } from "@/board/parts/geometry";
+import { SketchButton } from "@/board/shell/ui";
 import { INK } from "@/board/parts/colours";
 
 export type BoardView = { frame: Frame; frames: readonly Frame[]; index: number; progress: number };
@@ -24,7 +26,8 @@ export type BoardShellProps = {
 
 export function BoardShell({ title, source, onSource, size, children }: BoardShellProps) {
   const feed = useFeed(source);
-  const [playback, dispatch] = usePlayback(feed.frames.length, source.kind === "live" ? { follow: true, playing: true } : {});
+  // A bus (live or in the page) keeps running, so follow its newest tick; a recording starts paused.
+  const [playback, dispatch] = usePlayback(feed.frames.length, source.kind === "trace" ? {} : { follow: true, playing: true });
   const index = Math.min(playback.index, Math.max(0, feed.frames.length - 1));
   const frame = feed.frames[index];
   const margin = 4;
@@ -36,21 +39,32 @@ export function BoardShell({ title, source, onSource, size, children }: BoardShe
         <select
           aria-label="What to show"
           className="rounded-md border-2 border-black bg-white px-2 py-1 text-sm font-semibold"
-          value={source.kind === "live" ? "live" : source.name}
+          value={sourceKey(source)}
           onChange={(e) => {
-            const value = e.target.value;
-            onSource(value === "live" ? { kind: "live", url: BUS_URL } : { kind: "trace", name: value as TraceName });
-            dispatch(value === "live" ? { type: "follow", follow: true } : { type: "seek", index: 0 });
+            const next = sourceFromKey(e.target.value, BUS_URL);
+            onSource(next);
+            dispatch(next.kind === "trace" ? { type: "seek", index: 0 } : { type: "follow", follow: true });
           }}
         >
-          {(Object.keys(TRACES) as TraceName[]).map((name) => (
-            <option key={name} value={name}>
-              {TRACES[name].label}
+          {sourceOptions(source).map((option) => (
+            <option key={option.key} value={option.key}>
+              {option.label}
             </option>
           ))}
-          <option value="live">Live bus</option>
         </select>
         <span className="min-w-0 truncate text-sm text-zinc-600">{feed.about}</span>
+        {/* On a running bus, press its buttons from here: no need to build a press into your board first. */}
+        {feed.live && frame && (
+          <div className="ml-auto flex shrink-0 items-center gap-1 text-sm font-semibold">
+            {Object.values(frame.parts)
+              .filter((part) => part.kind === "button")
+              .map((part) => (
+                <SketchButton key={part.id} className="py-0" onClick={() => feed.live?.press(part.id)} title={`Press ${part.label}: it interrupts the CPU on its next tick`}>
+                  press {part.label}
+                </SketchButton>
+              ))}
+          </div>
+        )}
       </header>
       <main className="min-h-0 flex-1 p-3">
         {frame ? (
@@ -63,7 +77,7 @@ export function BoardShell({ title, source, onSource, size, children }: BoardShe
             {children({ frame, frames: feed.frames, index, progress: playback.progress })}
           </svg>
         ) : (
-          <p className="p-6 text-lg">{feed.error ? `Couldn't load: ${feed.error}` : feed.state === "connecting" ? `Connecting to the bus at ${BUS_URL}…` : "Loading…"}</p>
+          <p className="p-6 text-lg">{feed.error ? `Couldn't load: ${feed.error}` : feed.state === "connecting" ? (source.kind === "machine" ? "Starting the machine…" : `Connecting to the bus at ${BUS_URL}…`) : "Loading…"}</p>
         )}
       </main>
       <PlaybackBar playback={playback} dispatch={dispatch} frames={feed.frames} live={feed.live} />
