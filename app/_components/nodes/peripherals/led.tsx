@@ -8,10 +8,20 @@ const ledData = z.object({
 });
 
 export function LedView({ status }: PeripheralViewProps) {
-  // @student week=5 part=home id=led-node "Draw a light that is clearly lit when the LED's state is ON, and show its register value"
-  // TODO(week 5, led-node): Draw a light that is clearly lit when the LED's state is ON, and show its register value
-  // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
-  void ledData; // used once you write the real view
-  return <div className="py-2 text-center italic text-zinc-400">LED ({status.state}): TODO week 5</div>;
-  // @end
+  const on = status.state === "ON";
+  const parsed = ledData.safeParse(status.data);
+  const color = parsed.success ? parsed.data.color : "#ef4444";
+  return (
+    <div className="flex items-center gap-3 py-1">
+      <div
+        aria-label={on ? "LED on" : "LED off"}
+        className="h-9 w-9 rounded-full border border-white/40 transition-all duration-150"
+        style={{ backgroundColor: color, opacity: on ? 1 : 0.15, boxShadow: on ? `0 0 18px 4px ${color}` : "none" }}
+      />
+      <div className="font-mono text-[10px] text-zinc-500">
+        <div>{on ? "ON" : "OFF"}</div>
+        <div>value {parsed.success ? parsed.data.value : "?"}</div>
+      </div>
+    </div>
+  );
 }

@@ -54,10 +54,10 @@ export function defineFsm<S extends string>(
       return to;
     },
     toMermaid() {
-      // @student week=7 part=home id=fsm-mermaid "Turn the transition table into a mermaid stateDiagram-v2"
-      // TODO(week 7, fsm-mermaid): Turn the transition table into a mermaid stateDiagram-v2
-      // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-      return todo("week 7: fsm-mermaid");
+      // @student week=stretch part=home id=fsm-mermaid "Turn the transition table into a mermaid stateDiagram-v2"
+      // TODO(stretch, fsm-mermaid): Turn the transition table into a mermaid stateDiagram-v2
+      // Tests: tests/stretch/   Guide: docs/stretch/
+      return todo("stretch: fsm-mermaid");
       // @end
     },
   };

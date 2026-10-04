@@ -149,7 +149,13 @@ export async function startPeripheral<State extends Json, Input, Config>(
   });
 
   client.on("snapshot.get", (message) => {
-    const saved = definition.snapshot ? definition.snapshot(state) : state;
+    let saved: Json;
+    try {
+      saved = definition.snapshot ? definition.snapshot(state) : state;
+    } catch (error) {
+      client.reply(message, "error", { message: `${options.id} can't be saved yet (a stretch module): ${(error as Error).message}` });
+      return;
+    }
     const inputs = latchedInputs.map((l) => l.raw);
     client.reply(message, "snapshot", { data: { kind: definition.kind, slot: wiring.slot, config: options.config ?? {}, state: saved, inputs } });
   });

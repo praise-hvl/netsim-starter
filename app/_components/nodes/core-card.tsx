@@ -9,10 +9,28 @@ import { StateBadge } from "@/app/_components/nodes/node-card";
 export type CoreView = z.infer<typeof coreView>;
 
 export function CoreCard({ core }: { core: CoreView }) {
-  // @student week=5 part=class id=core-node "Show one core: FSM state, PC, R0-R3, flags, current instruction, process"
-  // TODO(week 5, core-node): Show one core: FSM state, PC, R0-R3, flags, current instruction, process
-  // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
-  void [hex, hex2, StateBadge]; // used once you write the real card
-  return <div className="rounded-md border border-dashed border-zinc-300 p-2 text-zinc-400">Core {core.id}: TODO week 5</div>;
-  // @end
+  const border = core.state === "FAULT" ? "border-red-400 bg-red-50" : core.inHandler ? "border-orange-300 bg-orange-50" : "border-zinc-200";
+  return (
+    <div className={`min-w-36 flex-1 rounded-md border p-2 transition-colors ${border}`}>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-zinc-500">Core {core.id}</span>
+        <span className="flex items-center gap-1">
+          {core.inHandler && <span className="rounded bg-orange-100 px-1 text-[9px] font-bold text-orange-700">ISR</span>}
+          <StateBadge state={core.state} />
+        </span>
+      </div>
+      <div className="space-y-0.5 font-mono text-[11px]">
+        <div>PC {hex(core.pc)}</div>
+        <div className="truncate text-zinc-900" title="current instruction">{core.instruction ?? "—"}</div>
+        <div>
+          {core.registers.map((value, r) => (
+            <span key={r} className="mr-2">R{r}:{hex2(value)}</span>
+          ))}
+        </div>
+        <div className="text-zinc-500">
+          Z:{core.flags.zero ? 1 : 0} C:{core.flags.carry ? 1 : 0} · PID {core.pid ?? "—"}
+        </div>
+      </div>
+    </div>
+  );
 }

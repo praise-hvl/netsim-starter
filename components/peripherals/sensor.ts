@@ -50,26 +50,26 @@ export const sensor: PeripheralDefinition<SensorState, SensorInput, SensorConfig
   init: (config) => ({ fsm: "BELOW", threshold: config.threshold, value: 0, alarms: 0, pendingWrite: true }),
 
   onInput(state, input) {
-    // @student week=6 part=home id=sensor-input "Store the new reading; the register is written on the next tick"
-    // TODO(week 6, sensor-input): Store the new reading; the register is written on the next tick
-    // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-    return todo("week 6: sensor-input", state, input);
+    // @student week=stretch part=home id=sensor-input "Store the new reading; the register is written on the next tick"
+    // TODO(stretch, sensor-input): Store the new reading; the register is written on the next tick
+    // Tests: tests/stretch/   Guide: docs/stretch/
+    return todo("stretch: sensor-input", state, input);
     // @end
   },
 
   onTick(state) {
-    // @student week=6 part=home id=sensor-tick "Write a changed reading to the register; irq when it crosses the threshold going up"
-    // TODO(week 6, sensor-tick): Write a changed reading to the register; irq when it crosses the threshold going up
-    // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-    return todo("week 6: sensor-tick", state);
+    // @student week=stretch part=home id=sensor-tick "Write a changed reading to the register; irq when it crosses the threshold going up"
+    // TODO(stretch, sensor-tick): Write a changed reading to the register; irq when it crosses the threshold going up
+    // Tests: tests/stretch/   Guide: docs/stretch/
+    return todo("stretch: sensor-tick", state);
     // @end
   },
 
   view(state) {
-    // @student week=6 part=home id=sensor-view "Show the reading, the threshold and how many alarms fired"
-    // TODO(week 6, sensor-view): Show the reading, the threshold and how many alarms fired
-    // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-    return todo("week 6: sensor-view", state);
+    // @student week=stretch part=home id=sensor-view "Show the reading, the threshold and how many alarms fired"
+    // TODO(stretch, sensor-view): Show the reading, the threshold and how many alarms fired
+    // Tests: tests/stretch/   Guide: docs/stretch/
+    return todo("stretch: sensor-view", state);
     // @end
   },
 
@@ -78,17 +78,17 @@ export const sensor: PeripheralDefinition<SensorState, SensorInput, SensorConfig
 };
 
 export function snapshot(state: SensorState): Json {
-  // @student week=7 part=home id=sensor-snapshot "Keep what the sensor needs to carry on; leave out what it doesn't"
-  // TODO(week 7, sensor-snapshot): Keep what the sensor needs to carry on; leave out what it doesn't
-  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: sensor-snapshot", state);
+  // @student week=stretch part=home id=sensor-snapshot "Keep what the sensor needs to carry on; leave out what it doesn't"
+  // TODO(stretch, sensor-snapshot): Keep what the sensor needs to carry on; leave out what it doesn't
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: sensor-snapshot", state);
   // @end
 }
 
 export function restore(data: unknown): SensorState {
-  // @student week=7 part=home id=sensor-restore "Validate a saved sensor (it is untrusted input) and rebuild its state"
-  // TODO(week 7, sensor-restore): Validate a saved sensor (it is untrusted input) and rebuild its state
-  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: sensor-restore", data);
+  // @student week=stretch part=home id=sensor-restore "Validate a saved sensor (it is untrusted input) and rebuild its state"
+  // TODO(stretch, sensor-restore): Validate a saved sensor (it is untrusted input) and rebuild its state
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: sensor-restore", data);
   // @end
 }

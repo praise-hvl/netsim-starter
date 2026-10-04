@@ -41,18 +41,18 @@ export function write(memory: Memory, address: number, bytes: readonly number[])
 }
 
 export function snapshotMemory(memory: Memory): Memory {
-  // @student week=7 part=class id=memory-snapshot "Return what should go in a save file for this memory"
-  // TODO(week 7, memory-snapshot): Return what should go in a save file for this memory
-  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: memory-snapshot", memory);
+  // @student week=stretch part=class id=memory-snapshot "Return what should go in a save file for this memory"
+  // TODO(stretch, memory-snapshot): Return what should go in a save file for this memory
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: memory-snapshot", memory);
   // @end
 }
 
 /** Check saved data really is a memory before trusting it. Throws if it isn't. */
 export function restoreMemory(data: unknown): Memory {
-  // @student week=7 part=class id=memory-restore "Validate the saved data with memorySchema and return it"
-  // TODO(week 7, memory-restore): Validate the saved data with memorySchema and return it
-  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: memory-restore", data);
+  // @student week=stretch part=class id=memory-restore "Validate the saved data with memorySchema and return it"
+  // TODO(stretch, memory-restore): Validate the saved data with memorySchema and return it
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: memory-restore", data);
   // @end
 }

@@ -36,7 +36,19 @@ export type Region = {
 export class RegionError extends Error {}
 
 // `//` for TypeScript, `;` for assembly, `<!--` … `-->` for the notes.
-const START = /^(\s*)(\/\/|;|<!--) @student week=(\d+) part=(class|home) id=([a-z0-9-]+) "([^"]*)"(?:\s*-->)?\s*$/;
+const START = /^(\s*)(\/\/|;|<!--) @student week=(\d+|stretch) part=(class|home) id=([a-z0-9-]+) "([^"]*)"(?:\s*-->)?\s*$/;
+
+/**
+ * Stretch work (portfolio only, not graded) is tagged `week=stretch`. It counts as "week 9":
+ * after the course, so every week branch ships it as a stub and no week's tests depend on it.
+ * Its tests live in tests/stretch/ and only run when a student turns stretch on.
+ */
+export const STRETCH_WEEK = 9;
+
+/** How a region's week reads in messages: "week 3", or "stretch". */
+export function weekLabel(week: number): string {
+  return week === STRETCH_WEEK ? "stretch" : `week ${week}`;
+}
 const STUB = /^\s*(\/\/|;|<!--) @stub(?: (.*?))?(?:\s*-->)?$/;
 const END = /^\s*(\/\/|;|<!--) @end(?:\s*-->)?\s*$/;
 
@@ -59,8 +71,8 @@ export function findRegions(file: string, text: string): Region[] {
     const start = START.exec(line);
     if (start) {
       if (open) throw new RegionError(`${where}: @student inside another region (${open.id})`);
-      const week = Number(start[3]);
-      if (week < 1 || week > 8) throw new RegionError(`${where}: week must be 1-8`);
+      const week = start[3] === "stretch" ? STRETCH_WEEK : Number(start[3]);
+      if (week < 1 || week > STRETCH_WEEK) throw new RegionError(`${where}: week must be 1-8 or stretch`);
       open = { file, week, part: start[4] as Region["part"], id: start[5], description: start[6], start: index, end: -1, indent: start[1], stub: null, body: [] };
       return;
     }
@@ -117,20 +129,22 @@ function enclosingParameters(file: string, text: string, line: number): string[]
 
 function stubLines(region: Region, text: string): string[] {
   const week = String(region.week).padStart(2, "0");
+  const label = weekLabel(region.week);
+  const where = region.week === STRETCH_WEEK ? "Tests: tests/stretch/   Guide: docs/stretch/" : `Tests: tests/week-${week}/   Guide: docs/weeks/week-${week}.md`;
   const asm = region.file.endsWith(".asm");
   if (isNotesFile(region.file)) {
     // Notes: the TODO comment, then any starter lines the region gives (a table's header row,
     // an image link), then a blank line to write in.
     const starter = (region.stub ?? []).map((line) => region.indent + line);
-    return [`${region.indent}<!-- TODO(week ${region.week}, ${region.id}): ${region.description} -->`, ...starter, ""];
+    return [`${region.indent}<!-- TODO(${label}, ${region.id}): ${region.description} -->`, ...starter, ""];
   }
   const comment = asm ? ";" : "//";
-  const todoLine = `${region.indent}${comment} TODO(week ${region.week}, ${region.id}): ${region.description}`;
-  const pointer = `${region.indent}${comment} Tests: tests/week-${week}/   Guide: docs/weeks/week-${week}.md`;
+  const todoLine = `${region.indent}${comment} TODO(${label}, ${region.id}): ${region.description}`;
+  const pointer = `${region.indent}${comment} ${where}`;
   if (region.stub) return [todoLine, pointer, ...region.stub.map((line) => region.indent + line)];
   if (asm) return [todoLine, `${region.indent}IRET`];
   const params = enclosingParameters(region.file, text, region.start);
-  const args = [`"week ${region.week}: ${region.id}"`, ...params].join(", ");
+  const args = [`"${label}: ${region.id}"`, ...params].join(", ");
   return [todoLine, pointer, `${region.indent}return todo(${args});`];
 }
 

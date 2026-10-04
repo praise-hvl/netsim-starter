@@ -57,26 +57,26 @@ export const potentiometer: PeripheralDefinition<PotentiometerState, Potentiomet
   init: (config) => ({ fsm: "STABLE", settleTicks: config.settleTicks, value: 0, quietTicks: 0, settles: 0, pendingWrite: true }),
 
   onInput(state, input) {
-    // @student week=6 part=home id=potentiometer-input "Store the new value and (re)start settling"
-    // TODO(week 6, potentiometer-input): Store the new value and (re)start settling
-    // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-    return todo("week 6: potentiometer-input", state, input);
+    // @student week=stretch part=home id=potentiometer-input "Store the new value and (re)start settling"
+    // TODO(stretch, potentiometer-input): Store the new value and (re)start settling
+    // Tests: tests/stretch/   Guide: docs/stretch/
+    return todo("stretch: potentiometer-input", state, input);
     // @end
   },
 
   onTick(state) {
-    // @student week=6 part=home id=potentiometer-tick "Write the starting value at power-on; once the value has been quiet for settleTicks, write it and raise one irq"
-    // TODO(week 6, potentiometer-tick): Write the starting value at power-on; once the value has been quiet for settleTicks, write it and raise one irq
-    // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-    return todo("week 6: potentiometer-tick", state);
+    // @student week=stretch part=home id=potentiometer-tick "Write the starting value at power-on; once the value has been quiet for settleTicks, write it and raise one irq"
+    // TODO(stretch, potentiometer-tick): Write the starting value at power-on; once the value has been quiet for settleTicks, write it and raise one irq
+    // Tests: tests/stretch/   Guide: docs/stretch/
+    return todo("stretch: potentiometer-tick", state);
     // @end
   },
 
   view(state) {
-    // @student week=6 part=home id=potentiometer-view "Show the value and how many times the knob settled"
-    // TODO(week 6, potentiometer-view): Show the value and how many times the knob settled
-    // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-    return todo("week 6: potentiometer-view", state);
+    // @student week=stretch part=home id=potentiometer-view "Show the value and how many times the knob settled"
+    // TODO(stretch, potentiometer-view): Show the value and how many times the knob settled
+    // Tests: tests/stretch/   Guide: docs/stretch/
+    return todo("stretch: potentiometer-view", state);
     // @end
   },
 
@@ -85,17 +85,17 @@ export const potentiometer: PeripheralDefinition<PotentiometerState, Potentiomet
 };
 
 export function snapshot(state: PotentiometerState): Json {
-  // @student week=7 part=home id=potentiometer-snapshot "Save everything the knob needs to finish settling after a restore"
-  // TODO(week 7, potentiometer-snapshot): Save everything the knob needs to finish settling after a restore
-  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: potentiometer-snapshot", state);
+  // @student week=stretch part=home id=potentiometer-snapshot "Save everything the knob needs to finish settling after a restore"
+  // TODO(stretch, potentiometer-snapshot): Save everything the knob needs to finish settling after a restore
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: potentiometer-snapshot", state);
   // @end
 }
 
 export function restore(data: unknown): PotentiometerState {
-  // @student week=7 part=home id=potentiometer-restore "Validate a saved potentiometer (it is untrusted input) and rebuild its state"
-  // TODO(week 7, potentiometer-restore): Validate a saved potentiometer (it is untrusted input) and rebuild its state
-  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: potentiometer-restore", data);
+  // @student week=stretch part=home id=potentiometer-restore "Validate a saved potentiometer (it is untrusted input) and rebuild its state"
+  // TODO(stretch, potentiometer-restore): Validate a saved potentiometer (it is untrusted input) and rebuild its state
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: potentiometer-restore", data);
   // @end
 }

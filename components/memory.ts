@@ -49,7 +49,14 @@ export async function startMemory(options: { url?: string; id?: string } = {}): 
     changed = true;
     publishStatus();
   });
-  client.on("snapshot.get", (message) => client.reply(message, "snapshot", { data: snapshotMemory(memory) }));
+  client.on("snapshot.get", (message) => {
+    // Saving is a stretch module: until snapshotMemory is built it throws, and the save says so.
+    try {
+      client.reply(message, "snapshot", { data: snapshotMemory(memory) });
+    } catch (error) {
+      client.reply(message, "error", { message: `memory can't be saved yet (persistence is a stretch module): ${(error as Error).message}` });
+    }
+  });
   client.on("snapshot.check", (message) => {
     try {
       restoreMemory(message.payload.data); // only checking: the result is thrown away

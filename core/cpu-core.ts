@@ -137,26 +137,26 @@ export function stepCore(core: Core, reply: MemReply | null): StepResult {
 }
 
 function fetch(core: Core): StepResult {
-  // @student week=3 part=class id=fetch "Ask memory for the 4 bytes at PC and wait for them (fault if PC is too close to the end)"
-  // TODO(week 3, fetch): Ask memory for the 4 bytes at PC and wait for them (fault if PC is too close to the end)
-  // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
-  return todo("week 3: fetch", core);
+  // @student week=5 part=class id=fetch "Ask memory for the 4 bytes at PC and wait for them (fault if PC is too close to the end)"
+  // TODO(week 5, fetch): Ask memory for the 4 bytes at PC and wait for them (fault if PC is too close to the end)
+  // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
+  return todo("week 5: fetch", core);
   // @end
 }
 
 function awaitInstruction(core: Core, reply: MemReply | null): StepResult {
-  // @student week=3 part=class id=await-instruction "Bytes arrived -> DECODE with them in IR; fault -> FAULT; nothing yet -> count a stall"
-  // TODO(week 3, await-instruction): Bytes arrived -> DECODE with them in IR; fault -> FAULT; nothing yet -> count a stall
-  // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
-  return todo("week 3: await-instruction", core, reply);
+  // @student week=5 part=class id=await-instruction "Bytes arrived -> DECODE with them in IR; fault -> FAULT; nothing yet -> count a stall"
+  // TODO(week 5, await-instruction): Bytes arrived -> DECODE with them in IR; fault -> FAULT; nothing yet -> count a stall
+  // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
+  return todo("week 5: await-instruction", core, reply);
   // @end
 }
 
 function decodeStep(core: Core): StepResult {
-  // @student week=3 part=class id=decode-step "Decode IR; a valid instruction goes to EXECUTE, anything else is a FAULT"
-  // TODO(week 3, decode-step): Decode IR; a valid instruction goes to EXECUTE, anything else is a FAULT
-  // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
-  return todo("week 3: decode-step", core);
+  // @student week=5 part=class id=decode-step "Decode IR; a valid instruction goes to EXECUTE, anything else is a FAULT"
+  // TODO(week 5, decode-step): Decode IR; a valid instruction goes to EXECUTE, anything else is a FAULT
+  // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
+  return todo("week 5: decode-step", core);
   // @end
 }
 
@@ -164,18 +164,18 @@ function execute(core: Core, instruction: Instruction): StepResult {
   const [r0, r1, r2, r3] = core.registers;
   const regs = [r0, r1, r2, r3];
   switch (instruction.op) {
-    // @student week=3 part=home id=execute-core "Execute LOAD (ask memory), ADD (with zero and carry flags) and HALT"
-    // TODO(week 3, execute-core): Execute LOAD (ask memory), ADD (with zero and carry flags) and HALT
-    // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
+    // @student week=5 part=home id=execute-core "Execute LOAD (ask memory), ADD (with zero and carry flags) and HALT"
+    // TODO(week 5, execute-core): Execute LOAD (ask memory), ADD (with zero and carry flags) and HALT
+    // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
     case "LOAD":
     case "ADD":
     case "HALT":
       return todo("week 3: execute-core", core, instruction, regs);
     // @end
 
-    // @student week=3 part=home id=execute-rest "Execute STORE, SUB, LOADI, JMP, JZ and JNZ"
-    // TODO(week 3, execute-rest): Execute STORE, SUB, LOADI, JMP, JZ and JNZ
-    // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
+    // @student week=5 part=home id=execute-rest "Execute STORE, SUB, LOADI, JMP, JZ and JNZ"
+    // TODO(week 5, execute-rest): Execute STORE, SUB, LOADI, JMP, JZ and JNZ
+    // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
     case "STORE":
     case "SUB":
     case "LOADI":
@@ -193,10 +193,10 @@ function execute(core: Core, instruction: Instruction): StepResult {
 }
 
 function awaitData(core: Core, reply: MemReply | null): StepResult {
-  // @student week=3 part=home id=await-data "LOAD: put the byte in the register (and set zero). STORE: the ack means done. Then fetch the next instruction"
-  // TODO(week 3, await-data): LOAD: put the byte in the register (and set zero). STORE: the ack means done. Then fetch the next instruction
-  // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
-  return todo("week 3: await-data", core, reply);
+  // @student week=5 part=home id=await-data "LOAD: put the byte in the register (and set zero). STORE: the ack means done. Then fetch the next instruction"
+  // TODO(week 5, await-data): LOAD: put the byte in the register (and set zero). STORE: the ack means done. Then fetch the next instruction
+  // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
+  return todo("week 5: await-data", core, reply);
   // @end
 }
 
@@ -204,27 +204,28 @@ function awaitData(core: Core, reply: MemReply | null): StepResult {
 
 /** Interrupts are only taken between instructions, and never inside another handler. */
 export function canTakeInterrupt(core: Core): boolean {
-  // @student week=6 part=class id=can-take-interrupt "True only between instructions (IDLE or FETCH) and when not already in a handler"
-  // TODO(week 6, can-take-interrupt): True only between instructions (IDLE or FETCH) and when not already in a handler
-  // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-  return todo("week 6: can-take-interrupt", core);
+  // @student week=7 part=class id=can-take-interrupt "True only between instructions (IDLE or FETCH) and when not already in a handler"
+  // TODO(week 7, can-take-interrupt): True only between instructions (IDLE or FETCH) and when not already in a handler
+  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
+  // Until week 7 no core takes interrupts; they wait in the queue.
+  return false;
   // @end
 }
 
 /** Save everything IRET will need, then jump to the handler. */
 export function enterInterrupt(core: Core, vector: number): Core {
-  // @student week=6 part=class id=enter-interrupt "Push a frame (registers, pc, flags, retired, and whether we were IDLE or FETCH), jump to vector"
-  // TODO(week 6, enter-interrupt): Push a frame (registers, pc, flags, retired, and whether we were IDLE or FETCH), jump to vector
-  // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-  return todo("week 6: enter-interrupt", core, vector);
+  // @student week=7 part=class id=enter-interrupt "Push a frame (registers, pc, flags, retired, and whether we were IDLE or FETCH), jump to vector"
+  // TODO(week 7, enter-interrupt): Push a frame (registers, pc, flags, retired, and whether we were IDLE or FETCH), jump to vector
+  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
+  return todo("week 7: enter-interrupt", core, vector);
   // @end
 }
 
 function returnFromInterrupt(core: Core): StepResult {
-  // @student week=6 part=class id=iret "Pop the frame and put registers, pc, flags, retired and phase back exactly as they were"
-  // TODO(week 6, iret): Pop the frame and put registers, pc, flags, retired and phase back exactly as they were
-  // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-  return todo("week 6: iret", core);
+  // @student week=7 part=class id=iret "Pop the frame and put registers, pc, flags, retired and phase back exactly as they were"
+  // TODO(week 7, iret): Pop the frame and put registers, pc, flags, retired and phase back exactly as they were
+  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
+  return todo("week 7: iret", core);
   // @end
 }
 
@@ -246,18 +247,18 @@ export function clearCore(core: Core): Core {
 // ── Saving ──────────────────────────────────────────────────────────────────
 
 export function snapshotCore(core: Core): Core {
-  // @student week=7 part=class id=core-snapshot "Return what should go in a save file for this core"
-  // TODO(week 7, core-snapshot): Return what should go in a save file for this core
-  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: core-snapshot", core);
+  // @student week=stretch part=class id=core-snapshot "Return what should go in a save file for this core"
+  // TODO(stretch, core-snapshot): Return what should go in a save file for this core
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: core-snapshot", core);
   // @end
 }
 
 /** Check saved data really is a core before trusting it. Throws if it isn't. */
 export function restoreCore(data: unknown): Core {
-  // @student week=7 part=class id=core-restore "Validate the saved data with coreSchema and return it"
-  // TODO(week 7, core-restore): Validate the saved data with coreSchema and return it
-  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: core-restore", data);
+  // @student week=stretch part=class id=core-restore "Validate the saved data with coreSchema and return it"
+  // TODO(stretch, core-restore): Validate the saved data with coreSchema and return it
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: core-restore", data);
   // @end
 }
