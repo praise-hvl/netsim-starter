@@ -5,11 +5,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { BusClient } from "@/components/client";
 import type { Machine } from "@/components/machine";
-import type { Message } from "@/protocol/messages";
+import { envelope, type Message, type PayloadOf } from "@/protocol/messages";
 import { BUS_URL, connectDashboard, welcomeMessage } from "@/app/_lib/bus-connection";
 import { buildFrames, type Frame } from "@/board/feed/frames";
 import { appendMessages, createStream, withOpenTick } from "@/board/feed/stream";
 import { parseTrace } from "@/board/feed/trace";
+import { extraProgramsFor } from "@/board/feed/tally-programs";
 
 export type Source =
   | { kind: "trace"; name: TraceName }
@@ -85,6 +86,8 @@ function useBusFeed(url: string | null, machineCores: number | null): Feed {
     let stopped = false;
     let client: BusClient | null = null;
     let machine: Machine | null = null;
+    /** The extra programs are loaded once per machine, not again on a reconnect. */
+    let machineReady = false;
     let frame = 0;
     let retry: ReturnType<typeof setTimeout> | undefined;
     const queue: Message[] = [];
@@ -100,6 +103,13 @@ function useBusFeed(url: string | null, machineCores: number | null): Feed {
       });
     }
 
+    let seq = 0;
+    /** Send a request and wait for its answer; the board shows it too, since the bus doesn't echo our own messages. */
+    async function requestShown<T extends "program.load" | "process.add">(c: BusClient, type: T, to: string, payload: PayloadOf<T>): Promise<void> {
+      enqueue(envelope(type, c.id, to, payload, { id: `${c.id}-${type}-${seq++}`, tick: c.tick }));
+      await c.request(type, to, payload);
+    }
+
     async function open(): Promise<void> {
       setFeed((f) => ({ ...f, state: "connecting", error: null }));
       try {
@@ -109,7 +119,8 @@ function useBusFeed(url: string | null, machineCores: number | null): Feed {
             const { startMachine } = await import("@/components/machine");
             // A fresh bus name every time: React runs effects twice in development, and a name
             // is only free again once the machine that had it has closed.
-            const started = await startMachine({ name: `board-${Math.random().toString(36).slice(2, 8)}`, cores: machineCores, start: true });
+            // Paused: the board loads any extra programs first, then starts the clock (below).
+            const started = await startMachine({ name: `board-${Math.random().toString(36).slice(2, 8)}`, cores: machineCores, start: false });
             if (stopped) return void started.close();
             machine = started;
           }
@@ -125,6 +136,17 @@ function useBusFeed(url: string | null, machineCores: number | null): Feed {
           setFeed((f) => ({ ...f, state: "closed", error: "lost the connection to the bus", live: null }));
           retry = setTimeout(open, RETRY_MS);
         });
+        if (machineCores !== null && !machineReady) {
+          machineReady = true;
+          // The machine comes with countdown and blink; with more than 2 cores the board adds a
+          // tally per core, so every lane has work (see tally-programs.ts). Then the clock starts.
+          for (const program of extraProgramsFor(machineCores)) {
+            await requestShown(c, "program.load", "memory", { address: program.address, bytes: program.bytes });
+            await requestShown(c, "process.add", "cpu", { name: program.name, start: program.address });
+            if (stopped) return;
+          }
+          c.send("control", "bus", { action: "start" });
+        }
         const live: LiveControls = {
           press(id) {
             const sentId = c.send("input", id, { action: "press" });
