@@ -20,7 +20,8 @@
     "asm": "tsx scripts/asm.ts",
     "weeks": "tsx scripts/make-week-branches.ts",
     "course:catch-up": "tsx scripts/catch-up.ts",
-    "fsm:export": "tsx scripts/fsm-export.ts"
+    "fsm:export": "tsx scripts/fsm-export.ts",
+    "portfolio": "tsx scripts/portfolio.ts"
   },
   "dependencies": {
     "@xyflow/react": "^12.10.1",
