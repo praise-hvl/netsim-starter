@@ -4,7 +4,7 @@ import { connect, type BusClient } from "@/components/client";
 import { findPeripheral } from "@/components/peripherals/index";
 import type { RunningPeripheral } from "@/components/peripherals/peripheral";
 import { findProgram } from "@/programs/index";
-import { readProgram } from "@/programs/read";
+import { loadProgram } from "@/programs/load";
 import { SLOT_COUNT, wiringForSlot, type Wiring } from "@/protocol/memory-map";
 import type { MessageOf } from "@/protocol/messages";
 
@@ -27,7 +27,7 @@ export async function startHost(options: { url?: string; id?: string } = {}): Pr
   async function loadHandler(kind: string, wiring: Wiring): Promise<void> {
     const name = findProgram(`isr-${kind}`) ? `isr-${kind}` : "isr-counter";
     const { vector, counter, register } = wiring;
-    const { bytes } = readProgram(name, { VECTOR: vector, COUNTER: counter, REGISTER: register }, vector);
+    const { bytes } = loadProgram(name, { VECTOR: vector, COUNTER: counter, REGISTER: register }, vector);
     for (let offset = 0; offset < bytes.length; offset += 64) {
       await client.request("mem.write", "memory", { address: vector + offset, bytes: bytes.slice(offset, offset + 64) });
     }
