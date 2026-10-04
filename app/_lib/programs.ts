@@ -1,7 +1,10 @@
-// The programs the dashboard can load, as served by app/api/programs. Checked with zod when
-// they arrive, like anything else that comes over a wire.
+// The programs the dashboard can load: every program with a load address, with its assembly
+// source and the bytes it assembles to. They come from programs/bundle.ts (made by
+// `npm run programs`), so this works with no server at all, as on GitHub Pages.
 import { z } from "zod";
 import { address, byte } from "@/protocol/messages";
+import { PROGRAMS } from "@/programs/index";
+import { loadProgram } from "@/programs/load";
 
 export const programListing = z.object({
   name: z.string(),
@@ -14,10 +17,5 @@ export const programListing = z.object({
 export type ProgramListing = z.infer<typeof programListing>;
 
 export async function fetchPrograms(): Promise<ProgramListing[]> {
-  const response = await fetch("/api/programs");
-  const body: unknown = await response.json();
-  const parsed = z.array(programListing).safeParse(body);
-  if (response.ok && parsed.success) return parsed.data;
-  const reason = z.object({ error: z.string() }).safeParse(body);
-  throw new Error(`could not load the programs: ${reason.success ? reason.data.error : response.statusText}`);
+  return PROGRAMS.flatMap((p) => (p.address === null ? [] : [{ ...loadProgram(p.name), address: p.address }]));
 }

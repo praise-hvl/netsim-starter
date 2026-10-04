@@ -5,7 +5,7 @@
 // replays the file through the same code it uses for a live bus. It records whatever machine
 // this repo runs, so once your own parts work you can record your own.
 import { writeFileSync } from "node:fs";
-import { startBus } from "@/bus/server";
+import { startBus } from "@/bus/ws-server";
 import { connect } from "@/components/client";
 import { startCpu } from "@/components/cpu";
 import { startHost } from "@/components/host";

@@ -1,6 +1,8 @@
 // Shared test setup: a bus on a free port, and everything started during a test is closed after it.
 import { afterEach } from "vitest";
-import { startBus, type Bus, type BusOptions } from "@/bus/server";
+import type { Bus } from "@/bus/server";
+import { startBus, type BusOptions } from "@/bus/ws-server";
+import { startInPageBus } from "@/bus/in-page";
 import { connect, type BusClient, type ClientOptions } from "@/components/client";
 import type { Json, Message } from "@/protocol/messages";
 import type { PeripheralDefinition } from "@/components/peripherals/peripheral";
@@ -22,8 +24,21 @@ export function onCleanup(cleanup: () => Promise<void>): void {
   cleanups.push(cleanup);
 }
 
-export async function testBus(options: BusOptions = {}): Promise<Bus> {
-  const bus = await startBus({ port: 0, tickTimeoutMs: 1000, ...options });
+export type Transport = "ws" | "inpage";
+export const TRANSPORTS: readonly Transport[] = ["ws", "inpage"];
+
+let inPageBuses = 0;
+
+/**
+ * A bus for one test: over WebSockets (the default), or inside this process (`inpage`, like a
+ * web page runs it). NETSIM_TRANSPORT=inpage changes the default for a whole run.
+ */
+export async function testBus(options: BusOptions & { transport?: Transport } = {}): Promise<Bus> {
+  const transport = options.transport ?? (process.env.NETSIM_TRANSPORT === "inpage" ? "inpage" : "ws");
+  const bus =
+    transport === "inpage"
+      ? startInPageBus({ tickTimeoutMs: 1000, ...options, name: `test-${++inPageBuses}` })
+      : await startBus({ port: 0, tickTimeoutMs: 1000, ...options });
   onCleanup(() => bus.close());
   return bus;
 }
@@ -199,7 +214,7 @@ export type TestSystem = {
 };
 
 /** Bus + Memory + CPU (+ host when asked), and a recording dashboard to drive them. */
-export async function testSystem(options: { host?: boolean; busOptions?: BusOptions } = {}): Promise<TestSystem> {
+export async function testSystem(options: { host?: boolean; busOptions?: BusOptions & { transport?: Transport } } = {}): Promise<TestSystem> {
   const bus = await testBus(options.busOptions);
   const memory = await startMemory({ url: bus.url });
   onCleanup(() => memory.close());

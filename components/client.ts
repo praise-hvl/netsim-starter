@@ -10,7 +10,27 @@ import {
   type MessageType,
   type PayloadOf,
 } from "@/protocol/messages";
+import { InPageSocket, isInPageUrl } from "@/bus/in-page";
 import { todo } from "@/core/todo";
+
+/**
+ * The part of a WebSocket that connect() uses. A real WebSocket has it; so does InPageSocket,
+ * which reaches a bus running in the same page (an `inpage://` address).
+ */
+export type BusSocket = {
+  readonly readyState: number;
+  readonly url: string;
+  send(data: string): void;
+  close(): void;
+  addEventListener(type: "open" | "close" | "error", listener: () => void, options?: { once?: boolean }): void;
+  addEventListener(type: "message", listener: (event: MessageEvent) => void, options?: { once?: boolean }): void;
+  removeEventListener(type: "message", listener: (event: MessageEvent) => void): void;
+};
+
+/** ws:// (a bus server) or inpage:// (a bus in this page): the rest of connect() can't tell. */
+function openSocket(url: string): BusSocket {
+  return isInPageUrl(url) ? new InPageSocket(url) : new WebSocket(url);
+}
 
 export const DEFAULT_BUS_URL = "ws://localhost:3006";
 
@@ -48,7 +68,7 @@ export type BusClient = {
 type Pending = { resolve: (reply: Message) => void; reject: (error: Error) => void };
 
 export async function connect(options: ClientOptions): Promise<BusClient> {
-  const socket = new WebSocket(options.url ?? busUrl());
+  const socket = openSocket(options.url ?? busUrl());
   let tick = 0;
   let nextId = 1;
   const handlers = new Map<MessageType, Set<(message: Message) => void>>();
@@ -178,7 +198,7 @@ export async function connect(options: ClientOptions): Promise<BusClient> {
 }
 
 /** Open the socket, send `hello`, and wait for the bus to answer with `welcome`. */
-function handshake(socket: WebSocket, options: ClientOptions): Promise<MessageOf<"welcome">> {
+function handshake(socket: BusSocket, options: ClientOptions): Promise<MessageOf<"welcome">> {
   // @student week=3 part=class id=handshake "Wait for the socket to open, send hello, resolve on welcome, reject on error"
   // TODO(week 3, handshake): Wait for the socket to open, send hello, resolve on welcome, reject on error
   // Tests: tests/week-03/   Guide: docs/weeks/week-03.md

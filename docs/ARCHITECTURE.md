@@ -65,7 +65,9 @@ protocol/
   memory-map.ts           Which address range is for what
 
 bus/
-  server.ts               startBus(): routing, clock, tick barrier, watchdog, dashboard tap
+  server.ts               The bus itself: routing, clock, tick barrier, watchdog, dashboard tap
+  ws-server.ts            startBus(): the bus over WebSockets (ws://), for npm run bus and the tests
+  in-page.ts              startInPageBus(): the bus inside a web page (inpage://), no server needed
   saves.ts                Save/restore the whole system to saves/*.json
   start.ts                `npm run bus`
 

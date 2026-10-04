@@ -1,7 +1,8 @@
 // The bus: routes messages between components and owns the clock. It knows nothing about CPUs
 // or memory. See "A clock tick, step by step" in docs/ARCHITECTURE.md.
-import { WebSocketServer, WebSocket } from "ws";
-import type { AddressInfo } from "node:net";
+//
+// This file is the bus itself, and it doesn't care how components reach it: bus/ws-server.ts
+// serves it over WebSockets (npm run bus), and bus/in-page.ts runs it inside a web page.
 import { defineFsm } from "@/core/fsm";
 import {
   CLOCKED_ROLES,
@@ -14,23 +15,52 @@ import {
   type MessageType,
   type PayloadOf,
 } from "@/protocol/messages";
-import { restoreSave, writeSave, type SaveIo } from "@/bus/saves";
+import type { SaveIo } from "@/bus/saves";
 
-export type BusOptions = {
-  /** Default 127.0.0.1 (this machine only). Use 0.0.0.0 to let a classroom LAN connect. */
-  host?: string;
-  /** Default 3006. Use 0 in tests to get a free port. */
-  port?: number;
+/** Where saves go: files with `npm run bus`; nowhere (or the browser's storage) in a page. */
+export type SaveStore = {
+  write(name: string, io: SaveIo): Promise<unknown>;
+  restore(name: string, io: SaveIo): Promise<unknown>;
+};
+
+export type BusCoreOptions = {
   /** Milliseconds between ticks while running. */
   speedMs?: number;
   /** How long to wait for a slow component before carrying on without it. */
   tickTimeoutMs?: number;
-  savesDir?: string;
+  saves?: SaveStore;
   log?: boolean;
 };
 
+/** One connected component, however it's connected. Messages are JSON text. */
+export type Endpoint = {
+  send(text: string): void;
+  close(): void;
+};
+
+/** What the transport tells the bus about a connection. */
+export type Attached = {
+  receive(text: string): void;
+  closed(): void;
+};
+
+/** The bus, before any transport: hand it connections with attach(). */
+export type BusCore = {
+  attach(endpoint: Endpoint): Attached;
+  tick(): number;
+  /** Run exactly one tick (the clock must be stopped). Resolves when the tick is complete. */
+  step(): Promise<number>;
+  /** Resolves once `count` components are connected (handy in tests and scripts). */
+  waitForComponents(count: number): Promise<void>;
+  /** Stop the clock and close every connection. */
+  shutdown(): void;
+};
+
+/** A running bus, with the address components connect to. */
 export type Bus = {
+  /** ws://host:port, or inpage://name. */
   url: string;
+  /** The TCP port, or 0 for a bus inside a page. */
   port: number;
   tick(): number;
   /** Run exactly one tick (the clock must be stopped). Resolves when the tick is complete. */
@@ -51,7 +81,7 @@ export const busFsm = defineFsm<BusState>("Bus", ["STOPPED", "RUNNING", "TICKING
 ]);
 
 type Connection = {
-  socket: WebSocket;
+  endpoint: Endpoint;
   info: ComponentInfo | null;
   stalled: boolean;
   /**
@@ -84,11 +114,8 @@ const DASHBOARD_ONLY: readonly MessageType[] = [
   "control", "save", "restore", "program.load", "process.add", "cpu.cores", "host.spawn", "host.remove", "snapshot.get", "snapshot.set", "snapshot.check",
 ];
 
-export async function startBus(options: BusOptions = {}): Promise<Bus> {
-  const host = options.host ?? process.env.BUS_HOST ?? "127.0.0.1";
-  const requestedPort = options.port ?? Number(process.env.BUS_PORT ?? 3006);
+export function createBus(options: BusCoreOptions = {}): BusCore {
   const tickTimeoutMs = options.tickTimeoutMs ?? 2000;
-  const savesDir = options.savesDir ?? "saves";
   const log = options.log ? (text: string) => console.log(`[bus] ${text}`) : () => {};
 
   let state: BusState = "STOPPED";
@@ -101,6 +128,8 @@ export async function startBus(options: BusOptions = {}): Promise<Bus> {
   let clockTimer: ReturnType<typeof setTimeout> | null = null;
 
   const connections = new Map<string, Connection>();
+  /** Every open connection, including ones that haven't said hello yet. */
+  const all = new Set<Connection>();
   /** Clocked components that haven't sent tick.done for the current tick. */
   const waitingFor = new Set<string>();
   /** Requests sent during this tick that haven't been answered yet. */
@@ -115,7 +144,7 @@ export async function startBus(options: BusOptions = {}): Promise<Bus> {
   // ── Sending ───────────────────────────────────────────────────────────────
 
   function deliver(connection: Connection, message: Message): void {
-    if (connection.socket.readyState === WebSocket.OPEN) connection.socket.send(JSON.stringify(message));
+    connection.endpoint.send(JSON.stringify(message));
   }
 
   function dashboards(): Connection[] {
@@ -289,7 +318,7 @@ export async function startBus(options: BusOptions = {}): Promise<Bus> {
     const id = message.from;
     if (id === "bus" || connections.has(id)) {
       refuse(connection, `the id "${id}" is already taken`);
-      connection.socket.close();
+      connection.endpoint.close();
       return;
     }
     const info: ComponentInfo = { id, ...message.payload };
@@ -355,8 +384,9 @@ export async function startBus(options: BusOptions = {}): Promise<Bus> {
       waitForComponent: (id) => waitUntil(() => connections.has(id)),
     };
     try {
-      if (message.type === "save") await writeSave(savesDir, message.payload.name, io);
-      else await restoreSave(savesDir, message.payload.name, io);
+      if (!options.saves) throw new Error("saving isn't available here");
+      if (message.type === "save") await options.saves.write(message.payload.name, io);
+      else await options.saves.restore(message.payload.name, io);
       publishStatus();
       deliver(connection, busMessage("ok", message.from, {}, message.id));
     } catch (error) {
@@ -446,35 +476,27 @@ export async function startBus(options: BusOptions = {}): Promise<Bus> {
     checkBarrier();
   }
 
-  // ── The server ────────────────────────────────────────────────────────────
-
-  const server = new WebSocketServer({ host, port: requestedPort });
-  await new Promise<void>((resolve, reject) => {
-    server.once("listening", resolve);
-    server.once("error", reject);
-  });
-  const port = (server.address() as AddressInfo).port;
-
-  server.on("connection", (socket) => {
-    const connection: Connection = { socket, info: null, stalled: false, awaitingReset: null };
-    socket.on("message", (data) => handleMessage(connection, data.toString()));
-    socket.on("close", () => handleClose(connection));
-  });
-
-  log(`listening on ws://${host}:${port}`);
-
   return {
-    url: `ws://${host === "0.0.0.0" ? "127.0.0.1" : host}:${port}`,
-    port,
+    attach(endpoint) {
+      const connection: Connection = { endpoint, info: null, stalled: false, awaitingReset: null };
+      all.add(connection);
+      return {
+        receive: (text) => handleMessage(connection, text),
+        closed: () => {
+          all.delete(connection);
+          handleClose(connection);
+        },
+      };
+    },
     tick: () => tick,
     step,
     waitForComponents: (count) => waitUntil(() => connections.size >= count),
-    async close() {
+    shutdown() {
       keepRunning = false;
       if (clockTimer) clearTimeout(clockTimer);
       if (tickTimer) clearTimeout(tickTimer);
-      for (const socket of server.clients) socket.terminate();
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      for (const connection of [...all]) connection.endpoint.close();
+      all.clear();
     },
   };
 }
