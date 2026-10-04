@@ -2,6 +2,7 @@
 // dashboard. Spawns the demo peripherals that exist, loads countdown and blink, and runs.
 //   npm run demo               start the clock and leave it running
 //   npm run demo -- --ticks 300  run 300 ticks as fast as possible, print a summary, and exit
+//   npm run demo -- --cores 4    give the CPU 4 cores first (1-8)
 import { connect } from "@/components/client";
 import { PERIPHERALS } from "@/components/peripherals/index";
 import { readProgram } from "@/programs/read";
@@ -26,6 +27,13 @@ for (const p of DEMO_PERIPHERALS) {
   if (!PERIPHERALS.some((entry) => entry.kind === p.kind) || present.has(p.id)) continue;
   await demo.request("host.spawn", "host", { kind: p.kind, id: p.id, config: {}, slot: p.slot });
   console.log(`started ${p.id} in slot ${p.slot}`);
+}
+
+const coresArg = process.argv.indexOf("--cores");
+if (coresArg !== -1) {
+  const count = Number(process.argv[coresArg + 1]);
+  await demo.request("cpu.cores", "cpu", { count });
+  console.log(`the CPU has ${count} cores`);
 }
 
 for (const name of ["countdown", "blink"]) {
