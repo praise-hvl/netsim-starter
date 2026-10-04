@@ -551,6 +551,8 @@ npm run hello                        # week 2: say hello to the bus
 npm run asm -- programs/countdown.asm            # assemble and print a listing
 npx vitest                           # tests (watch mode); npx vitest run tests/week-03
 npm run fsm:export                   # write docs/diagrams/*.md from the transition tables
+npm run pages:check                  # build the board as a static site (out/) and check it, like Pages does
+                                     # (.github/workflows/pages.yml publishes it on every push to work)
 npm run course:catch-up -- 3         # copy the published week-3 solution into your regions
 npm run weeks -- --verify            # instructor: check the generated week branches
 ```
