@@ -87,6 +87,8 @@ export const messageSchema = z.discriminatedUnion("type", [
     ms: z.number().int().min(10).max(10_000).optional(),
   })),
   message("process.add", z.object({ name: z.string().min(1), start: address })),
+  /** Change how many cores the CPU has (1-8). Only idle cores can be taken away. */
+  message("cpu.cores", z.object({ count: z.number().int().min(1).max(8) })),
   message("host.spawn", z.object({
     kind: z.string(),
     id: componentId,
@@ -140,10 +142,10 @@ export type ParseResult = { ok: true; message: Message } | { ok: false; error: s
 
 /** Turn raw socket text into a typed message, or explain why it isn't one. */
 export function parseMessage(raw: string): ParseResult {
-  // @student week=2 part=home id=parse-message "Parse JSON, then validate it with messageSchema"
-  // TODO(week 2, parse-message): Parse JSON, then validate it with messageSchema
-  // Tests: tests/week-02/   Guide: docs/weeks/week-02.md
-  // Until week 2 this trusts whatever arrives. Week 2 replaces the cast with real validation.
+  // @student week=3 part=home id=parse-message "Parse JSON, then validate it with messageSchema"
+  // TODO(week 3, parse-message): Parse JSON, then validate it with messageSchema
+  // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
+  // Until week 3 this trusts whatever arrives. Week 3 replaces the cast with real validation.
   return { ok: true, message: JSON.parse(raw) as Message };
   // @end
 }
@@ -153,10 +155,10 @@ export function parseMessage(raw: string): ParseResult {
  * Written once in week 2 so the zod schemas above aren't magic.
  */
 export function isMemRead(value: unknown): value is MessageOf<"mem.read"> {
-  // @student week=2 part=home id=is-mem-read "Check every field of a mem.read by hand"
-  // TODO(week 2, is-mem-read): Check every field of a mem.read by hand
-  // Tests: tests/week-02/   Guide: docs/weeks/week-02.md
-  return todo("week 2: is-mem-read", value);
+  // @student week=3 part=home id=is-mem-read "Check every field of a mem.read by hand"
+  // TODO(week 3, is-mem-read): Check every field of a mem.read by hand
+  // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
+  return todo("week 3: is-mem-read", value);
   // @end
 }
 

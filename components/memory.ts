@@ -17,10 +17,10 @@ export async function startMemory(options: { url?: string; id?: string } = {}): 
 
   /** Handle one request and send exactly one reply. */
   function answer(message: Message): void {
-    // @student week=2 part=home id=memory-handler "Reply mem.data to mem.read, mem.ack to mem.write/program.load, fault when out of range"
-    // TODO(week 2, memory-handler): Reply mem.data to mem.read, mem.ack to mem.write/program.load, fault when out of range
-    // Tests: tests/week-02/   Guide: docs/weeks/week-02.md
-    return todo("week 2: memory-handler", message);
+    // @student week=3 part=home id=memory-handler "Reply mem.data to mem.read, mem.ack to mem.write/program.load, fault when out of range"
+    // TODO(week 3, memory-handler): Reply mem.data to mem.read, mem.ack to mem.write/program.load, fault when out of range
+    // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
+    return todo("week 3: memory-handler", message);
     // @end
   }
 

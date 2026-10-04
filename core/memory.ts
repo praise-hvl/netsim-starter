@@ -24,19 +24,19 @@ function checkRange(address: number, length: number): string | null {
 }
 
 export function read(memory: Memory, address: number, length: number): MemoryResult<number[]> {
-  // @student week=2 part=home id=memory-read "Return `length` bytes starting at `address`, or a fault if any of them is outside memory"
-  // TODO(week 2, memory-read): Return `length` bytes starting at `address`, or a fault if any of them is outside memory
-  // Tests: tests/week-02/   Guide: docs/weeks/week-02.md
-  return todo("week 2: memory-read", memory, address, length);
+  // @student week=3 part=home id=memory-read "Return `length` bytes starting at `address`, or a fault if any of them is outside memory"
+  // TODO(week 3, memory-read): Return `length` bytes starting at `address`, or a fault if any of them is outside memory
+  // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
+  return todo("week 3: memory-read", memory, address, length);
   // @end
 }
 
 /** Returns a new Memory; the old one is left untouched. */
 export function write(memory: Memory, address: number, bytes: readonly number[]): MemoryResult<Memory> {
-  // @student week=2 part=home id=memory-write "Return a copy of memory with `bytes` written at `address`, or a fault"
-  // TODO(week 2, memory-write): Return a copy of memory with `bytes` written at `address`, or a fault
-  // Tests: tests/week-02/   Guide: docs/weeks/week-02.md
-  return todo("week 2: memory-write", memory, address, bytes);
+  // @student week=3 part=home id=memory-write "Return a copy of memory with `bytes` written at `address`, or a fault"
+  // TODO(week 3, memory-write): Return a copy of memory with `bytes` written at `address`, or a fault
+  // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
+  return todo("week 3: memory-write", memory, address, bytes);
   // @end
 }
 

@@ -9,7 +9,8 @@ import { startMemory } from "@/components/memory";
 
 const STARTERS: Record<string, () => Promise<{ close(): Promise<void> }>> = {
   memory: () => startMemory(),
-  cpu: () => startCpu(),
+  // CPU_CORES=4 npm run component -- cpu   (1-8, default 2)
+  cpu: () => startCpu({ cores: process.env.CPU_CORES ? Number(process.env.CPU_CORES) : undefined }),
   host: () => startHost(),
   logger: async () => {
     const client = await startLogger();

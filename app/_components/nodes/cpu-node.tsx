@@ -1,5 +1,5 @@
 "use client";
-// The CPU: both cores plus the scheduler's process list, from the CPU's `status`.
+// The CPU: its cores (1-8) plus the scheduler's process list, from the CPU's `status`.
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { cpuStatusData, type CpuStatusData } from "@/protocol/messages";
 import { hex } from "@/protocol/memory-map";
@@ -26,7 +26,8 @@ export function CpuNodeView({ data }: NodeProps<CpuNode>) {
       <Handle id="from-peripheral" type="target" position={Position.Top} className="bg-red-400!" />
       {parsed.success ? (
         <>
-          <div className="flex gap-2">
+          {/* Up to four cores per row, so 8 cores stay readable. */}
+          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(parsed.data.cores.length, 4)}, minmax(0, 1fr))` }}>
             {parsed.data.cores.map((core) => (
               <CoreCard key={core.id} core={core} />
             ))}

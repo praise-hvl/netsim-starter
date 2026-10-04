@@ -1,15 +1,298 @@
 # NetSim Course Plan
 
-Eight weeks, one 1-hour session each. Every week has an **in-class build** (done together, live) and a
-**take-home portion** (done alone or in pairs). Students use an AI coding assistant (Codex) that
-may write code for them, but **the student guides the design**: they choose the approach and the
-structure, and must be able to explain every line. Each week's work is checked in an
-**explain-it-back** conversation at the next session, without AI or notes: understanding of the
-hardware idea and of the code is what is graded, not only the green tests.
+Approved by Praise on 2026-10-04. The previous course shape (eight weekly topics without
+design/build pairs) is kept in [archive/COURSE-PLAN-v1.md](./archive/COURSE-PLAN-v1.md).
 
 System architecture, protocol, ISA and FSMs: see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
+## The shape
+
+Eight Mondays, **one hour each**. After the setup week, sessions alternate:
+
+- **DESIGN** sessions are conceptual. You learn the hardware or OS idea, then design that part of
+  the machine on paper: its parts, messages, states, and what it looks like on screen. The output
+  is a **design note**.
+- **BUILD** sessions turn the last design note into working code. You write the core mechanisms
+  yourself (they're the `@student` regions, checked by tests); your AI agent builds the visual
+  layer from your design note. Each build adds to **one portfolio piece**.
+
+**The showpiece** at the end: *a multi-core computer I designed and built, with a bus, memory, a
+CPU, a scheduler and interrupts, running live in the browser.* It's a 2.5D board (SVG or Canvas,
+based on Praise's sketches) where parts light up as messages cross the bus, deployed to GitHub
+Pages, with a 30-second video.
+
+**What stays the same:** the concepts; `@student` regions plus tests for the core mechanisms (bus,
+CPU FSM, scheduler, interrupts); "Codex may help with the writing, you guide the design"; and the
+no-AI explain-it-back, now also covering your design notes. **What changes:** the visual layer and
+polish are the agent's job (no React Flow node regions), the scope is bigger, and the extras
+become stretch.
+
+| Mon | Session | Topic | Output |
+|---|---|---|---|
+| 1 | SETUP | Setup & system roles (done) | `npm run doctor` green; week-1 notes |
+| 2 | DESIGN | The machine and its bus | Design note: parts, messages, one tick, a sketch of the board |
+| 3 | BUILD | Bus + memory on screen | Memory cells light up as requests cross the bus |
+| 4 | DESIGN | The CPU | Design note: core FSM, instructions, how a step animates |
+| 5 | BUILD | A CPU that runs programs | Countdown and blink, animated on the board |
+| 6 | DESIGN | The OS heart: scheduling + interrupts | Design note: processes, round robin, interrupt entry/exit |
+| 7 | BUILD | Configurable cores, scheduler, interrupts | 1–8 cores (lessons at 2), round robin, interrupts flying in, live |
+| 8 | DEMO | Ship it | Deployed to GitHub Pages, 30-second video, final explain-it-back |
+
+### How a design/build pair works
+
+1. **Design (Monday N):** a short concept talk or unplugged activity, then you design on paper in
+   pairs, filling in the design note in class. Finish it at home (`docs/notes/week-NN.md`, from
+   `docs/notes/design-note-template.md`), including a photo of your board sketch.
+2. **Explain-it-back on the note** before the build session: a 5-minute slot or a 3-minute video,
+   no AI. You present your design and defend one decision.
+3. **Build (Monday N+1):** you write the `@student` regions live and in class, with tests as the
+   checkpoint; the take-home is the rest of the regions plus the board work. For the board, you
+   hand your design note to Codex as the brief ("the agent brief" section of the note), review
+   what it builds, and keep only what you can explain.
+4. **Explain-it-back on the build:** your code, the hardware idea, and one thing on the board you
+   asked the agent to change and why.
+
+### The board kit (decided)
+
+Students start from a **stripped-down board kit**, not a blank canvas. VIZ built it in
+netsim-studio (PR #12, `praise/board-kit`); the names below are from that PR:
+
+- **Finished for them:** the data feed (the bus tap, turned into what the board draws) and a
+  library of parts (memory cells, bus lanes, packets, core panels, devices).
+- **An empty board** in `board/student/`, with `@student` regions per build week, viewed at
+  `/board` (`npm run dev:all`, then http://localhost:3005/board):
+
+  | Week | File | In class | Take-home |
+  |---|---|---|---|
+  | 3 | `board/student/memory-bus.tsx` | `board-cell-activity`, `board-draw-memory` | `board-packet-progress`, `board-draw-bus` |
+  | 5 | `board/student/core.tsx` | `board-cycle-step`, `board-draw-core` | `board-fetch-address` |
+  | 7 | `board/student/cores.tsx` | `board-lane-rects`, `board-interrupt-markers` | `board-scheduler-moves`, `board-draw-cores` |
+
+- **Light behaviour checks:** `tests/week-03/board-memory-bus.test.ts`,
+  `tests/week-05/board-core.test.ts` and `tests/week-07/board-cores.test.ts` (for example "a read
+  lights the cell it read"), so the board is gated like the core code, not by how it looks.
+- **Instructor-only:** the reference board's guided lessons, explain mode and glossary don't ship.
+
+Each build week's **agent brief** (section 9 of the design note) points the agent at that week's
+board regions: the student's design note and sketch say *what* to draw, the kit says *where* the
+code goes, and the behaviour checks say when it's done.
+
+### Grading, sketched
+
+Design notes join the weekly explain-it-back (they're how "you guide the design" becomes a
+habit). Tests gate the build weeks, as now. The final demo is graded on the deployed board, the
+live in-class demo and the final explain-it-back. Stretch work earns no extra credit (portfolio
+only). Weights to be set in `teacher/grading.md` once the shape is
+approved.
+
+## Mon 1: Setup & system roles (unchanged)
+
+As on `netsim`: accounts, Node, the setup tool, `npm run doctor`, the week-1 notes (`setup-doctor`,
+`setup-codex-summary`, `setup-codex-check`), `tests/week-01/`. The "Map the system" drawing from
+the take-home becomes the starting point of Mon 2's design note.
+
+## Mon 2: DESIGN · The machine and its bus
+
+- **Hardware idea:** a computer is parts with jobs (CPU runs instructions, memory stores bytes,
+  devices connect to the world) that share a **bus** and move in step with a **clock**. A memory
+  access is a **request and a reply** across the bus; memory is **byte-addressable** with a fixed
+  size, and an address outside it is a **fault**.
+- **RTOS idea:** the clock tick as the system's heartbeat; a shared resource (the bus) that many
+  parts want at once.
+- **In class:** the system-roles + mailroom unplugged opener; then in pairs: parts and jobs, the
+  messages a memory read and write need (compared with ARCHITECTURE.md's table), one memory read
+  told tick by tick, and a paper sketch of the board.
+- **Design note:** sections 1–7 of the template, focused on the bus and memory (see
+  `docs/weeks/week-02.md`).
+- **Explain-it-back:** walk through your note: what each part does, one message and its reply,
+  why the reply waits for the next tick, and why you placed things where you did on the board.
+- **Stretch:** a sketch of what changes with two memories, or a DMA device that copies memory
+  without the CPU.
+
+## Mon 3: BUILD · Bus + memory on screen
+
+- **You write (regions, gated by tests):** from today's week 2:
+  - `handshake`, `handle-tick` (joining the bus, answering the clock);
+  - `parse-message` (validation at the boundary);
+  - `client-request` (request/reply correlation);
+  - `memory-read`, `memory-write`, `memory-handler` (memory and its fault rule);
+  - from today's week 4: `tick-barrier` (the tick ends only when every request has its reply).
+- **Tests:** today's `tests/week-02/` (handshake, ticks, messages, memory, memory-over-bus,
+  memory-status, who-may-send, late-join, logger) plus the barrier part of `order.test.ts`, moved
+  to `tests/week-03/`.
+- **The board (with your agent, from your Mon-2 note and sketch):** `board/student/memory-bus.tsx`:
+  `board-cell-activity` and `board-draw-memory` (cells light up on a read in one colour, a write in
+  another), `board-packet-progress` and `board-draw-bus` (packets move along the bus wires,
+  questions first, then answers), driven by the kit's data feed. Gated by
+  `tests/week-03/board-memory-bus.test.ts`.
+- **Explain-it-back:** your `handshake` and `request()`; what the barrier waits for; one thing on
+  the board you asked the agent to change.
+- **Stretch:** `is-mem-read` (hand-written validator, to feel what the schema does for you); the
+  `hello` script joining the class bus; the watchdog.
+
+## Mon 4: DESIGN · The CPU
+
+- **Hardware idea:** fetch–decode–execute; registers, PC and flags; a 4-byte instruction encoding;
+  memory latency (a `LOAD` takes a tick more than an `ADD`).
+- **RTOS idea:** the CPU as a finite state machine that only acts on the clock edge (latching).
+- **In class:** the paper CPU (one short program, tick by tick); then in pairs: the core's FSM
+  (states, events, transitions) as a table, three instructions encoded by hand, and a storyboard
+  of how one instruction animates on the board (what lights up in each phase).
+- **Design note:** FSM table, instruction table, the storyboard, the countdown program traced for
+  its first 10 ticks, and the agent brief for Mon 5.
+- **Explain-it-back:** your FSM: why `WAIT_FETCH` exists; the 4 bytes of one instruction; what the
+  board shows during `DECODE`.
+- **Stretch:** design a `CALL`/`RET` pair (what the core would need that it doesn't have).
+
+## Mon 5: BUILD · A CPU that runs programs
+
+- **You write:**
+  - the ISA: `decode`, `encode`;
+  - the core FSM, today's week 3: `fetch`, `await-instruction`, `decode-step`, `execute-core`,
+    `await-data`, `execute-rest`;
+  - the CPU shell, today's week 4: `cpu-send-effects`, `cpu-latch-reply`;
+  - **from the scheduler, the non-preemptive half:** `pick-next` and `switch-out`, so programs go
+    to free cores and leave when they halt.
+- **Tests:** today's `tests/week-03/` (isa, asm, cpu-core, fsm, programs), plus the parts of
+  `integration.test.ts` that don't need preemption, moved to `tests/week-05/`.
+- **The board (with your agent, from your Mon-4 note and storyboard):** `board/student/core.tsx`:
+  `board-cycle-step` (map each core phase to fetch, decode, execute or idle), `board-draw-core`
+  (one core with the current step lit, its program and PC) and `board-fetch-address` (find the
+  core's instruction fetch among the tick's packets). The run controls and parts come from the
+  kit. Countdown and blink run, animated. Gated by `tests/week-05/board-core.test.ts`.
+- **Explain-it-back:** one instruction, tick by tick, pointing at your code and the board; why
+  replies are latched to the next tick.
+- **Stretch:** the trace view (disassembled instruction per tick); `fsm-mermaid` and
+  `npm run fsm:export` (diagrams generated from your FSM).
+- **For CORE:** the LED and Button logic ship complete (they're the demo's I/O), so today's
+  `led-tick`, `led-view` and `button-view` stop being regions. Two programs on two cores need
+  `pick-next` and `switch-out` before preemption exists; `should-preempt` stays for Mon 7.
+
+## Mon 6: DESIGN · The OS heart: scheduling + interrupts
+
+- **Hardware/OS ideas:**
+  - processes and their saved **context** (registers, PC, flags);
+  - **round robin** with a quantum counted in instructions; preemption only *between*
+    instructions;
+  - **interrupts**: vectors, priority, entry and `IRET`, handled by idle cores first;
+  - with N cores, who takes the next process and who takes an interrupt.
+- **RTOS idea:** this is the heart of a real-time OS: a tick, a scheduler, ISRs with priorities,
+  and **critical sections** (the timer handler race, if two cores run the same handler).
+- **In class:** a human round robin (students as processes, chairs as cores); interrupts as
+  "tap on the shoulder, finish your instruction first"; then in pairs: the process FSM, the
+  context, the interrupt entry/exit storyboard, a device priority table, and a decision on how the
+  design behaves at 1, 2 and 8 cores.
+- **Design note:** process FSM, context, interrupt storyboard, priority table, the multi-core
+  decision with its trade-off, and the agent brief for Mon 7.
+- **Explain-it-back:** what's saved in a context switch and why not mid-`WAIT_DATA`; why the timer
+  is lower priority than the button; what changes at 8 cores.
+- **Stretch:** a semaphore for the timer race; priority inversion, explained with your board.
+
+## Mon 7: BUILD · Configurable cores, scheduler, interrupts
+
+- **You write:**
+  - round robin: `should-preempt` (today's week 4);
+  - interrupts, today's week 6: `irq-enqueue`, `irq-take-next`, `can-take-interrupt`,
+    `enter-interrupt`, `iret`;
+  - the Timer: `timer-input`, `timer-tick` (a periodic interrupt source).
+- **Tests:** today's `scheduler`, `order`, `same-tick`, `reset` (week 4) and `interrupts`,
+  `cpu-core-irq`, `button-irq`, `timer` (week 6), moved to `tests/week-07/`, plus a new test that
+  the same programs give the same final memory with 1, 2 and 8 cores.
+- **The board (with your agent, from your Mon-6 note):** `board/student/cores.tsx`:
+  `board-lane-rects` (one lane per core, for 1–8 cores; lessons and the default at 2),
+  `board-interrupt-markers` (one marker per interrupt this tick, on the core running its
+  handler), `board-scheduler-moves` (which programs moved between cores since the last tick) and
+  `board-draw-cores` (the lanes, the scheduler's moves and arriving interrupts). Gated by
+  `tests/week-07/board-cores.test.ts`.
+- **Explain-it-back:** your `should-preempt`; interrupt entry and `IRET`, on the board; what you saw
+  change between 2 and 8 cores, and why.
+- **Stretch:** the watchdog (`stalled` components); bus arbitration reading (`arbitrate()`); a
+  sensor, proximity or potentiometer peripheral with its ISR; the timer race and a fix.
+- **For CORE:** configurable cores (1–8) in the CPU and its status, and the multi-core test.
+
+## Mon 8: DEMO · Ship it
+
+- **Ship:** the board deployed to **GitHub Pages** from your fork, with the link in your README.
+  That deployed page is what students link to in their portfolio.
+- **Demo, live in class:** 3 minutes, from the deployed page: one program running, an interrupt,
+  the core count changing. **The portfolio recording is captured during this in-class demo** (a
+  screen recording of the board while they present), not a separate take-home video. Then the
+  **final explain-it-back** (2 minutes, live): one moment in the trace, explained at both levels.
+- **For CORE/DASHBOARD (dependency):** GitHub Pages is static hosting, so "running live in the
+  browser" needs the bus and components to run **in the page** (an in-memory transport instead of a
+  WebSocket server), plus a static build and a Pages workflow in the starter. This is the largest
+  new piece of infrastructure in v2.
+
+## Stretch (not required, portfolio only)
+
+Stretch earns **no extra credit**: it's for the portfolio. Each gets a short page in `docs/stretch/` pointing at the code and tests that already exist:
+
+- **Persistence:** save/restore with all-or-nothing `snapshot.check` (today's week 7:
+  `memory-snapshot`/`-restore`, `core-snapshot`/`-restore`, `scheduler-snapshot`/`-restore`,
+  `<kind>-snapshot`/`-restore`; `persistence.test.ts`, `peripheral-snapshot.test.ts`).
+- **More peripherals:** sensor, proximity, potentiometer (with ISRs), seven-segment, screen
+  (today's week 6 and week 8 tests).
+- **Diagrams from code:** `fsm-mermaid` and `npm run fsm:export`.
+- **The bus up close:** watchdog, arbitration, the class bus with `hello`.
+- **Deeper modules (new, design-only to start):** paging and swap, caches, a tiny RTOS kernel
+  with semaphores and priority inversion, DMA.
+
+## What moves, merges or becomes stretch
+
+| Today (`netsim`) | v2 | Note |
+|---|---|---|
+| Wk 1 `setup-*` regions, `tests/week-01/` | Mon 1 | unchanged |
+| Wk 2 `handshake`, `handle-tick`, `parse-message`, `client-request`, `memory-read`/`-write`/`-handler` | Mon 3 build | |
+| Wk 2 `is-mem-read` | stretch | the schema lesson stays in `parse-message` |
+| Wk 2 `hello-script` | stretch | the class-bus join is optional |
+| Wk 2 `logger` (infrastructure) | infrastructure | `LOG=1` from Mon 3 on |
+| Wk 3 `decode`, `encode`, `fetch` … `execute-rest` | Mon 5 build | |
+| Wk 4 `cpu-send-effects`, `cpu-latch-reply` | Mon 5 build | |
+| Wk 4 `tick-barrier` | Mon 3 build | it's about memory replies, which exist from Mon 3 |
+| Wk 4 `pick-next`, `switch-out` | Mon 5 build | needed to run two programs at all |
+| Wk 4 `should-preempt` | Mon 7 build | round robin proper |
+| Wk 4 reading `arbitrate()` | stretch | |
+| Wk 5 `button-view`, `led-tick`, `led-view` | infrastructure | LED and Button ship complete |
+| Wk 5 `core-node`, `memory-node`, `led-node` (React Flow) | retired | the agent builds the board instead |
+| Wk 6 `irq-*`, `can-take-interrupt`, `enter-interrupt`, `iret` | Mon 7 build | |
+| Wk 6 `timer-input`, `timer-tick` | Mon 7 build | the periodic interrupt source |
+| Wk 6 sensor / proximity / potentiometer regions, `isr-<kind>` | stretch | |
+| Wk 6 `watchdog` | stretch | stays stubbed as "never stall" |
+| Wk 7 all snapshot/restore regions | stretch | |
+| Wk 7 `fsm-mermaid` | stretch | |
+| Wk 8 seven-segment, screen tests | stretch | |
+| `tests/week-NN/` folders | renumbered to the build week that unlocks them | design weeks get a notes test each |
+
+**New pieces for CORE/DASHBOARD:**
+1. Design-note regions in `docs/notes/week-02.md`, `week-04.md` and `week-06.md`. These are like
+   week 1's: headings ship, the student fills them in, and a small test checks each section is
+   really filled in and the sketch file exists.
+2. Configurable cores (1–8) and a multi-core test.
+3. The in-browser bus for GitHub Pages, and a Pages workflow in the starter.
+4. The **board kit** (VIZ, netsim-studio PR #12; see "The board kit" above): the data feed and
+   parts library, `board/student/` with the week-3/5/7 regions, and the behaviour checks. The full
+   reference board with guided lessons, explain mode and glossary stays instructor-only.
+5. Moving tests into the new week folders, and renaming the generator's week mapping.
+
+## Decisions
+
+Praise's answers to the plan's open questions (2026-10-04):
+
+1. **A design session with nothing to run is fine:** week 1's setup and live demo already show
+   the machine.
+2. **The board:** students start from a stripped-down board kit (see "The board kit").
+3. **Stretch:** portfolio only, no extra credit (the old 10% stretch bonus is gone).
+4. **The demo video:** captured live during the in-class demo, not a separate take-home video.
+5. **Codex in build weeks:** the studio's **Ask Codex panel** is the default (you write your
+   approach first; Codex edits only your snippet, applied when you confirm), plus a **Codex
+   terminal tab** for students who want plain Codex.
+6. **Commits in build weeks:** commit each time a task's checks go green (`week N: <task>`), and
+   push at the end of the session.
+
 ## Repository model
+
+> Carried over from the v1 plan; the week-specific examples still use v1 week numbers until the
+> regions are regrouped.
 
 - **`netsim`** (instructor repo) is the complete reference solution. Every piece of code a
   student will write is wrapped in an `@student` region. (`main` still holds the old,
@@ -134,235 +417,6 @@ simulated computer on screen is *theirs*.
 errors if you start them. `npm run dev:all` becomes useful from week 4; weeks 1–3 run single
 components and tests. Each week's doc says exactly which commands work.
 
-## Which regions belong to which week
-
-Region ids as they appear in the code (`file: id`). `npm run weeks` prints this list from the
-code itself, so treat that output as the source of truth.
-
-| Week | In class (`part=class`) | Take-home (`part=home`) |
-|---|---|---|
-| 1 | – (setup; see week 1) | `docs/notes/week-01.md`: `setup-doctor`, `setup-codex-summary`, `setup-codex-check` |
-| 2 | `components/client.ts`: `handshake`, `client-request` | `client.ts`: `handle-tick`; `protocol/messages.ts`: `is-mem-read`, `parse-message` (stubbed as a trusting cast until then); `core/memory.ts`: `memory-read`, `memory-write`; `components/memory.ts`: `memory-handler`; `scripts/hello.ts`: `hello-script` |
-| 3 | `core/isa.ts`: `decode`; `core/cpu-core.ts`: `fetch`, `await-instruction`, `decode-step` | `isa.ts`: `encode`; `cpu-core.ts`: `execute-core` (LOAD/ADD/HALT), `await-data`, `execute-rest` (STORE/SUB/LOADI/JMP/JZ/JNZ) |
-| 4 | `components/cpu.ts`: `cpu-send-effects`, `cpu-latch-reply`; `bus/server.ts`: `tick-barrier` (stubbed as "tick.done only" until then) | `core/scheduler.ts`: `pick-next`, `should-preempt`, `switch-out`; read `tests/week-04/order.test.ts` and add one assertion |
-| 5 | `components/peripherals/button.ts`: `button-view`; `app/_components/nodes/core-card.tsx`: `core-node` | `components/peripherals/led.ts`: `led-tick`, `led-view`; `app/_components/nodes/peripherals/led.tsx`: `led-node`; `app/_components/nodes/memory-access.ts`: `memory-node` |
-| 6 | `core/interrupts.ts`: `irq-enqueue`, `irq-take-next`; `cpu-core.ts`: `can-take-interrupt`, `enter-interrupt`, `iret` | `components/peripherals/timer.ts`: `timer-input`, `timer-tick`; `bus/server.ts`: `watchdog` (stubbed as "don't mark stalled" until then); the chosen peripheral and its `programs/isr-<kind>.asm` |
-| 7 | `core/memory.ts`: `memory-snapshot`, `memory-restore`; `cpu-core.ts`: `core-snapshot`, `core-restore` | `core/fsm.ts`: `fsm-mermaid`; `core/scheduler.ts`: `scheduler-snapshot`, `scheduler-restore`; the chosen peripheral's `snapshot`/`restore` hooks |
-| 8 | – | – (Seven-segment and Screen are the stretch options for the final demo) |
-
-Regions in `.asm` files use `; @student …` / `; @end`, and their default stub is a handler that
-only does `IRET`. The student notes in `docs/notes/*.md` (and no other Markdown) use HTML comments,
-`<!-- @student … -->` / `<!-- @end -->`; their stub is a `<!-- TODO(week N, id): … -->` comment
-under the heading.
-
-The bus routing, the client plumbing, the peripheral shell (`startPeripheral`), the Button apart
-from its `button-view` region, the host, the logger, `npm run doctor`, the dashboard apart from
-its `*-node` regions, `todo` and the test helpers are infrastructure: never stubbed. The Timer is *not* infrastructure: its
-`timer-input` and `timer-tick` regions are part of week 6's take-home.
-
-## Week by week
-
-Each week lists: what gets built, the tests that gate it, and the explain-it-back check. The
-explain-it-back is a 5-minute conversation (or a short recorded video) at the start of the next
-session. Pass = the student can answer without notes or AI, pointing at their own code.
-
-### Week 1 — Setup & System Roles
-
-**Hardware idea:** the roles of CPU, memory and I/O; what a bus and a clock are for.
-**Software idea:** the toolchain (Node, npm, git, VS Code), forks and remotes, and working with an
-AI assistant: you decide the design, it can write the code, and you check what it says.
-
-Some students arrive with nothing installed, so this week gets everyone to a working setup. There
-is no `@student` code this week.
-
-- **In class:**
-  - Accounts: GitHub (with GitHub Education), and ChatGPT with the student offer claimed
-    (chatgpt.com/students; Codex credits: chatgpt.com/codex/students). GitHub Copilot Student is
-    the fallback.
-  - Install Node 22+. Then the guided setup script does the rest, one step at a time:
-    - macOS: `curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -o setup.mjs && node setup.mjs`
-    - Windows (PowerShell): `irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -OutFile setup.mjs; node setup.mjs`
-      (untested on a real Windows machine so far)
-
-    It shows a checklist of 15 steps, then for each one: WHY, STATUS, and, if it isn't done, the
-    command in grey for the student to type (it runs only when typed correctly; after 3 misses it
-    offers to run it). Done steps show ✓ and wait for Enter. The steps: Node 22 or newer; git
-    installed; git knows who you are; GitHub CLI (gh); signed in to GitHub (and it's the right
-    account); git signs in with that account (`gh auth setup-git`); ChatGPT account and the student
-    offer (optional); your fork of the starter repo; your fork on this laptop (clone); upstream
-    remote; the work branch, on GitHub (`git push -u origin work`); VS Code with the `code` command
-    (optional); Codex CLI, signed in; course dependencies (`npm install`); `npm run doctor`. It's
-    safe to rerun (`npm run setup` inside the repo): it re-checks from the top. The Codex VS Code
-    extension is installed by hand, from VS Code's Extensions view.
-  - The setup ends with `npm run doctor`, which must end with
-    `doctor: all 8 checks passed`. Its 8 required checks: Node 22+, git knows who you are, on the
-    `work` branch, `upstream` set, origin is your fork (compared by owner/repo, whatever the URL
-    form), you can push to your fork (the account git pushes as, via `ssh -T` or `gh`, must own
-    the fork), dependencies installed, and the Codex CLI. VS Code's `code` command only warns;
-    without a network the push check warns and asks you to run it again.
-  - The unplugged system-roles activity: students act out CPU, memory, bus and a button, passing
-    paper messages on a clock.
-  - Watch Praise's live system on the projected dashboard.
-- **Take-home:** finish the setup. Fill in `docs/notes/week-01.md`:
-  - `setup-doctor`: paste the `npm run doctor` output.
-  - `setup-codex-summary`: ask Codex to explain `bus/server.ts`, close it, and write what the file
-    does in your own words (60+ words).
-  - `setup-codex-check`: one thing Codex claimed that you checked in the code yourself.
-
-  Commit on `work` and push it to your fork.
-- **Tests (`tests/week-01/`):** `setup.test.ts` checks Node 22+ and that the notes are really
-  filled in: `doctor: all 8 checks passed` with no failures, 60+ words of summary, and the check
-  section. `doctor.test.ts` checks the doctor itself with a pretend laptop (no network needed),
-  including the push-as-the-wrong-account case.
-- **Explain it back:** Draw the system on paper and name each part's job. What did Codex get right
-  about `bus/server.ts`, and how do you know? What are `origin` and `upstream`, and why do you need
-  both?
-
-### Week 2 — Connecting & Message Protocols
-
-**Hardware idea:** address bus vs. data bus; byte-addressable memory; bounds and bus faults.
-**Software idea:** WebSockets and a handshake; schemas, discriminated unions and validating at the
-boundary; request/response correlation.
-
-- **In class:**
-  - Build `connect()`'s handshake together: open the socket, send `hello`, wait for `welcome`.
-  - Build `client.request()`: send with an `id`, resolve when a message with that `replyTo`
-    arrives, reject on `fault`. Reply correlation is this week's core idea.
-  - Everyone connects to Praise's live bus and appears on the projected dashboard.
-  - From now on, `LOG=1` shows every message on the bus (the logger is already built).
-- **Take-home:**
-  - `handle-tick`: remember the tick, run the handlers, reply `tick.done`.
-  - Write one type guard by hand (`isMemRead`) and feel the pain. Then write `parseMessage` with
-    the zod schema, which does the same for every message type.
-  - `core/memory.ts`: `read`, and `write` with bounds → `fault`.
-  - The Memory shell that answers `mem.read` and `mem.write`.
-  - `scripts/hello.ts` (`npm run hello`): join the class bus and print who is there, who comes and
-    goes, and every 10th tick.
-- **Tests (`tests/week-02/`):**
-  - `handshake.test.ts`, `ticks.test.ts`, `hello.test.ts` and `late-join.test.ts` (moved from week
-    1).
-  - `messages.test.ts`: valid messages parse; wrong types, missing fields and unknown `type` are
-    rejected with a useful error.
-  - `memory.test.ts` (pure), `memory-over-bus.test.ts`, `memory-status.test.ts`,
-    `who-may-send.test.ts` and `logger.test.ts`.
-- **Explain it back:** Show a message your validator rejects and why letting it through would
-  break something later. How does a reply find its way back to the right request? What happens if
-  your client never sends `tick.done`? Why is the address 16 bits when memory is only 1 KB?
-
-### Week 3 — Component FSM Logic
-
-**Hardware idea:** fetch–decode–execute; registers, program counter, flags; instruction encoding.
-**Software idea:** finite state machines; pure functions; `(state, event) → { state, effects }`.
-
-- **In class:** decode 4 bytes into an `Instruction`. Build the first steps of the core FSM,
-  `FETCH` → `WAIT_FETCH` → `DECODE`, testing each transition with a fake memory (no network yet).
-- **Take-home:** `EXECUTE` and `WAIT_DATA`: `LOAD`, `ADD` and `HALT` first (`execute-core`,
-  `await-data`), then `SUB`, `JMP`, `LOADI`, `JZ`, `JNZ` and `STORE` with correct flags
-  (`execute-rest`); `encode` so the assembler works. Run a 3-instruction program step by step in
-  a test and read the trace. Hand-assemble the count-down program on paper, then check it with
-  `asm`.
-- **Tests:** `isa.test.ts`, `cpu-core.test.ts` (each transition in the table; illegal transition
-  throws; count-down program ends with the right memory and flags).
-- **Explain it back:** Walk through the 4 bytes of `JNZ 0x010` and what the core does with them,
-  tick by tick. Why does `LOAD` take one more tick than `ADD`? What flag does `JNZ` read and who
-  set it?
-
-### Week 4 — System Integration
-
-**Hardware idea:** a shared bus, clock edges and latching; bus arbitration; multi-core; context
-switching.
-**Software idea:** effects to messages; deterministic concurrency; ordering guarantees.
-
-- **In class:** the CPU shell (effects become `mem.*` requests, replies become events latched for
-  the next tick). Add the bus's tick barrier. Run CPU + Memory over the bus; watch the count-down
-  program finish; then remove the barrier and watch it become flaky, then put it back. Read
-  `arbitrate()` together: why the bus holds a tick's memory requests and sorts them by sender.
-- **Take-home:** round-robin scheduler across two cores (quantum = 4 instructions, switch only
-  between instructions). Read `tests/week-04/order.test.ts` (it ships complete), explain each
-  ordering rule it checks, and add one assertion of your own.
-- **Tests:** `scheduler.test.ts` (pure: 3 programs on 2 cores rotate fairly; halted programs
-  leave), `integration.test.ts` (bus + CPU + Memory in-process, two programs, final memory is
-  correct and identical across 5 runs), `order.test.ts`, `same-tick.test.ts` (a read and a
-  write of one address in the same tick give the same answer in any arrival order), and
-  `reset.test.ts`.
-- **Explain it back:** Why are messages latched instead of acted on immediately? What goes wrong
-  without the barrier (show it)? A sensor and a core touch the same address in one tick: who
-  goes first, and why does it have to be the same every time? What exactly is saved in a context
-  switch, and why can't you switch in the middle of `WAIT_DATA`?
-
-### Week 5 — React Flow Visualization
-
-**Hardware idea:** input vs. output devices; memory-mapped I/O.
-**Software idea:** observers; emitting UI metadata; React Flow custom nodes; derived state.
-
-- **In class:** the Button (reference peripheral) end to end: FSM, `view()`, `status`
-  messages, its dashboard node, and the edge flash when its `irq` goes past. Build the CPU core
-  node (state, PC, registers, current instruction) together.
-- **Take-home:** the LED peripheral: FSM (`OFF`/`ON` from its register), `view`, dashboard node,
-  a program that blinks it. Improve the Memory node to highlight the last read/write.
-- **Tests:** `button.test.ts`, `led.test.ts` (pure FSMs); `status.test.ts` (the Button's, LED's,
-  Timer's, seven-segment's and Screen's `view` output is a valid `status` payload, and the CPU's
-  view matches what the CPU node reads); `button-over-bus.test.ts`, `host.test.ts`,
-  `config-fields.test.ts` and the `dashboard-*.test.ts` files.
-- **Explain it back:** Trace what happens, message by message, from clicking the LED program's
-  "run" to the LED lighting up. How does the dashboard know where to draw your node? Why doesn't
-  the dashboard ask components for their state?
-
-### Week 6 — Timing & Interrupt Simulation
-
-**Hardware idea:** interrupts, interrupt vectors and priority, ISRs, `IRET`; timers; faults and
-watchdogs.
-**Software idea:** priority queues; saving and restoring context; timeouts.
-
-- **In class:** the interrupt queue; core interrupt entry at instruction boundaries and `IRET`.
-- **Take-home:** the Timer peripheral (`timer-input`, `timer-tick`); watch a timer ISR increment
-  its counter on the dashboard while two programs run. Then pick one of Sensor, Proximity or
-  Potentiometer: FSM, register writes, IRQ rule, and its ISR in `programs/`. Add the bus
-  watchdog: a component that misses `tickTimeoutMs` is reported `stalled`. See it with
-  `npm run stall-demo`, a peripheral that joins and never answers a tick (stopping a component
-  with Ctrl-C closes its connection instead, so the bus reports `left`, not `stalled`).
-  Demonstrate a fault on the dashboard with `JMP 0x3FE`: the next fetch would run off the end of
-  memory, so the core goes to `FAULT` and only that program fails. (An address outside memory
-  can't even be assembled or decoded; Memory's own out-of-range fault only answers requests from
-  other components, which `tests/week-02/memory-over-bus.test.ts` shows.)
-- **Tests:** `interrupts.test.ts`, `cpu-core-irq.test.ts` (taken only between instructions;
-  registers identical after `IRET`), `timer.test.ts`, one test file per optional peripheral
-  (only the one the student chose, set as `peripheral` in `course.json`, needs to pass),
-  `status.test.ts` (that peripheral's view is a valid `status` payload), and `watchdog.test.ts`
-  (including `npm run stall-demo`).
-- **Explain it back:** Press the button while a program is mid-`LOAD`: what happens and when?
-  Why is the Timer's interrupt lower priority than the Button's? What would break if `IRET`
-  forgot to restore the flags?
-
-### Week 7 — Polish & Documentation
-
-**Hardware idea:** state is just bytes; what "saving the machine" means (snapshots,
-hibernation).
-**Software idea:** serialization, versioned formats, schema validation on load; documentation as
-code (diagrams from transition tables).
-
-- **In class:** `snapshot`/`restore` for memory and the core; save mid-run, restart everything,
-  restore, and finish the program with the same result.
-- **Take-home:** `fsm-mermaid`, so `npm run fsm:export` turns transition tables into mermaid
-  diagrams; `snapshot`/`restore` for the scheduler and your week-6 peripheral; clean-up pass
-  (names, dead code, small functions); README section for your peripheral with its exported FSM
-  diagram; a one-page reflection (what surprised you, one bug you fixed and how you found it).
-- **Tests:** `persistence.test.ts` (round trip of every component; saving and restoring halfway
-  through gives the same final memory as an uninterrupted run; a corrupt save file is rejected).
-- **Explain it back:** What is in a save file and what isn't (and why the dashboard isn't in it)?
-  Why does the file have a `version`?
-
-### Week 8 — Final Demo & Reflection
-
-- **Demo (5–7 min each):** run the whole system from a fresh clone of your fork; run a program of
-  your own that loops and uses at least one input and one output peripheral; trigger an interrupt
-  live; save and restore. Stretch: add the Seven-segment display or the Screen, or a new
-  peripheral of your own design.
-- **Final explain-it-back (graded):** Praise picks one moment in the live trace and the
-  student explains every message around it, at both levels: what the "hardware" is doing and
-  which function in their code did it.
-- **Reflection:** submitted as `docs/REFLECTION.md` in the fork.
-
 ## Tests: Vitest
 
 The current `scripts/test-*.ts` files print ✅/❌ and set an exit code. They are replaced by
@@ -387,29 +441,6 @@ per-week folders are how branches are gated.
     every message, and whose `rec.step()` / `rec.steps(n)` advance the clock and wait until the
     whole tick has arrived. Everything they start is closed after each test.
 - `vitest.config.ts` includes weeks `1..course.json.week` and uses the `@/` path alias.
-
-## What is deleted or merged, and why
-
-| Current | Becomes | Why |
-|---|---|---|
-| `services/cpu/CPU.service.ts` (409 lines) | `components/cpu.ts` (shell) + `core/cpu-core.ts` | Separate logic from plumbing; the CPU is now a bus client |
-| `services/cpu/Core.service.ts` | `core/cpu-core.ts` | Rewritten as an explicit FSM that waits for memory; callbacks replaced by `status` messages |
-| `services/cpu/InstructionDecoder.service.ts` | `core/isa.ts` (+ `encode`) and `core/asm.ts` | One file per idea; programs written as text, not byte arrays |
-| `services/cpu/Scheduler.service.ts` (537 lines, 3 algorithms) | `core/scheduler.ts` (round robin only) | Scope decision: one algorithm, taught well |
-| `services/cpu/InterruptController.service.ts` | `core/interrupts.ts` | Listener system dropped; it's a small sorted queue |
-| `services/Memory.service.ts` | `core/memory.ts` + `components/memory.ts` | Access log and listeners dropped: the bus tap already shows every access |
-| `services/PeripheralManager.service.ts` | deleted | Peripherals are separate bus clients now; the bus is the registry |
-| `services/Persistence.service.ts`, `types/persistence.types.ts` | `bus/saves.ts` + per-module `snapshot/restore` | Each component owns its own state format |
-| `types/*.types.ts` | `protocol/messages.ts` + types next to their code | Wire types are derived from zod schemas |
-| `server/ws.ts` (one big `switch`, CPU inside the server) | `bus/server.ts` | The server only routes and keeps time |
-| ISR byte arrays generated in `server/ws.ts` | `programs/isr-counter.asm` | Readable assembly |
-| `peripherals/*.peripheral.ts`, `peripherals/registry.ts` | `components/peripherals/*.ts`, `index.ts` | Same eight devices, each a small FSM using one contract |
-| `app/_modules/SimulationProvider.module.tsx` | `app/_lib/bus-connection.ts` + a smaller provider | Uses the shared message types instead of `Record<string, unknown>` |
-| `app/visualizer/_components/AddPeripheralPanel.component.tsx` | deleted | Unused duplicate |
-| `*.service.ts`, `*.component.tsx`, `*.module.tsx`, `SevenSegmenetDisplay` | plain file names | Easier to guess; fixes the typo |
-| `scripts/test-*.ts` | `tests/week-NN/*.test.ts` | Vitest |
-| `plans/`, `Initial plan.md`, `notes/`, folder `README.md`s | deleted (kept in git history) | Old AI prompt plans and notes would confuse students; `docs/` replaces them |
-| Big `/** @module */` JSDoc banners and `// ─── Section ───` rulers | short comments only where the *why* isn't obvious | Less to scroll past; the code should read on its own |
 
 ## How to check the setup works
 

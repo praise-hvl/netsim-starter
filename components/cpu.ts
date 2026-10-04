@@ -1,17 +1,19 @@
 // The CPU component: runs core/cpu.ts on the bus. Effects become mem.* requests; replies and
 // interrupts are latched and handed to the CPU on the next tick.
-import { addProgram, createCpu, cpuView, receiveIrq, receiveReply, restoreCpu, snapshotCpu, tickCpu, type Cpu, type CpuEffect } from "@/core/cpu";
+import { addProgram, createCpu, cpuView, receiveIrq, receiveReply, resizeCpu, restoreCpu, snapshotCpu, tickCpu, type Cpu, type CpuEffect } from "@/core/cpu";
 import { connect, type BusClient } from "@/components/client";
 import type { Message } from "@/protocol/messages";
 import { todo } from "@/core/todo";
 
+/** `cores`: 1-8, default 2. Can be changed later with a `cpu.cores` message. */
 export type CpuOptions = { url?: string; id?: string; cores?: number; quantum?: number };
 export type RunningCpu = { client: BusClient; cpu(): Cpu; close(): Promise<void> };
 
 export async function startCpu(options: CpuOptions = {}): Promise<RunningCpu> {
   const client = await connect({ id: options.id ?? "cpu", role: "cpu", label: "CPU", url: options.url });
-  const fresh = () => createCpu({ cores: options.cores, quantum: options.quantum });
-  let cpu = fresh();
+  let cpu: Cpu = createCpu({ cores: options.cores, quantum: options.quantum });
+  // A reset keeps the current number of cores, even if it was changed since the start.
+  const fresh = () => createCpu({ cores: cpu.cores.length, quantum: options.quantum });
 
   /** Which core is waiting for which request id. */
   const waiting = new Map<string, number>();
@@ -40,6 +42,16 @@ export async function startCpu(options: CpuOptions = {}): Promise<RunningCpu> {
     cpu = addProgram(cpu, message.payload.name, message.payload.start).cpu;
     publishStatus();
     client.reply(message, "ok", {});
+  });
+
+  client.on("cpu.cores", (message) => {
+    try {
+      cpu = resizeCpu(cpu, message.payload.count);
+      publishStatus();
+      client.reply(message, "ok", {});
+    } catch (error) {
+      client.reply(message, "error", { message: (error as Error).message });
+    }
   });
 
   let lastStatus = "";

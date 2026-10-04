@@ -119,7 +119,10 @@ function stubLines(region: Region, text: string): string[] {
   const week = String(region.week).padStart(2, "0");
   const asm = region.file.endsWith(".asm");
   if (isNotesFile(region.file)) {
-    return [`${region.indent}<!-- TODO(week ${region.week}, ${region.id}): ${region.description} -->`, ""];
+    // Notes: the TODO comment, then any starter lines the region gives (a table's header row,
+    // an image link), then a blank line to write in.
+    const starter = (region.stub ?? []).map((line) => region.indent + line);
+    return [`${region.indent}<!-- TODO(week ${region.week}, ${region.id}): ${region.description} -->`, ...starter, ""];
   }
   const comment = asm ? ";" : "//";
   const todoLine = `${region.indent}${comment} TODO(week ${region.week}, ${region.id}): ${region.description}`;
@@ -131,7 +134,7 @@ function stubLines(region: Region, text: string): string[] {
   return [todoLine, pointer, `${region.indent}return todo(${args});`];
 }
 
-export type Fill = (region: Region) => "solution" | "stub";
+export type Fill = (region: Pick<Region, "week">) => "solution" | "stub";
 
 /** Rewrite a file, keeping the markers and filling each region with its solution or a stub. */
 export function renderFile(file: string, text: string, fill: Fill): string {
@@ -152,19 +155,32 @@ export function renderFile(file: string, text: string, fill: Fill): string {
   }
   out.push(...lines.slice(cursor));
   let result = out.join("\n");
-  if (/\.tsx?$/.test(file) && /\btodo\(/.test(result) && !/import \{[^}]*\btodo\b[^}]*\} from "@\/core\/todo"/.test(result)) {
-    result = addTodoImport(result);
+  if (/\.tsx?$/.test(file)) {
+    for (const [name, from] of STUB_HELPERS) {
+      const imported = new RegExp(`import \\{[^}]*\\b${name}\\b[^}]*\\} from "${from}"`);
+      if (new RegExp(`\\b${name}\\(`).test(result) && !imported.test(result)) result = addImport(result, name, from);
+    }
   }
   return result;
 }
 
-function addTodoImport(text: string): string {
+/**
+ * Functions a stub may call, and where they come from. `todo` throws (a function that isn't
+ * written yet); `notBuilt` is for a drawing on the student board: it shows "you build this in
+ * week N" instead of throwing, so an unbuilt board loads without errors.
+ */
+const STUB_HELPERS: ReadonlyArray<readonly [string, string]> = [
+  ["todo", "@/core/todo"],
+  ["notBuilt", "@/board/shell/layer"],
+];
+
+function addImport(text: string, name: string, from: string): string {
   const lines = text.split("\n");
   let lastImport = -1;
   lines.forEach((line, i) => {
     if (/^import .* from ".*";\s*$/.test(line) || /^} from ".*";\s*$/.test(line)) lastImport = i;
   });
-  lines.splice(lastImport + 1, 0, 'import { todo } from "@/core/todo";');
+  lines.splice(lastImport + 1, 0, `import { ${name} } from "${from}";`);
   return lines.join("\n");
 }
 
@@ -180,18 +196,23 @@ export function copyRegion(file: string, target: string, source: string, id: str
 
 // ── Reading a whole commit at once ─────────────────────────────────────────
 
-/** Every file at `ref`, read with one `git archive` (much faster than a `git show` per file). */
+/** Every file at `ref` as text. Fine for source files; use readRefBytes for images. */
 export function readRef(ref: string, cwd = process.cwd()): Map<string, string> {
+  return new Map([...readRefBytes(ref, cwd)].map(([path, bytes]) => [path, bytes.toString("utf8")]));
+}
+
+/** Every file at `ref` as raw bytes, read with one `git archive` (much faster than a `git show` per file). */
+export function readRefBytes(ref: string, cwd = process.cwd()): Map<string, Buffer> {
   const dir = mkdtempSync(join(tmpdir(), "netsim-ref-"));
   try {
     const tar = execFileSync("git", ["archive", "--format=tar", ref], { cwd, maxBuffer: 256 * 1024 * 1024 });
     execFileSync("tar", ["-x", "-C", dir], { input: tar });
-    const files = new Map<string, string>();
+    const files = new Map<string, Buffer>();
     const walk = (relative: string) => {
       for (const entry of readdirSync(join(dir, relative), { withFileTypes: true })) {
         const path = relative ? `${relative}/${entry.name}` : entry.name;
         if (entry.isDirectory()) walk(path);
-        else files.set(path, readFileSync(join(dir, path), "utf8"));
+        else files.set(path, readFileSync(join(dir, path)));
       }
     };
     walk("");

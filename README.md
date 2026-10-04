@@ -15,23 +15,27 @@ pieces you built before. By week 8 the computer on the screen is one you wrote.
 
 ## The course
 
-I'm Praise Daramola, and I teach this course: Mondays, 1 hour per session. Each week has an
-**in-class build** (together, live) and a **take-home portion** (on your own or in a pair).
+I'm Praise Daramola, and I teach this course: Mondays, 1 hour per session. After the setup
+week, sessions alternate: in a **design** session you learn an idea and design that part of the
+machine on paper (your design note and a sketch of the board); in the next **build** session you
+build it, writing the core mechanisms yourself and working with your AI agent on the board. By the
+end you have a portfolio piece: **a multi-core computer you designed and built, with a bus,
+memory, a CPU, a scheduler and interrupts, running live in the browser.**
 
-| Week | Topic | You build |
-|---|---|---|
-| 1 | [Setup & System Roles](docs/weeks/week-01.md) | Your accounts, tools and copy of the code; the parts of a computer and their jobs |
-| 2 | [Connecting & Message Protocols](docs/weeks/week-02.md) | The handshake every component uses to join the bus, message validation, request/reply, the Memory component |
-| 3 | [Component FSM Logic](docs/weeks/week-03.md) | Instruction decoding and the CPU core's fetch–decode–execute state machine |
-| 4 | [System Integration](docs/weeks/week-04.md) | The CPU on the bus, the tick barrier, a round-robin scheduler |
-| 5 | [React Flow Visualization](docs/weeks/week-05.md) | Dashboard nodes; the LED peripheral end to end |
-| 6 | [Timing & Interrupt Simulation](docs/weeks/week-06.md) | Interrupts, the Timer, a sensor of your choice, the bus watchdog |
-| 7 | [Polish & Documentation](docs/weeks/week-07.md) | Save/restore the whole machine; diagrams generated from your code |
-| 8 | [Final Demo & Reflection](docs/weeks/week-08.md) | Your own program, live, on your own computer |
+| Week | Session | Topic | You make |
+|---|---|---|---|
+| 1 | Setup | [Setup & System Roles](docs/weeks/week-01.md) | Your accounts, tools and copy of the code |
+| 2 | Design | [The machine and its bus](docs/weeks/week-02.md) | A design note: parts, messages, one read tick by tick, a sketch of the board |
+| 3 | Build | Bus + memory on screen | Memory cells that light up as requests cross the bus |
+| 4 | Design | The CPU | A design note: the core's state machine, instructions, how a step animates |
+| 5 | Build | A CPU that runs programs | Countdown and blink, animated on the board |
+| 6 | Design | The OS heart: scheduling + interrupts | A design note: processes, round robin, interrupt entry and exit |
+| 7 | Build | Configurable cores, scheduler, interrupts | 1–8 cores taking turns, with interrupts flying in, live |
+| 8 | Demo | Ship it | Your board on GitHub Pages, demoed live in class |
 
-Each week's guide has the goals, what to read before class, the in-class steps, the take-home
-with its acceptance criteria, the exact commands that work that week, and the explain-it-back
-questions you'll answer before the next session.
+The guides for weeks 3–8 arrive with each week's merge. Each guide has the goals, what to read
+before class, the in-class steps, the take-home with its acceptance criteria, the exact commands
+that work that week, and the explain-it-back questions you'll answer before the next session.
 
 **Prerequisites:** loops and functions, basic Node.js and TypeScript, git basics (clone,
 commit, push), and a rough idea of what a CPU, memory and I/O are for.

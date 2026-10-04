@@ -1,5 +1,6 @@
-// The whole CPU in one pure function: two cores, the scheduler and the interrupt queue.
-// components/cpu.ts connects this to the bus; tests can run it directly.
+// The whole CPU in one pure function: N cores (1 to 8, 2 by default), the scheduler and the
+// interrupt queue. Every core is the same FSM; adding cores just means more of them take turns
+// on the same queues. components/cpu.ts connects this to the bus; tests can run it directly.
 import { z } from "zod";
 import { disassemble } from "@/core/isa";
 import {
@@ -33,8 +34,12 @@ const inboxSchema = z.object({
   irqs: z.array(raisedIrqSchema),
 });
 
+export const MIN_CORES = 1;
+export const MAX_CORES = 8;
+export const DEFAULT_CORES = 2;
+
 export const cpuSchema = z.object({
-  cores: z.array(coreSchema).min(1),
+  cores: z.array(coreSchema).min(MIN_CORES).max(MAX_CORES),
   scheduler: schedulerSchema,
   irqs: z.array(irqSchema),
   nextIrqSeq: z.number().int().min(0),
@@ -44,9 +49,32 @@ export type Cpu = z.infer<typeof cpuSchema>;
 
 export type CpuEffect = CoreEffect & { core: number };
 
+export function checkCoreCount(count: number): number {
+  if (!Number.isInteger(count) || count < MIN_CORES || count > MAX_CORES) {
+    throw new RangeError(`a CPU has ${MIN_CORES} to ${MAX_CORES} cores, not ${count}`);
+  }
+  return count;
+}
+
 export function createCpu(options: { cores?: number; quantum?: number } = {}): Cpu {
-  const cores = Array.from({ length: options.cores ?? 2 }, (_, id) => createCore(id));
+  const count = checkCoreCount(options.cores ?? DEFAULT_CORES);
+  const cores = Array.from({ length: count }, (_, id) => createCore(id));
   return { cores, scheduler: createScheduler(options.quantum), irqs: [], nextIrqSeq: 0, inbox: { replies: [], irqs: [] } };
+}
+
+/**
+ * Change the number of cores. New cores start IDLE. A core can only be taken away while it's
+ * IDLE (no program, no interrupt handler), so nothing is ever cut off halfway through.
+ */
+export function resizeCpu(cpu: Cpu, count: number): Cpu {
+  checkCoreCount(count);
+  if (count >= cpu.cores.length) {
+    const added = Array.from({ length: count - cpu.cores.length }, (_, i) => createCore(cpu.cores.length + i));
+    return { ...cpu, cores: [...cpu.cores, ...added] };
+  }
+  const busy = cpu.cores.slice(count).find((core) => core.phase !== "IDLE" || inHandler(core));
+  if (busy) throw new Error(`core ${busy.id} is busy (${busy.phase}); wait until it's idle, or reset, before removing it`);
+  return { ...cpu, cores: cpu.cores.slice(0, count) };
 }
 
 /** Latch a memory answer for `core`; it is used on the next tick. */
@@ -75,8 +103,10 @@ export function tickCpu(cpu: Cpu): { cpu: Cpu; effects: CpuEffect[] } {
   const scheduled = schedule(cpu.scheduler, cpu.cores);
   const cores = scheduled.cores;
 
-  // 3. Hand interrupts to cores that are between instructions. Idle cores first, so running
-  //    programs are disturbed as little as possible.
+  // 3. Hand interrupts to cores that are between instructions, never to one already in a
+  //    handler. A free (idle) core first, so programs aren't disturbed; otherwise a core running
+  //    a program, which an interrupt outranks. Each core takes at most one per tick, so with N
+  //    cores up to N interrupts start at once, most urgent first.
   while (irqs.length > 0) {
     const target = cores.find((c) => c.phase === "IDLE" && canTakeInterrupt(c)) ?? cores.find((c) => canTakeInterrupt(c));
     if (!target) break;
@@ -126,7 +156,12 @@ export function snapshotCpu(cpu: Cpu): Cpu {
 }
 
 export function restoreCpu(data: unknown): Cpu {
-  const shape = cpuSchema.extend({ cores: z.array(z.unknown()).min(1), scheduler: z.unknown() });
+  const shape = cpuSchema.extend({ cores: z.array(z.unknown()).min(MIN_CORES).max(MAX_CORES), scheduler: z.unknown() });
   const raw = shape.parse(data);
-  return { ...raw, cores: raw.cores.map(restoreCore), scheduler: restoreScheduler(raw.scheduler) };
+  const cores = raw.cores.map(restoreCore);
+  // Core ids are their positions: 0, 1, 2... The scheduler and the inbox find cores by id.
+  cores.forEach((core, i) => {
+    if (core.id !== i) throw new Error(`core ${i} in the save says it is core ${core.id}`);
+  });
+  return { ...raw, cores, scheduler: restoreScheduler(raw.scheduler) };
 }

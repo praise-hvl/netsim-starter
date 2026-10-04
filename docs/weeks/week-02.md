@@ -1,299 +1,140 @@
-# Week 2: Connecting & Message Protocols
+# Week 2 · DESIGN: The machine and its bus
 
-Today your code joins the computer on the projector. You'll write the handshake every part of
-the system uses to join the bus, learn to check every message that arrives, and ask a question
-and get *your* answer back. At home you build the first real part of the computer: memory.
+Today you design the first part of your computer: the **bus** that connects everything, and the
+**memory** that stores bytes. No code today. You'll leave with a design note and a sketch of what
+your board will look like, and next week you build it: memory cells lighting up as requests
+cross the bus.
 
 ## Goals
 
-- **Hardware idea:** parts of a computer share a **bus**, and every transfer on it has a sender,
-  a receiver and a meaning. A CPU reads memory by putting an **address** on the address bus and
-  getting bytes back on the **data bus**. Memory is **byte-addressable**: every byte has its own
-  number. Asking for an address that doesn't exist is a **bus fault**, not a silent zero.
-- **Software idea:** two programs talking over a **WebSocket** with **JSON messages**; a
-  **handshake** (`hello` → `welcome`) and `async`/`await` for "wait until the other side
-  answers"; **schemas** and **discriminated unions** (one `type` field decides the payload
-  shape); **validating at the boundary**; **request/response correlation** (matching a reply to
-  its question by `id` and `replyTo`).
+- **Hardware idea:** a computer is a few parts with different jobs (the CPU runs instructions,
+  memory stores bytes, devices connect to the world). They share a **bus** and move in step with a
+  **clock**. A memory access is a **request** and a **reply** across the bus. Memory is
+  **byte-addressable**: 1 KB here, addresses `0x000` to `0x3FF`, and an address outside it is a
+  **fault**, not a silent zero.
+- **OS idea:** the clock tick is the system's heartbeat, and the bus is a shared resource that many
+  parts want at the same time.
+- **Design idea:** before you build, decide the parts, what they say to each other, and what it
+  looks like. That's the design note, and it's what you hand your agent next week.
 
 ## Before class
 
-1. Make sure your week-1 explain-it-back is done (a booked slot with me, or your video).
-2. Merge this week's starter into your `work` branch:
+1. Make sure `npm run doctor` still ends with `doctor: all 8 checks passed`, and merge this week:
 
    ```bash
-   git fetch upstream
-   git merge upstream/week-2-start
-   npm install
+   git fetch upstream && git merge upstream/week-2-start
    ```
 
-   ✅ `course.json` says `"week": 2`. The merge should be clean; if git reports a conflict, you
-   edited a file you weren't meant to. Ask before resolving it.
-3. Read [ARCHITECTURE.md](../ARCHITECTURE.md): **"The message protocol"** (the envelope, the
-   message table, and "A clock tick, step by step") and **"Memory map"**.
-4. Skim the [zod docs](https://zod.dev) front page: what is `z.object`, what does `safeParse`
-   return, what does `z.infer` do? Five minutes is enough.
+2. Read [ARCHITECTURE.md](../ARCHITECTURE.md): **"The big picture"** and, in "The message
+   protocol", **"Envelope"** and the **message table** (just the `mem.*` and `fault` rows). About
+   10 minutes.
+3. Bring your week-1 drawing of the system.
 
-## In class (1 hour): join the bus and ask questions
+## In class (1 hour)
 
-You'll work in `components/client.ts` and `scripts/hello.ts`.
+You work in pairs. Each of you fills in your own design note: open `docs/notes/week-02.md` (it
+arrives with this week's merge, with the nine headings from
+[the design-note template](../notes/design-note-template.md) and a comment under each saying what
+goes there). If it isn't there, copy the template to that path.
 
-1. **Roles and tickets, unplugged** (7 minutes). Volunteers play CLOCK, CPU, MEMORY, BUTTON
-   and LED; I'm the BUS. The clock says "tick", and nobody may act between ticks. The CPU asks
-   for a memory card by saying it *to the bus*, never straight to Memory. Then the button gets
-   pressed mid-tick: when does the CPU find out? Second round: two CPUs send requests at once
-   and I shuffle the replies. How does each CPU know which answer is its own? (Ticket numbers:
-   that's `id` and `replyTo`.)
+1. **Act it out (10 min).** Volunteers play CLOCK, CPU, MEMORY and the BUS (me). Memory holds a
+   few index cards with numbers on them, at addresses 0 to 3. The rules:
+   - Nobody acts between ticks: you only act when the clock says "tick".
+   - The CPU never walks over to Memory. It writes a request slip ("read address 2") and hands it
+     to the bus, and the bus delivers it.
+   - Round 1: two CPUs send requests, and the replies come back without a name on them. Who gets
+     which number?
+   - Round 2: every slip gets a ticket number, and every reply says "re: ticket 7".
+   - Then someone asks for address 9.
 
-2. **Run the week's tests and watch them fail.**
+   Talk about it: who owns time? What does the bus know about CPUs? What should happen at
+   address 9?
 
-   ```bash
-   npx vitest tests/week-02
-   ```
+2. **Parts and their jobs (10 min).** Fill in sections 1 and 2 of your note for the bus, the
+   clock, memory, and "a component that asks memory for something" (it'll be the CPU later). For
+   each part: its job in a few words, and what it knows. (Hint: does the bus know what's in
+   memory? Does memory know who's asking?)
 
-   ✅ **Checkpoint:** tests fail with errors that start `week 2:`. That's the `todo()` stub
-   telling you where to work. Leave Vitest running in watch mode; it re-runs every time you save.
+3. **Messages (15 min).** Fill in section 3: every message a memory **read** and a memory
+   **write** need, including what happens when the address is bad. For each: who sends it, to
+   whom, what it carries, and what the receiver does. Then compare with the `mem.*` and `fault`
+   rows of ARCHITECTURE.md's message table. What did you name differently? What did you miss?
+   Keep your own names if you like them; note the difference in section 7.
 
-3. **Write the handshake** (together on the projector). Open `components/client.ts` and find
-   `TODO(week 2, handshake)` inside `handshake(socket, options)`. Every component in this course
-   (CPU, memory, every peripheral, the dashboard) joins the bus through `connect()`, and the
-   first thing `connect()` does is the handshake. `connect()` has already created the
-   `WebSocket` for the bus URL; `handshake()` returns a `Promise` that settles later:
-   - When the socket's `open` event fires, send `hello`. `envelope(type, from, to, payload,
-     { id, tick })` in `protocol/messages.ts` builds a message with all the envelope fields
-     (`type`, `from`, `to`, `id`, `tick`, `payload`) and makes TypeScript check the payload. For
-     a first `hello` the tick is 0, `to` is `"bus"`, and the payload is your `role` and `label`.
-   - Listen for messages, parse each one with `parseMessage`, and **resolve** with the
-     `welcome` message when it arrives. If the bus answers `error` instead (your id is taken, for
-     example), **reject** with its message. If the socket errors, reject too.
+4. **One read, tick by tick (10 min).** Fill in section 5 for this scenario: *a component reads
+   the byte at `0x010`.* Who sends what on which tick, who waits, and when the reply is used. Ask
+   yourselves: why does the reply get **used** on the next tick, not the moment it arrives? (Think
+   of round 1 of the activity.)
 
-   (`parseMessage` is still a placeholder that trusts whatever arrives, which is why the
-   handshake works today. Replacing it with real validation is take-home.)
+5. **Sketch the board (10 min).** On paper, draw what this will look like on screen: where the bus
+   and memory sit, how a request and its reply travel, how a memory cell shows it was just read or
+   written, and what a fault looks like. Don't worry about drawing well. Arrows and labels beat
+   art. Photograph it.
 
-   ✅ **Checkpoint:** `handshake.test.ts` passes.
+6. **Wrap up (5 min).** What's left goes home. Next week you'll hand section 9 of this note to
+   your agent, so it builds *your* design.
 
-4. **Join the class bus.** Open `scripts/hello.ts` and find `TODO(week 2, hello-script)` inside
-   `hello(options)`. Finishing it is take-home, but start it now with just enough to connect,
-   print one line and hand back the client:
+## Take-home
 
-   ```ts
-   const print = options.print ?? console.log;
-   const client = await connect({ id: options.id, role: "peripheral", kind: "hello", label: `Hello from ${options.id}`, url: options.url });
-   print(`connected as ${options.id} at tick ${client.tick}`);
-   return client;
-   ```
+Due before next session.
 
-   Point it at my bus (the address is on the board). Use your GitHub username as the id; ids
-   must be unique on a bus (it's lowercased for you).
-
-   ```bash
-   BUS_URL=ws://<address-on-the-board>:3006 HELLO_ID=<your-github-username> npm run hello
-   ```
-
-   ✅ **Checkpoint:** your name appears as a node on the projected dashboard. Leave it running
-   and watch what happens to your node when I start the clock. (Your client can't answer a
-   `tick` yet: that's `handle-tick`, this week's take-home.)
-
-5. **Build `request()`** in `components/client.ts` (`TODO(week 2, client-request)`). It sends a
-   message with a fresh `id` and returns a promise that settles when the reply comes. The client
-   already has a `pending` map (`Map<id, { resolve, reject }>`) and a `settle()` function that,
-   when any message with a `replyTo` arrives, looks it up there and resolves it (or rejects it on
-   `fault`/`error`). Your job is the other half: send, then put this request's `resolve` and
-   `reject` in the map under the id `send` returned.
-
-   Read `settle()` before you write anything. The whole feature is the handshake between your
-   three lines and its six.
-
-   ✅ **Checkpoint:** the `request()` tests in `messages.test.ts` pass.
-
-6. **Commit.**
-
-   ```bash
-   git add -A && git commit -m "week 2: handshake, request()" && git push
-   ```
-
-### What the code looks like (shape only)
-
-The point is the shape, not the exact lines. Yours will differ.
-
-```ts
-return new Promise((resolve, reject) => {
-  socket.addEventListener("open", () => socket.send(JSON.stringify(hello)), { once: true });
-  socket.addEventListener("message", onMessage);  // resolve(welcome) or reject(error)
-  socket.addEventListener("error", () => reject(new Error("could not reach the bus")));
-});
-```
-
-Why wrap events in a promise? Because "open the socket, then send, then wait for a reply" is a
-*sequence*, and a promise lets the caller write `const welcome = await handshake(...)` and read
-it top to bottom instead of nesting callbacks.
-
-### Why a Map and not "the next message"?
-
-Two requests can be in flight at once, and replies can come back in any order. If `request()`
-just waited for "the next `mem.data`", request A could get request B's bytes. The `id` is a
-ticket number; `replyTo` is the ticket stapled to the answer.
-
-## Take-home: validation, ticks, memory, and your hello script
-
-Due before next session. Work alone or in a pair (both of you must pass explain-it-back).
-Keep Vitest running in watch mode while you work: `npx vitest tests/week-02`.
-
-1. **Write one validator by hand.** In `protocol/messages.ts`, find `TODO(week 2, is-mem-read)`.
-   Write `isMemRead(value: unknown): value is MessageOf<"mem.read">`. It must check, with
-   `typeof` and friends, that `value` is an object, `type` is `"mem.read"`, the envelope fields
-   are there with the right types, and `payload.address` and `payload.length` are whole numbers
-   in range.
-
-   Write this one yourself, by hand, before you look at the schemas: its whole point is that you
-   feel how tedious and error-prone hand validation is.
-
-   ✅ **Checkpoint:** the `isMemRead` tests pass. Count your lines. There are about 30 message
-   types in `messageSchema`. Multiply.
-
-2. **Now read the schemas.** Scroll through `messageSchema` in the same file. Each line is
-   one message type: `message("mem.read", z.object({ address, length: ... }))`. The `message()`
-   helper adds the envelope, so each line only describes the payload. `Message`, `MessageOf<T>`
-   and `PayloadOf<T>` are all `z.infer` of the schema, never written twice. Put
-   your `isMemRead` next to the one-line `mem.read` schema and compare.
-
-3. **Validate at the boundary.** Find `TODO(week 2, parse-message)`. Until now `parseMessage`
-   has been a placeholder that trusts everything: it does `JSON.parse` and *casts* the result
-   to `Message`, so TypeScript believes it while nothing checks it. Your handshake from class
-   has been running on that trust. Replace it with real validation,
-   `parseMessage(raw: string): ParseResult`: `JSON.parse` (which can throw: catch it and return
-   `{ ok: false, error: "not valid JSON" }`), then `messageSchema.safeParse`. On success return
-   `{ ok: true, message }`; on failure return an error that says **which field** was wrong (look
-   at `error.issues`).
-
-   This is the one place bytes off a socket become a typed `Message`. Find the places in
-   `components/client.ts` that call it. Nothing after that line ever sees unchecked data.
-
-   ✅ **Checkpoint:** `messages.test.ts` passes: valid messages parse, and bad JSON, wrong types,
-   missing fields and unknown `type` values are rejected with an error that names the field.
-
-4. **Answer the clock** in `handleTick` (`components/client.ts`, `TODO(week 2, handle-tick)`).
-   When a `tick` message arrives: remember its tick number, call every handler registered with
-   `client.onTick(...)`, then send `tick.done` to the bus. Messages you send are stamped with the
-   tick you remembered, so `tick.done` carries **the same tick number** as the tick it answers.
-5. **`core/memory.ts`**: pure functions, no sockets.
-   - `read(memory, address, length)` (`TODO(week 2, memory-read)`) returns
-     `{ ok: true, value: bytes }`, or `{ ok: false, fault }` if any byte is outside
-     `0x000`–`0x3FF`.
-   - `write(memory, address, bytes)` (`TODO(week 2, memory-write)`) returns a **new** memory
-     (the old one is untouched), or a fault on the same rule.
-   - Decide: does a write that is *partly* out of range change anything? (The tests expect: no.
-     A faulted write changes nothing. Why is that the safer rule?)
-6. **The Memory component** in `components/memory.ts`, `answer()`
-   (`TODO(week 2, memory-handler)`): on `mem.read` reply `mem.data`; on `mem.write` or
-   `program.load` reply `mem.ack`; on a bad address reply `fault` with code `OUT_OF_RANGE`.
-   Every reply sets `replyTo` (the client's `reply(request, type, payload)` does that for you).
-7. **Finish `hello()` in `scripts/hello.ts`** (`TODO(week 2, hello-script)`). It connects with
-   the id it's given, prints the other components listed in `welcome`, then prints a line each
-   time someone joins or leaves, and one every 10th tick. Print through `options.print`, not
-   `console.log`, so the test can read your lines.
-
-   ```
-   connected as ada-laptop at tick 812
-   already here: cpu (cpu), memory (memory)
-   + sam-laptop joined as peripheral
-   tick 820
-   - sam-laptop left
-   ```
-
-8. **Watch it all with the logger.** The bus logger is a tool you're given
-   (`components/logger.ts`): it connects like a dashboard, so it sees every message, and prints
-   one line each, pairing every reply with its request and timing it. Run your memory with it:
-
-   ```bash
-   npm run bus                          # terminal 1
-   LOG=1 npm run component -- memory    # terminal 2
-   HELLO_ID=ada npm run hello           # terminal 3
-   ```
-
-   ```
-      12  cpu → memory           mem.read 0x010 ×4                 cpu-88
-      12  memory → cpu           mem.data 4 bytes                  memory-7  ↩ cpu-88  2 ms
-   ```
-
-   Use `LOG=1` whenever you want to see what's really on the bus, in every week from now on.
-
-9. Commit on your `work` branch and push.
+1. **Finish your design note** in `docs/notes/week-02.md`, all nine sections. In particular:
+   - **Section 4, states and rules:** memory's rule for a read or write that is partly outside
+     `0x000`–`0x3FF`. (Does a write that starts inside and ends outside change anything? Decide,
+     and say why.)
+   - **Section 7, decisions:** at least two, with the option you didn't pick. Good candidates: the
+     colours for read, write and fault on the board; whether the bus shows every message or only
+     memory traffic; how long a cell stays lit.
+   - **Section 9, agent brief:** what your agent should build next week in the board kit's
+     week-3 regions: only the bus and memory on the board, and a small panel to send a read or a
+     write by hand, since there's no CPU yet.
+2. **Commit your sketch** as `docs/notes/week-02-board.jpg` (or `.png`) and link it in section 6.
+3. **Commit and push** your `work` branch.
 
 ### Acceptance criteria
 
-- [ ] `npx vitest run tests/week-02` passes, and so does week 1 (`npx vitest run`).
-- [ ] Your `tick.done` always carries the tick number of the `tick` it answers, never "the
-      latest tick" or a counter of your own.
-- [ ] `memory.test.ts`: reads return exactly what was written; edges `0x000` and `0x3FF` work;
-      `0x400` and "starts in range, ends out of range" both fault and change nothing.
-- [ ] `memory-over-bus.test.ts`: a test client writes, reads back the same bytes, and gets a
-      `fault` for an out-of-range address.
-- [ ] `core/memory.ts` imports nothing from `components/`, `bus/` or `app/`.
-- [ ] `npm run hello` prints the lines above; start a second one with a different `HELLO_ID`
-      and watch the first print `joined`, then Ctrl+C it and watch `left`. (The `tick` lines
-      only appear while a clock is running, e.g. on the class bus.)
+- [ ] `docs/notes/week-02.md` has all nine sections filled in, in your own words.
+- [ ] `npx vitest run tests/week-02` passes: it checks every section of your note is really
+      filled in and your sketch file is there.
+- [ ] Section 3 covers a read, a write, and the bad-address case, each with from → to, payload,
+      and what the receiver does.
+- [ ] Section 5 tells the `0x010` read tick by tick, and says why the reply is used on the next
+      tick.
+- [ ] Your board sketch is committed and linked from section 6.
+- [ ] Section 7 has at least two decisions, each with an alternative and a reason.
 - [ ] `work` is pushed to your fork.
-
-## Tests and commands this week
-
-| Command | What it does | Works this week? |
-|---|---|---|
-| `npx vitest tests/week-02` | this week's tests in watch mode | ✅ |
-| `npx vitest run` | everything unlocked so far, once (what grading uses) | ✅ |
-| `npm run bus` | the bus on port 3006 | ✅ |
-| `npm run hello` | your hello script (`HELLO_ID=you`; `BUS_URL=ws://…:3006` to join another bus) | ✅ once you write it |
-| `npm run component -- memory` | your Memory component (`LOG=1` to watch the traffic) | ✅ after the take-home |
-| `npm run component -- cpu` | the CPU | ❌ `todo` until weeks 3–4 |
-| `npm run dev:all` | the whole system + dashboard | ❌ useful from week 4 |
-
-Tests that gate this week (`tests/week-02/`):
-
-- `handshake.test.ts`: a client that connects gets `welcome` and knows the bus's current tick.
-- `messages.test.ts`: `isMemRead` and `parseMessage` (valid, bad JSON, unknown type, wrong
-  field), and `request()` (a fake peer answers; no memory yet).
-- `ticks.test.ts`: the client answers every `tick` with `tick.done` for the same tick number,
-  and each registered handler runs once per tick.
-- `hello.test.ts`: `hello()` reports who is here, who joins and leaves, and every 10th tick.
-- `memory.test.ts`: pure `read`/`write` and bounds.
-- `memory-over-bus.test.ts`: bus + your Memory component + a test client, in one process.
-- The rest of the folder (for example `logger.test.ts`) tests tools you're given; they already
-  pass.
-
-## Explain it back
-
-Before next session, explain your work to me without notes or AI: book a 5-minute slot with me,
-or record a 3-minute video (your face and your screen, no notes) answering the two questions I
-post after class. I may also ask one or two people live at the start of class. Be ready to:
-
-1. **Walk through your `handshake()`** line by line: when does the promise resolve, and what
-   happens if the `welcome` never comes?
-2. **What happens if your client never sends `tick.done`?** (What is the bus waiting for?
-   You saw your node drop off in class.)
-3. **Show a message your validator rejects** and explain what would break *later* if it got
-   through.
-4. **How does a reply find its way back** to the right `request()` call? Point at the line that
-   does the matching.
-5. **Why is the address 16 bits** in the instruction when memory is only 1 KB (10 bits)?
 
 ## Using Codex this week
 
+Today the design is the work, so it's yours: Codex shouldn't write your note. It's a good
+sparring partner, though. Use it like this:
+
 | Fine to ask Codex | You must be able to explain yourself |
 |---|---|
-| "How do I wrap a WebSocket `open` event in a Promise?" | Why `connect()` must wait for `welcome` before returning |
-| "How do I read the `issues` in a zod `safeParse` error?" | Why validation happens once, at the socket, and nowhere else |
-| "What's the difference between `parse` and `safeParse`?" | How `id` and `replyTo` connect a reply to its request |
-| "Explain this TypeScript error" | Why `tick.done` carries the tick number it answers |
-| "I'll check the whole range first, then copy. Write `write()` that way and explain it" | Why a partly-out-of-range write must change nothing |
+| "Here's my message table. What case did I miss?" | Every row of your message table |
+| "What does a real memory controller do with an out-of-range address?" | Your rule for a partly-out-of-range write, and why |
+| "Quiz me on why the reply is used on the next tick." | Why the bus holds the clock |
+| "Critique my board sketch: what would confuse someone seeing it for the first time?" | Why you placed things where you did |
 
-Codex may write code with you, but **you decide the design**: for `request()`, for example,
-*you* choose how pending requests are stored and matched before it types anything. Write
-`isMemRead` by hand, though, before you look at the schemas: its whole point is that *you* feel how tedious and
-error-prone hand validation is, so you know what the schema is doing.
+## Explain it back
+
+Before next session, explain your design note to me without notes or AI: book a 5-minute slot
+with me, or record a 3-minute video (your face and your sketch, no notes) answering the two
+questions I post after class. I may also ask one or two people live at the start of class. Be
+ready to:
+
+1. **Walk through your sketch:** what each part on it is, and what moves or lights up during one
+   memory read.
+2. **Pick one message from your table** and explain it end to end: who sends it, what it
+   carries, what the receiver does, and what the reply is.
+3. **Why does the reply get used on the next tick,** not the moment it arrives?
+4. **Defend one decision** from section 7: what you chose, the alternative, and why.
 
 ## Stretch
 
-- Make `handshake()` reject with a clear error if `welcome` doesn't arrive within 2 seconds.
-- Make `request()` reject with a timeout error if no reply comes within 1 second, and clean up
-  the `Map` entry either way. Why does forgetting to clean up leak memory?
-- Make `hello.ts` print a live count: `3 components connected`, updated on each join/leave.
+- Design a second memory (or a ROM that can't be written). What changes in your messages and on
+  the board?
+- Design a device that copies a block of memory without the CPU (that's DMA). Which messages does
+  it send, and what does the board show while it runs?
+- Read the rest of ARCHITECTURE.md's message table. Which messages will you need in week 4, when
+  the CPU arrives?

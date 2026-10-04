@@ -81,7 +81,7 @@ const BUS_ONLY: readonly MessageType[] = ["tick", "reset", "welcome", "joined", 
 
 /** Only the dashboard may drive the whole system (the bus sends some of these itself too). */
 const DASHBOARD_ONLY: readonly MessageType[] = [
-  "control", "save", "restore", "program.load", "process.add", "host.spawn", "host.remove", "snapshot.get", "snapshot.set", "snapshot.check",
+  "control", "save", "restore", "program.load", "process.add", "cpu.cores", "host.spawn", "host.remove", "snapshot.get", "snapshot.set", "snapshot.check",
 ];
 
 export async function startBus(options: BusOptions = {}): Promise<Bus> {
@@ -378,9 +378,20 @@ export async function startBus(options: BusOptions = {}): Promise<Bus> {
     });
   }
 
+  /** The `id` of a message that failed validation, if it has one, so the error can answer it. */
+  function idOf(raw: string): string | undefined {
+    try {
+      const value: unknown = JSON.parse(raw);
+      if (typeof value === "object" && value !== null && "id" in value && typeof value.id === "string") return value.id;
+    } catch {
+      // not even JSON: there's nothing to answer
+    }
+    return undefined;
+  }
+
   function handleMessage(connection: Connection, raw: string): void {
     const parsed = parseMessage(raw);
-    if (!parsed.ok) return refuse(connection, `invalid message: ${parsed.error}`);
+    if (!parsed.ok) return refuse(connection, `invalid message: ${parsed.error}`, idOf(raw));
     const message = parsed.message;
 
     if (!connection.info) return handleHello(connection, message);
