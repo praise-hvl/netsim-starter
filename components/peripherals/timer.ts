@@ -3,7 +3,6 @@
 import { z } from "zod";
 import { defineFsm } from "@/core/fsm";
 import type { PeripheralDefinition } from "@/components/peripherals/peripheral";
-import { todo } from "@/core/todo";
 
 type TimerFsmState = "STOPPED" | "COUNTING";
 
@@ -53,18 +52,20 @@ export const timer: PeripheralDefinition<TimerState, TimerInput, TimerConfig> = 
   }),
 
   onInput(state, input) {
-    // @student week=6 part=home id=timer-input "Start or stop the timer; stopping forgets the ticks counted so far"
-    // TODO(week 6, timer-input): Start or stop the timer; stopping forgets the ticks counted so far
-    // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-    return todo("week 6: timer-input", state, input);
+    // @student week=7 part=home id=timer-input "Start or stop the timer; stopping forgets the ticks counted so far"
+    // TODO(week 7, timer-input): Start or stop the timer; stopping forgets the ticks counted so far
+    // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
+    // Until week 7 the timer ignores start and stop.
+    return state;
     // @end
   },
 
   onTick(state) {
-    // @student week=6 part=home id=timer-tick "While COUNTING, raise one irq every `interval` ticks"
-    // TODO(week 6, timer-tick): While COUNTING, raise one irq every `interval` ticks
-    // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-    return todo("week 6: timer-tick", state);
+    // @student week=7 part=home id=timer-tick "While COUNTING, raise one irq every `interval` ticks"
+    // TODO(week 7, timer-tick): While COUNTING, raise one irq every `interval` ticks
+    // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
+    // Until week 7 the timer never fires.
+    return { state, effects: [] };
     // @end
   },
 

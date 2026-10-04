@@ -33,6 +33,7 @@ export async function writeSave(dir: string, name: string, io: SaveIo): Promise<
   const components: SaveFile["components"] = {};
   for (const info of io.components().filter(isStateful)) {
     const reply = await io.ask("snapshot.get", info.id, {});
+    if (reply.type === "error") throw new Error(reply.payload.message);
     if (reply.type !== "snapshot") throw new Error(`${info.id} answered snapshot.get with ${reply.type}`);
     const { id, ...rest } = info;
     void id;

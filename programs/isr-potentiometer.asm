@@ -5,7 +5,7 @@
 ; To drive an LED from the knob, add `LOAD R2, REGISTER` and `STORE R2, <the LED's register>`
 ; before IRET. The LED is on when the knob is past halfway (128).
 
-        ; @student week=6 part=home id=isr-potentiometer "Count the settle: add 1 to COUNTER, then return from the interrupt"
-        ; TODO(week 6, isr-potentiometer): Count the settle: add 1 to COUNTER, then return from the interrupt
+        ; @student week=stretch part=home id=isr-potentiometer "Count the settle: add 1 to COUNTER, then return from the interrupt"
+        ; TODO(stretch, isr-potentiometer): Count the settle: add 1 to COUNTER, then return from the interrupt
         IRET
         ; @end

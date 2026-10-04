@@ -187,10 +187,10 @@ export async function startBus(options: BusOptions = {}): Promise<Bus> {
 
   /** True when every clocked component is done and every request has had its reply. */
   function isTickComplete(): boolean {
-    // @student week=4 part=class id=tick-barrier "The tick is over when nobody is still working and no request is still open"
-    // TODO(week 4, tick-barrier): The tick is over when nobody is still working and no request is still open
-    // Tests: tests/week-04/   Guide: docs/weeks/week-04.md
-    // Until week 4 the bus only waits for tick.done. Week 4 shows why that isn't enough.
+    // @student week=3 part=class id=tick-barrier "The tick is over when nobody is still working and no request is still open"
+    // TODO(week 3, tick-barrier): The tick is over when nobody is still working and no request is still open
+    // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
+    // Until you build this, the bus only waits for tick.done. Week 3 shows why that isn't enough.
     return waitingFor.size === 0;
     // @end
   }
@@ -225,10 +225,10 @@ export async function startBus(options: BusOptions = {}): Promise<Bus> {
 
   /** The watchdog: carry on without components that didn't finish in time. */
   function onTickTimeout(): void {
-    // @student week=6 part=home id=watchdog "Mark every component we're still waiting for as stalled, forget open requests, and end the tick"
-    // TODO(week 6, watchdog): Mark every component we're still waiting for as stalled, forget open requests, and end the tick
-    // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-    // Until week 6 a slow component just delays the tick; nobody is marked stalled.
+    // @student week=stretch part=home id=watchdog "Mark every component we're still waiting for as stalled, forget open requests, and end the tick"
+    // TODO(stretch, watchdog): Mark every component we're still waiting for as stalled, forget open requests, and end the tick
+    // Tests: tests/stretch/   Guide: docs/stretch/
+    // Until you build this (stretch), a slow component just delays the tick; nobody is marked stalled.
     waitingFor.clear();
     openRequests.clear();
     endTick();

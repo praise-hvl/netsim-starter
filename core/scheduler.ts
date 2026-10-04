@@ -60,28 +60,29 @@ export function addProcess(scheduler: Scheduler, name: string, start: number): {
 
 /** The process that should run next: the first READY one in the queue. */
 export function pickNext(scheduler: Scheduler): Process | undefined {
-  // @student week=4 part=home id=pick-next "Return the first READY process in queue order"
-  // TODO(week 4, pick-next): Return the first READY process in queue order
-  // Tests: tests/week-04/   Guide: docs/weeks/week-04.md
-  return todo("week 4: pick-next", scheduler);
+  // @student week=5 part=home id=pick-next "Return the first READY process in queue order"
+  // TODO(week 5, pick-next): Return the first READY process in queue order
+  // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
+  return todo("week 5: pick-next", scheduler);
   // @end
 }
 
 /** Has this core's program had its turn, and is it safe and useful to switch now? */
 export function shouldPreempt(scheduler: Scheduler, core: Core): boolean {
-  // @student week=4 part=home id=should-preempt "True when the quantum is used up, the core is between instructions (FETCH), not in a handler, and someone is waiting"
-  // TODO(week 4, should-preempt): True when the quantum is used up, the core is between instructions (FETCH), not in a handler, and someone is waiting
-  // Tests: tests/week-04/   Guide: docs/weeks/week-04.md
-  return todo("week 4: should-preempt", scheduler, core);
+  // @student week=7 part=home id=should-preempt "True when the quantum is used up, the core is between instructions (FETCH), not in a handler, and someone is waiting"
+  // TODO(week 7, should-preempt): True when the quantum is used up, the core is between instructions (FETCH), not in a handler, and someone is waiting
+  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
+  // Until week 7 nobody is preempted: a program keeps its core until it halts.
+  return false;
   // @end
 }
 
 /** Save the core's program back into its process and send the process to the back of the queue. */
 export function switchOut(scheduler: Scheduler, core: Core, state: ProcessState = "READY"): { scheduler: Scheduler; core: Core } {
-  // @student week=4 part=home id=switch-out "Save the context into the process, set its state, move it to the back of the queue, and clear the core"
-  // TODO(week 4, switch-out): Save the context into the process, set its state, move it to the back of the queue, and clear the core
-  // Tests: tests/week-04/   Guide: docs/weeks/week-04.md
-  return todo("week 4: switch-out", scheduler, core, state);
+  // @student week=5 part=home id=switch-out "Save the context into the process, set its state, move it to the back of the queue, and clear the core"
+  // TODO(week 5, switch-out): Save the context into the process, set its state, move it to the back of the queue, and clear the core
+  // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
+  return todo("week 5: switch-out", scheduler, core, state);
   // @end
 }
 
@@ -115,17 +116,17 @@ export function schedule(scheduler: Scheduler, cores: readonly Core[]): { schedu
 }
 
 export function snapshotScheduler(scheduler: Scheduler): Scheduler {
-  // @student week=7 part=home id=scheduler-snapshot "Return what should go in a save file for the scheduler"
-  // TODO(week 7, scheduler-snapshot): Return what should go in a save file for the scheduler
-  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: scheduler-snapshot", scheduler);
+  // @student week=stretch part=home id=scheduler-snapshot "Return what should go in a save file for the scheduler"
+  // TODO(stretch, scheduler-snapshot): Return what should go in a save file for the scheduler
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: scheduler-snapshot", scheduler);
   // @end
 }
 
 export function restoreScheduler(data: unknown): Scheduler {
-  // @student week=7 part=home id=scheduler-restore "Validate saved scheduler data and return it (throw if it's bad)"
-  // TODO(week 7, scheduler-restore): Validate saved scheduler data and return it (throw if it's bad)
-  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: scheduler-restore", data);
+  // @student week=stretch part=home id=scheduler-restore "Validate saved scheduler data and return it (throw if it's bad)"
+  // TODO(stretch, scheduler-restore): Validate saved scheduler data and return it (throw if it's bad)
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: scheduler-restore", data);
   // @end
 }

@@ -47,19 +47,19 @@ function isRegister(n: number): n is Register {
 
 /** Turn 4 bytes into an Instruction, or explain why they aren't one. */
 export function decode(bytes: Bytes4): DecodeResult {
-  // @student week=3 part=class id=decode "Turn 4 bytes into an Instruction (bad opcode, register or address -> error)"
-  // TODO(week 3, decode): Turn 4 bytes into an Instruction (bad opcode, register or address -> error)
-  // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
-  return todo("week 3: decode", bytes);
+  // @student week=5 part=class id=decode "Turn 4 bytes into an Instruction (bad opcode, register or address -> error)"
+  // TODO(week 5, decode): Turn 4 bytes into an Instruction (bad opcode, register or address -> error)
+  // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
+  return todo("week 5: decode", bytes);
   // @end
 }
 
 /** Turn an Instruction back into its 4 bytes. `decode(encode(i))` gives back `i`. */
 export function encode(instruction: Instruction): Bytes4 {
-  // @student week=3 part=home id=encode "Turn an Instruction into its 4 bytes (the opposite of decode)"
-  // TODO(week 3, encode): Turn an Instruction into its 4 bytes (the opposite of decode)
-  // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
-  return todo("week 3: encode", instruction);
+  // @student week=5 part=home id=encode "Turn an Instruction into its 4 bytes (the opposite of decode)"
+  // TODO(week 5, encode): Turn an Instruction into its 4 bytes (the opposite of decode)
+  // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
+  return todo("week 5: encode", instruction);
   // @end
 }
 

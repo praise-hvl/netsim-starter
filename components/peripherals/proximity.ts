@@ -50,26 +50,26 @@ export const proximity: PeripheralDefinition<ProximityState, ProximityInput, Pro
   init: (config) => ({ fsm: "FAR", radius: config.radius, distance: MAX_DISTANCE, approaches: 0, pendingWrite: true }),
 
   onInput(state, input) {
-    // @student week=6 part=home id=proximity-input "Store the new distance as a whole number from 0 to 255"
-    // TODO(week 6, proximity-input): Store the new distance as a whole number from 0 to 255
-    // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-    return todo("week 6: proximity-input", state, input);
+    // @student week=stretch part=home id=proximity-input "Store the new distance as a whole number from 0 to 255"
+    // TODO(stretch, proximity-input): Store the new distance as a whole number from 0 to 255
+    // Tests: tests/stretch/   Guide: docs/stretch/
+    return todo("stretch: proximity-input", state, input);
     // @end
   },
 
   onTick(state) {
-    // @student week=6 part=home id=proximity-tick "Write a changed distance to the register; irq when something comes inside the radius"
-    // TODO(week 6, proximity-tick): Write a changed distance to the register; irq when something comes inside the radius
-    // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-    return todo("week 6: proximity-tick", state);
+    // @student week=stretch part=home id=proximity-tick "Write a changed distance to the register; irq when something comes inside the radius"
+    // TODO(stretch, proximity-tick): Write a changed distance to the register; irq when something comes inside the radius
+    // Tests: tests/stretch/   Guide: docs/stretch/
+    return todo("stretch: proximity-tick", state);
     // @end
   },
 
   view(state) {
-    // @student week=6 part=home id=proximity-view "Show the distance, the radius and how many times something came near"
-    // TODO(week 6, proximity-view): Show the distance, the radius and how many times something came near
-    // Tests: tests/week-06/   Guide: docs/weeks/week-06.md
-    return todo("week 6: proximity-view", state);
+    // @student week=stretch part=home id=proximity-view "Show the distance, the radius and how many times something came near"
+    // TODO(stretch, proximity-view): Show the distance, the radius and how many times something came near
+    // Tests: tests/stretch/   Guide: docs/stretch/
+    return todo("stretch: proximity-view", state);
     // @end
   },
 
@@ -78,17 +78,17 @@ export const proximity: PeripheralDefinition<ProximityState, ProximityInput, Pro
 };
 
 export function snapshot(state: ProximityState): Json {
-  // @student week=7 part=home id=proximity-snapshot "Keep what the sensor needs to carry on; leave out what it doesn't"
-  // TODO(week 7, proximity-snapshot): Keep what the sensor needs to carry on; leave out what it doesn't
-  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: proximity-snapshot", state);
+  // @student week=stretch part=home id=proximity-snapshot "Keep what the sensor needs to carry on; leave out what it doesn't"
+  // TODO(stretch, proximity-snapshot): Keep what the sensor needs to carry on; leave out what it doesn't
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: proximity-snapshot", state);
   // @end
 }
 
 export function restore(data: unknown): ProximityState {
-  // @student week=7 part=home id=proximity-restore "Validate a saved proximity sensor (it is untrusted input) and rebuild its state"
-  // TODO(week 7, proximity-restore): Validate a saved proximity sensor (it is untrusted input) and rebuild its state
-  // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: proximity-restore", data);
+  // @student week=stretch part=home id=proximity-restore "Validate a saved proximity sensor (it is untrusted input) and rebuild its state"
+  // TODO(stretch, proximity-restore): Validate a saved proximity sensor (it is untrusted input) and rebuild its state
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: proximity-restore", data);
   // @end
 }

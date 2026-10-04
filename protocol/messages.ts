@@ -155,10 +155,10 @@ export function parseMessage(raw: string): ParseResult {
  * Written once in week 2 so the zod schemas above aren't magic.
  */
 export function isMemRead(value: unknown): value is MessageOf<"mem.read"> {
-  // @student week=3 part=home id=is-mem-read "Check every field of a mem.read by hand"
-  // TODO(week 3, is-mem-read): Check every field of a mem.read by hand
-  // Tests: tests/week-03/   Guide: docs/weeks/week-03.md
-  return todo("week 3: is-mem-read", value);
+  // @student week=stretch part=home id=is-mem-read "Check every field of a mem.read by hand"
+  // TODO(stretch, is-mem-read): Check every field of a mem.read by hand
+  // Tests: tests/stretch/   Guide: docs/stretch/
+  return todo("stretch: is-mem-read", value);
   // @end
 }
 

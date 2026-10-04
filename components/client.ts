@@ -94,13 +94,30 @@ export async function connect(options: ClientOptions): Promise<BusClient> {
     // @end
   }
 
+  /**
+   * Run one handler. If it throws (often a part that isn't built yet: a `todo(...)` stub), say
+   * so and carry on: one broken handler mustn't take the whole component down.
+   */
+  function safely(what: string, run: () => void): boolean {
+    try {
+      run();
+      return true;
+    } catch (error) {
+      console.error(`[${options.id}] ${what} failed: ${(error as Error).message}`);
+      return false;
+    }
+  }
+
   function dispatch(message: Message): void {
     // Acknowledge a reset first, so the bus accepts what the reset handlers send next.
     if (message.type === "reset") send("ok", "bus", {}, message.id);
-    if (message.type === "tick") handleTick(message);
+    if (message.type === "tick" && !safely(`tick ${message.tick}`, () => handleTick(message))) {
+      // Still finish the tick, so the rest of the machine keeps running.
+      send("tick.done", "bus", {});
+    }
     settle(message);
-    for (const handler of handlers.get(message.type) ?? []) handler(message);
-    for (const handler of anyHandlers) handler(message);
+    for (const handler of handlers.get(message.type) ?? []) safely(message.type, () => handler(message));
+    for (const handler of anyHandlers) safely(message.type, () => handler(message));
   }
 
   // Listen from the very start. The bus sends `welcome` and then, in the same burst, things

@@ -19,18 +19,18 @@ export async function startCpu(options: CpuOptions = {}): Promise<RunningCpu> {
   const waiting = new Map<string, number>();
 
   function latchReply(message: Message): void {
-    // @student week=4 part=class id=cpu-latch-reply "Find which core asked, turn the reply into a MemReply and keep it for the next tick"
-    // TODO(week 4, cpu-latch-reply): Find which core asked, turn the reply into a MemReply and keep it for the next tick
-    // Tests: tests/week-04/   Guide: docs/weeks/week-04.md
-    return todo("week 4: cpu-latch-reply", message);
+    // @student week=5 part=class id=cpu-latch-reply "Find which core asked, turn the reply into a MemReply and keep it for the next tick"
+    // TODO(week 5, cpu-latch-reply): Find which core asked, turn the reply into a MemReply and keep it for the next tick
+    // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
+    return todo("week 5: cpu-latch-reply", message);
     // @end
   }
 
   function sendEffects(effects: readonly CpuEffect[]): void {
-    // @student week=4 part=class id=cpu-send-effects "Send each read/write effect to memory and remember which core is waiting for the reply"
-    // TODO(week 4, cpu-send-effects): Send each read/write effect to memory and remember which core is waiting for the reply
-    // Tests: tests/week-04/   Guide: docs/weeks/week-04.md
-    return todo("week 4: cpu-send-effects", effects);
+    // @student week=5 part=class id=cpu-send-effects "Send each read/write effect to memory and remember which core is waiting for the reply"
+    // TODO(week 5, cpu-send-effects): Send each read/write effect to memory and remember which core is waiting for the reply
+    // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
+    return todo("week 5: cpu-send-effects", effects);
     // @end
   }
 
@@ -76,7 +76,14 @@ export async function startCpu(options: CpuOptions = {}): Promise<RunningCpu> {
     waiting.clear();
     publishStatus();
   });
-  client.on("snapshot.get", (message) => client.reply(message, "snapshot", { data: snapshotCpu(cpu) }));
+  client.on("snapshot.get", (message) => {
+    // Saving is a stretch module: until the snapshot functions are built they throw, and the save says so.
+    try {
+      client.reply(message, "snapshot", { data: snapshotCpu(cpu) });
+    } catch (error) {
+      client.reply(message, "error", { message: `the CPU can't be saved yet (persistence is a stretch module): ${(error as Error).message}` });
+    }
+  });
   client.on("snapshot.check", (message) => {
     try {
       restoreCpu(message.payload.data); // only checking: the result is thrown away

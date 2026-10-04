@@ -4,7 +4,7 @@
 ;   REGISTER  this slot's device register (0x3F0 + slot): the reading that caused the alarm
 ; IRET puts every register back, so using R0 and R1 here is safe.
 
-        ; @student week=6 part=home id=isr-sensor "Count the alarm: add 1 to COUNTER, then return from the interrupt"
-        ; TODO(week 6, isr-sensor): Count the alarm: add 1 to COUNTER, then return from the interrupt
+        ; @student week=stretch part=home id=isr-sensor "Count the alarm: add 1 to COUNTER, then return from the interrupt"
+        ; TODO(stretch, isr-sensor): Count the alarm: add 1 to COUNTER, then return from the interrupt
         IRET
         ; @end

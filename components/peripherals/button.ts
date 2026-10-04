@@ -3,7 +3,6 @@
 import { z } from "zod";
 import { defineFsm } from "@/core/fsm";
 import type { PeripheralDefinition } from "@/components/peripherals/peripheral";
-import { todo } from "@/core/todo";
 
 type ButtonFsmState = "RELEASED" | "PRESSED";
 
@@ -42,10 +41,6 @@ export const button: PeripheralDefinition<ButtonState, { action: "press" }, Reco
   },
 
   view(state) {
-    // @student week=5 part=class id=button-view "Tell the dashboard what state the button is in and how often it was pressed"
-    // TODO(week 5, button-view): Tell the dashboard what state the button is in and how often it was pressed
-    // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
-    return todo("week 5: button-view", state);
-    // @end
+    return { state: state.fsm, data: { presses: state.presses } };
   },
 };

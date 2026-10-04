@@ -4,7 +4,6 @@
 import { z } from "zod";
 import { defineFsm } from "@/core/fsm";
 import type { PeripheralDefinition } from "@/components/peripherals/peripheral";
-import { todo } from "@/core/todo";
 
 type LedFsmState = "OFF" | "ON";
 
@@ -43,18 +42,14 @@ export const led: PeripheralDefinition<LedState, never, LedConfig> = {
   onInput: (state) => state,
 
   onTick(state, { register }) {
-    // @student week=5 part=home id=led-tick "Follow the register byte (ON at 128 or more) and ask for it again"
-    // TODO(week 5, led-tick): Follow the register byte (ON at 128 or more) and ask for it again
-    // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
-    return todo("week 5: led-tick", state);
-    // @end
+    // Always read, so the reply is here for the next tick. The first tick has no reply yet.
+    const effects = [{ kind: "read" as const }];
+    if (register === null) return { state, effects };
+    const fsm = register >= LED_THRESHOLD ? "ON" : "OFF";
+    return { state: { ...state, fsm: ledFsm.go(state.fsm, fsm), value: register }, effects };
   },
 
   view(state) {
-    // @student week=5 part=home id=led-view "Tell the dashboard whether the LED is lit, its colour and the register value"
-    // TODO(week 5, led-view): Tell the dashboard whether the LED is lit, its colour and the register value
-    // Tests: tests/week-05/   Guide: docs/weeks/week-05.md
-    return todo("week 5: led-view", state);
-    // @end
+    return { state: state.fsm, data: { value: state.value, color: state.color } };
   },
 };
