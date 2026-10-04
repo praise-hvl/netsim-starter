@@ -10,10 +10,10 @@ import { connect } from "@/components/client";
 import { startCpu } from "@/components/cpu";
 import { startHost } from "@/components/host";
 import { startMemory } from "@/components/memory";
-import { assemble } from "@/core/asm";
 import { readProgram } from "@/programs/read";
 import { envelope, type Message, type MessageType, type PayloadOf } from "@/protocol/messages";
 import type { VizTrace } from "@/board/feed/trace";
+import { tallyPrograms } from "@/board/feed/tally-programs";
 
 const args = process.argv.slice(2);
 const flag = (name: string, fallback: string) => {
@@ -25,40 +25,16 @@ const OUT = flag("out", `board/recordings/trace-${CORES}-cores.json`);
 const PRESS_AT = 20;
 const MAX_TICKS = 220;
 
-/**
- * Small programs that only exist for the recording: each one counts up and keeps every count
- * in its own memory cell, so the RAM grid shows who wrote what. (STORE takes a fixed address,
- * so the loop is written out.)
- */
-function tally(cells: number[], step: number): string {
-  const lines = ["LOADI R0, 0", `LOADI R1, ${step}`];
-  for (const cell of cells) lines.push("ADD R0, R1", `STORE R0, ${cell}`);
-  lines.push("HALT");
-  return lines.join("\n");
-}
-
 type Load = { name: string; address: number; bytes: number[] };
 
-/**
- * Where each tally program lives (44 bytes each): the gaps after countdown (0x000) and blink
- * (0x080), then 0x0C0 upwards. Their counts go in 0x1E0-0x1FF, 4 bytes each.
- */
-const TALLY_HOMES = [0x0c0, 0x0f0, 0x120, 0x150, 0x180, 0x1b0, 0x020, 0x050];
 function programs(cores: number): Load[] {
   const builtIn = ["countdown", "blink"].map((name) => {
     const program = readProgram(name);
     return { name, address: program.address ?? 0, bytes: program.bytes };
   });
-  // On 2 cores, one extra program so somebody always waits their turn. On more cores, one extra
-  // per core (up to 8), so there are always more programs than cores and the scheduler moves
-  // them around: otherwise core N would just run program N from start to finish.
-  const extra = cores <= 2 ? 1 : Math.min(8, cores);
-  const loads: Load[] = [...builtIn];
-  for (let i = 0; i < extra; i++) {
-    const address = TALLY_HOMES[i];
-    const cells = [0, 1, 2, 3].map((k) => 0x1e0 + i * 4 + k);
-    loads.push({ name: `tally-${i + 1}`, address, bytes: assemble(tally(cells, i + 1), { origin: address }) });
-  }
+  // On 2 cores, one tally so somebody always waits their turn; on more, one per core (up to 8),
+  // so there are always more programs than cores and the scheduler moves them around.
+  const loads: Load[] = [...builtIn, ...tallyPrograms(cores <= 2 ? 1 : cores)];
   return loads;
 }
 
