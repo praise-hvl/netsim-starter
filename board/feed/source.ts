@@ -1,6 +1,6 @@
 // Which feed a board starts on, from the page's query. Pure, so it can be tested and used in
 // any page (the static GitHub Pages build reads the query in the browser).
-//   (none)                      the 2-core recording
+//   (none)                      the default: see defaultSource
 //   ?source=8-cores             the 8-core recording (any recording, by name)
 //   ?source=machine[&cores=N]   a machine running in the page, N cores (1-8, default 2)
 //   ?source=live                the bus at `busUrl` (e.g. the class bus)
@@ -9,12 +9,22 @@ import { MACHINE_CORES, TRACES, type Source, type TraceName } from "@/board/feed
 /** Anything with URLSearchParams' get(), e.g. useSearchParams() or new URLSearchParams(location.search). */
 export type Query = { get(name: string): string | null };
 
-export function sourceFromQuery(query: Query, busUrl: string): Source {
+/**
+ * Where /board starts without a ?source. On the GitHub Pages build (your live link): your machine,
+ * running in the page, so a demo shows your own code and the Button works. While your machine
+ * can't run yet (its code isn't finished), that falls back to the 2-core recording. In
+ * development: the 2-core recording, which works whatever state your code is in.
+ */
+export function defaultSource(pagesBuild: boolean): Source {
+  return pagesBuild ? { kind: "machine", cores: 2, fallback: "2-cores" } : { kind: "trace", name: "2-cores" };
+}
+
+export function sourceFromQuery(query: Query, busUrl: string, fallback: Source = defaultSource(false)): Source {
   const value = query.get("source");
   if (value === "live") return { kind: "live", url: busUrl };
   if (value === "machine") return { kind: "machine", cores: coresFrom(query.get("cores")) };
   if (value !== null && Object.hasOwn(TRACES, value)) return { kind: "trace", name: value as TraceName };
-  return { kind: "trace", name: "2-cores" };
+  return fallback;
 }
 
 function coresFrom(value: string | null): number {

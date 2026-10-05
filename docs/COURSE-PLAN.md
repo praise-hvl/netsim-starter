@@ -200,8 +200,8 @@ the take-home becomes the starting point of Mon 2's design note.
   the same programs give the same final memory with 1, 2 and 8 cores.
 - **The board (with your agent, from your Mon-6 note):** `board/student/cores.tsx`:
   `board-lane-rects` (one lane per core, for 1–8 cores; lessons and the default at 2),
-  `board-interrupt-markers` (one marker per interrupt this tick, on the core running its
-  handler), `board-scheduler-moves` (which programs moved between cores since the last tick) and
+  `board-interrupt-markers` (a marker when an interrupt is raised on the bus, and another when a
+  core takes it a tick or more later), `board-scheduler-moves` (which programs moved between cores since the last tick) and
   `board-draw-cores` (the lanes, the scheduler's moves and arriving interrupts). Gated by
   `tests/week-07/board-cores.test.ts`.
 - **Explain-it-back:** your `should-preempt`; interrupt entry and `IRET`, on the board; what you saw
