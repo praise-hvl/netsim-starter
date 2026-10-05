@@ -43,8 +43,8 @@ Everything that crosses the bus for this part. One row per message type.
 ## 4. States and rules
 
 The states each part can be in and what moves it between them (a table is enough; a diagram is a
-bonus). Add any rule that must always hold, for example "a reply never arrives in the same tick as
-its request".
+bonus). Add any rule that must always hold, for example "a reply is used on the tick after the one
+it arrives in".
 
 <!-- @student week=2 part=home id=design-02-states "List the states, what moves between them, and any rule that must always hold" -->
 <!-- TODO(week 2, design-02-states): List the states, what moves between them, and any rule that must always hold -->
