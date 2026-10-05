@@ -1,0 +1,37 @@
+{
+  "note": "The weeks NetSim Studio lists, in order (it reads this file from the newest published week on GitHub). Edit a title here; a week shows as out once its week-N-start branch is published. A week may carry more fields later (a build week's tasks, say): the studio keeps what it doesn't use.",
+  "weeks": [
+    {
+      "week": 1,
+      "title": "Setup & system roles"
+    },
+    {
+      "week": 2,
+      "title": "Design: the machine and its bus"
+    },
+    {
+      "week": 3,
+      "title": "Build: bus + memory on screen"
+    },
+    {
+      "week": 4,
+      "title": "Design: the CPU"
+    },
+    {
+      "week": 5,
+      "title": "Build: a CPU that runs programs"
+    },
+    {
+      "week": 6,
+      "title": "Design: scheduling + interrupts"
+    },
+    {
+      "week": 7,
+      "title": "Build: cores, scheduler, interrupts"
+    },
+    {
+      "week": 8,
+      "title": "Demo: ship it"
+    }
+  ]
+}
