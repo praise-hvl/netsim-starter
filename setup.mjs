@@ -85,11 +85,12 @@ const CODEX_FLAGS = ["-c", "check_for_update_on_startup=false"];
  *   pretend?: (ctx: Context) => CheckResult | void,
  *   preview?: string[],
  *   changeable?: boolean,
+ *   accountChange?: (ctx: Context) => boolean,
  *   plan: (ctx: Context) => Action[],
  *   hint: (ctx: Context) => string,
  * }} Step
  *   `title` is a plain question or task, `technical` its technical name, and `explain` says what that
- *   name means in one line. `example` is what a dry run shows once the step "passes", and `pretend`
+ *   name means in one line. `accountChange`: this step offers "Use a different account" right now. `example` is what a dry run shows once the step "passes", and `pretend`
  *   fills in what a real run would have learned; it can return a question to ask first (the GitHub login).
  * @typedef {{ done: Promise<number>, kill: () => void }} Running
  * @typedef {{
@@ -660,6 +661,8 @@ export function courseSteps() {
       confirm: (ctx, yes) => {
         if (yes && ctx.state.seenLogin) ctx.state.login = ctx.state.seenLogin;
       },
+      // Signed in: this is where the student changes which account the course uses.
+      accountChange: (ctx) => ghActiveAccount(ctx) !== null,
       // A dry run still asks the account question, about a pretend login.
       pretend: (ctx) => {
         ctx.state.seenLogin = ctx.state.login ?? "your-github-name";
@@ -673,7 +676,7 @@ export function courseSteps() {
           openUrl: true,
         }),
       ],
-      hint: () => "If you have two GitHub accounts, sign in with the one for this course. Signed in to both? Use \"change\" next to your account at the top of the page.",
+      hint: () => "If you have two GitHub accounts, sign in with the one for this course. Signed in to both? \"Use a different account\" in this step picks the other one.",
     },
     {
       id: "git-helper",
@@ -735,7 +738,7 @@ export function courseSteps() {
         // It has to be a real fork: the starter itself (Praise's account) doesn't count.
         const info = output(ctx, ["gh", "repo", "view", `${login}/netsim-starter`, "--json", "nameWithOwner,isFork", "--jq", '.nameWithOwner + " " + (.isFork|tostring)']);
         const [name, isFork] = (info ?? "").split(" ");
-        if (!info) return { done: false, found: `There's no ${login}/netsim-starter yet.${ownerMismatch(ctx, login) ? ` ${ownerMismatch(ctx, login)} Make a copy for ${login} below, or switch back (top of the page).` : ""}` };
+        if (!info) return { done: false, found: `There's no ${login}/netsim-starter yet.${ownerMismatch(ctx, login) ? ` ${ownerMismatch(ctx, login)} Make a copy for ${login} below, or switch back in step 5.` : ""}` };
         return { done: isFork === "true", found: isFork === "true" ? `Your fork exists: github.com/${name}` : `github.com/${name} isn't a fork of ${STARTER}.` };
       },
       plan: () => [
@@ -1292,9 +1295,11 @@ export function weekSteps(week, { onWork = true } = {}) {
           cmd("git push", ["git", "push"], { cwd: repoDir(ctx), what: "Sends your work branch to your fork on GitHub.", words: [["push", "send commits to GitHub"]] }),
         ];
       },
+      // Only here, and only when it's the wrong account, does "Get week N" offer a different one.
+      accountChange: (ctx) => Boolean(ownerMismatch(ctx, ghActiveAccount(ctx))),
       hint: (ctx) =>
         ownerMismatch(ctx, ghActiveAccount(ctx))
-          ? `Use the account your copy belongs to: "change" next to your account at the top of the page. ${ownerMismatch(ctx, ghActiveAccount(ctx))}`
+          ? `Use the account your copy belongs to ("Use a different account" in this step). ${ownerMismatch(ctx, ghActiveAccount(ctx))}`
           : "If GitHub refused, run node setup.mjs --setup and check steps 5 and 6.",
     },
     {
@@ -1729,7 +1734,7 @@ export function createStudio(ctx, steps, meta = {}) {
    *   ask: string, note: string, slowNote: string, slowAfterMs: number, startedAt: number, code: string, url: string, waitFor: string, formError: string }}
    */
   let view = blank("checking");
-  /** The account gh uses now, shown at the top of the page. A dry run shows the pretend login. */
+  /** The account gh uses now (step 5 and the panel show it). A dry run shows the pretend login. */
   let active = ctx.dryRun ? (ctx.state.login ?? null) : ghActiveAccount(ctx);
   const refreshActive = () => {
     active = ctx.dryRun ? (ctx.state.login ?? active) : ghActiveAccount(ctx);
@@ -1742,8 +1747,13 @@ export function createStudio(ctx, steps, meta = {}) {
    */
   let acct = null;
   let acctRun = 0; // which account command is running (an older one's ending is ignored)
-  let notice = ""; // what changed after a switch, shown above the step
+  let notice = ""; // what changed after a switch, shown in the step
   let keepNotice = false;
+  let canChange = false; // the current step offers "Use a different account"
+  const updateCanChange = () => {
+    const step = steps[current];
+    canChange = Boolean(step?.accountChange?.(ctx));
+  };
 
   /** @param {string} phase */
   function blank(phase) {
@@ -1821,7 +1831,7 @@ export function createStudio(ctx, steps, meta = {}) {
         ran: ran[i],
         preview: previewsNow()[i],
       })),
-      view: current < steps.length ? { ...view, attempt, outputId, actions: plan.map(describe) } : null,
+      view: current < steps.length ? { ...view, attempt, outputId, actions: plan.map(describe), canChangeAccount: canChange } : null,
     };
   }
 
@@ -1858,6 +1868,7 @@ export function createStudio(ctx, steps, meta = {}) {
     const r = await checkStep(step, ctx);
     if (mine !== attempt) return;
     found[i] = r.found;
+    updateCanChange();
     if (r.done) return pass(r.found, !ranHere);
     if (r.ask) {
       view = { ...blank("confirm"), ask: r.ask };
@@ -1878,6 +1889,7 @@ export function createStudio(ctx, steps, meta = {}) {
   /** @param {string} text @param {boolean} [already] */
   function pass(text, already = false) {
     found[current] = text;
+    updateCanChange();
     marks[current] = "done";
     view = { ...blank("passed"), already, index: view.index };
     if (!ctx.dryRun) ctx.save?.();
@@ -1886,6 +1898,7 @@ export function createStudio(ctx, steps, meta = {}) {
 
   /** @param {{ what: string, fix: string, back?: number, stop?: boolean, items?: { check: string, found: string, fix: string }[] }} error */
   function fail(error) {
+    updateCanChange();
     view = {
       ...view,
       phase: "failed",
@@ -2124,6 +2137,7 @@ export function createStudio(ctx, steps, meta = {}) {
     switch (a.type) {
       case "account-open": {
         if (acct) return ok;
+        if (!canChange) return reject(409, "The account can only be changed in the step that signs you in.");
         if (child) return reject(409, "Wait for the command that's running to finish, then change the account.");
         const accounts = ctx.dryRun && ctx.fresh ? [] : ghAccounts(ctx);
         const using = accounts.find((x) => x.active);
@@ -2225,32 +2239,36 @@ export function createStudio(ctx, steps, meta = {}) {
   /** The switch (or sign-in) worked: use the new account, and check again what depends on it. */
   async function finishAccount() {
     const choice = acct?.choice ?? "";
-    const before = ctx.state.login ?? acct?.before ?? active;
+    const wasUsing = acct?.before ?? active; // the account gh used before this switch
+    const wasCourse = ctx.state.login ?? wasUsing; // the account the course was set up with
     acct = null;
-    const now = ctx.dryRun ? (isGithubUsername(choice) ? choice : before) : ghActiveAccount(ctx);
+    const now = ctx.dryRun ? (isGithubUsername(choice) ? choice : wasUsing) : ghActiveAccount(ctx);
     active = now;
-    const changed = Boolean(now && now !== before);
+    const changed = Boolean(now && (now !== wasUsing || now !== wasCourse));
     if (now) ctx.state.login = now; // the student chose this account: it's the course account now
-    if (changed) delete ctx.state.doctorOk; // the doctor checks you can push: run it again
+    if (now && now !== wasCourse) delete ctx.state.doctorOk; // the doctor checks you can push: run it again
     if (!ctx.dryRun) ctx.save?.();
-    // Check again every step already done that depends on the account; go back to the first that no longer holds.
-    let first = -1;
-    for (let i = 0; i < Math.min(current, steps.length); i++) {
-      if (marks[i] !== "done" || !ACCOUNT_STEPS.has(steps[i].id)) continue;
+    // Check again every other step already done that depends on the account. This step is checked
+    // again by entering it (it updates in place); the others are done again when the student gets there.
+    /** @type {number[]} */
+    const again = [];
+    for (let i = 0; i < steps.length; i++) {
+      if (i === current || marks[i] !== "done" || !ACCOUNT_STEPS.has(steps[i].id)) continue;
       const r = await checkStep(steps[i], ctx);
       found[i] = r.found;
       if (!r.done) {
         marks[i] = "pending";
-        if (first < 0) first = i;
+        again.push(i + 1);
       }
     }
+    const list = again.length > 1 ? `Steps ${again.slice(0, -1).join(", ")} and ${again.at(-1)}` : `Step ${again[0]}`;
     notice = !changed
       ? ""
-      : first >= 0
-        ? `You're now using ${now} on GitHub. Step ${first + 1} needs doing again for ${now}: ${found[first]}`
+      : again.length
+        ? `${list} ${again.length > 1 ? "need" : "needs"} doing again for ${now}: ${found[again[0] - 1]}`
         : `You're now using ${now} on GitHub. Everything done so far still holds for ${now}.`;
     keepNotice = true;
-    await enter(first >= 0 ? first : current);
+    await enter(current);
   }
 
   return {
@@ -2694,9 +2712,8 @@ kbd { font: 600 11px/1 "JetBrains Mono", monospace; border: 1px solid currentCol
 .titlebar .count { font-weight: 700; color: #fff; }
 .tag { display: inline-flex; padding: 3px 9px; border-radius: 999px; font: 600 12px/1.4 "Inter", sans-serif; background: var(--well); color: var(--muted); text-transform: none; letter-spacing: 0; }
 .tag.ok { background: #dcf3e8; color: var(--mint-ink); } .tag.bad { background: #ffe1e4; color: var(--red-ink); } .tag.now { background: #fff1c2; color: #6b5200; }
-.acct { color: var(--chrome-muted); white-space: nowrap; }
-.acct b { color: #fff; font-weight: 600; }
-.linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--yellow); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.linkbtn { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--mint-ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.accountbox { border-top: 1px dashed var(--line); padding-top: 14px; }
 .accounts { display: grid; gap: 10px; }
 .account { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 .account .who { font: 600 15px/1.3 "JetBrains Mono", monospace; overflow-wrap: anywhere; }
@@ -3009,26 +3026,32 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
     return `<details class="out" ${showOutput ? "open" : ""} data-outbox><summary>Show full output</summary><pre data-output></pre></details>`;
   }
 
-  /** "Use a different account": the accounts gh knows, then the chosen one's command. */
-  function accountView(/** @type {AccountPanel} */ p) {
+  /**
+   * "Use a different account", inside the step that offers it: a link, which opens in place into
+   * the accounts gh knows (each one a command to type) and "Add another account".
+   */
+  function accountInline() {
     const snap = present();
+    const v = snap.view;
+    const p = snap.account.panel;
+    if (!v?.canChangeAccount && !p) return "";
+    if (!p) return `<div class="row"><button class="linkbtn" data-do="acct-open">Use a different account</button></div>`;
     const login = snap.account.login;
-    const top = `<div><p class="eyebrow">GitHub account</p><h1 class="q">Use a different account</h1>
-      <p class="tech">Your fork, your folder's link to it and every push belong to one GitHub account. This changes which one gh and git use on this laptop.</p></div>`;
     const cancel = `<button class="btn ghost" data-do="acct-close">${login ? `Keep ${esc(login)}` : "Close"}</button>`;
+    const box = (/** @type {string} */ inner) => `<div class="block accountbox"><h3>Use a different account</h3>${inner}</div>`;
     if (p.phase === "choose") {
       const others = p.others.length
         ? p.others.map((o) => `<div class="account"><span class="who">${esc(o)}</span><button class="btn" data-do="acct-pick" data-choice="${esc(o)}">Use ${esc(o)}</button></div>`).join("")
         : `<p class="note">gh doesn't know any other account on this laptop yet.</p>`;
-      return `${top}<div class="block"><h3>Accounts on this laptop</h3><div class="accounts">
+      return box(`<div class="accounts">
           ${login ? `<div class="account now"><span class="who">${esc(login)}</span><span class="muted">in use now</span></div>` : ""}
           ${others}
           <div class="account"><span>An account gh doesn't know yet</span><button class="btn ghost" data-do="acct-pick" data-choice="add">Add another account</button></div>
-        </div></div>
-        <div class="row">${cancel}</div>`;
+        </div>
+        <div class="row" style="margin-top:12px">${cancel}</div>`);
     }
     const a = p.action;
-    if (!a) return top;
+    if (!a) return "";
     if (p.phase === "ready") {
       const display = a.display ?? "";
       const key = `account:${p.attempt}:${display}`;
@@ -3037,32 +3060,31 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
         line = lineStart(display);
         pasteNote = "";
       }
-      return `${top}<div class="block"><h3>${esc(a.label || "Type this command")}</h3>
-          <label class="cmd" data-cmdline><input class="sink" data-sink aria-label="Type: ${esc(a.display)}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><span class="cmdtext" data-cmdtext></span></label>
+      return box(`<label class="cmd" data-cmdline><input class="sink" data-sink aria-label="Type: ${esc(a.display)}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><span class="cmdtext" data-cmdtext></span></label>
           <p class="cmdnote" data-cmdnote></p>
           <p class="what"><b>What this does:</b> ${esc(a.what)}</p>${words(a.words ?? [])}
-          ${a.runs ? `<p class="runs">The studio runs it as <code>${esc(a.runs)}</code>.</p>` : ""}</div>
-        <div class="row"><button class="btn ghost" data-do="acct-back">Choose another</button>${cancel}</div>`;
+          ${a.runs ? `<p class="runs">The studio runs it as <code>${esc(a.runs)}</code>.</p>` : ""}
+        <div class="row" style="margin-top:12px"><button class="btn ghost" data-do="acct-back">Choose another</button>${cancel}</div>`);
     }
     if (p.phase === "running") {
       const browser = p.waitFor === "browser";
-      return `${top}<div class="cmd doneline"><span class="p">$</span>${esc(a.display)}<span class="ok">running…</span></div>
+      return box(`<div class="cmd doneline"><span class="p">$</span>${esc(a.display)}<span class="ok">running…</span></div>
         ${browser
           ? `<div class="status wait"><i class="spin"></i><div><b>Sign in with the other account in the browser, then come back.</b>
               ${p.code ? `<div class="sub">Your one-time code (type it on the GitHub page):</div><div class="otp">${esc(p.code)}</div>` : ""}
               ${p.url ? `<div class="sub">The page didn't open? <a href="${esc(p.url)}" target="_blank" rel="noreferrer">Open it here</a></div>` : ""}
               <div class="sub">Signed in to GitHub with the wrong account in the browser? Sign out there first, then use the code.</div></div></div>`
           : `<div class="status run"><i class="spin"></i><div><b>Running ${esc(a.display)}</b><div class="summary" data-summary></div></div></div>`}
-        <div class="row"><button class="btn ghost" data-do="acct-close">Stop</button></div>${outputBlock()}`;
+        <div class="row" style="margin-top:12px"><button class="btn ghost" data-do="acct-close">Stop</button></div>${outputBlock()}`);
     }
-    return `${top}<div class="status bad"><span class="icon">!</span><div><b>${esc(p.error)}</b><div class="sub">Nothing changed: gh still uses ${esc(login || "the same account")}.</div></div></div>
-      <div class="row"><button class="btn primary" data-do="acct-pick" data-choice="${esc(p.choice)}">Try again</button><button class="btn ghost" data-do="acct-back">Choose another</button>${cancel}</div>${outputBlock()}`;
+    return box(`<div class="status bad"><span class="icon">!</span><div><b>${esc(p.error)}</b><div class="sub">Nothing changed: gh still uses ${esc(login || "the same account")}.</div></div></div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" data-do="acct-pick" data-choice="${esc(p.choice)}">Try again</button><button class="btn ghost" data-do="acct-back">Choose another</button>${cancel}</div>${outputBlock()}`);
   }
 
-  /** What a switch changed, above the step it sent the student back to. */
+  /** What a switch changed, in the step where it happened. */
   function noticeBlock() {
     const notice = present().account.notice;
-    return notice ? `<div class="banner" style="margin-bottom:14px"><b>${esc(notice)}</b></div>` : "";
+    return notice ? `<div class="banner"><b>${esc(notice)}</b></div>` : "";
   }
 
   function currentView(/** @type {StepView} */ step) {
@@ -3081,12 +3103,14 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
     else if (v.phase === "passed") {
       body = `${v.already ? "" : earlier}
         <div class="status ok"><span class="icon">✓</span><div><b>${esc(step.found)}</b>${v.already ? `<div class="sub">Already done: nothing to type.</div>` : ""}</div></div>
+        ${noticeBlock()}${accountInline()}
         ${step.ran.length ? `<div class="ranlist"><div class="h">The studio ran:</div>${step.ran.map((/** @type {string} */ r) => `<div>$ ${esc(r)}</div>`).join("")}</div>` : ""}
         <div class="row"><button class="btn primary" data-do="next">${snap.current + 1 === snap.total ? "Finish" : "Next step"} <kbd>↵</kbd></button>${step.changeable ? `<button class="btn ghost" data-do="change">Change it</button>` : ""}</div>
         ${v.already ? "" : outputBlock()}`;
     } else if (v.phase === "confirm") {
       body = `<div class="status wait"><span class="icon">?</span><div><b>${esc(v.ask)}</b><div class="sub">Your fork and your work will belong to this account.</div></div></div>
-        <div class="row"><button class="btn primary" data-do="yes">Yes <kbd>↵</kbd></button><button class="btn" data-do="switch">Switch account</button></div>`;
+        <div class="row"><button class="btn primary" data-do="yes">Yes <kbd>↵</kbd></button><button class="btn" data-do="switch">Use a different account</button></div>
+        ${snap.account.panel ? accountInline() : ""}`;
     } else if (v.phase === "failed") {
       const e = v.error ?? { what: "Something went wrong.", fix: "" };
       const items = (e.items ?? [])
@@ -3139,6 +3163,14 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
           <div class="row"><button class="btn primary" data-do="submit">${esc(a.yes)} <kbd>↵</kbd></button>${skip}</div>`;
       }
     }
+    if (v.phase !== "passed" && v.phase !== "confirm" && (v.canChangeAccount || snap.account.panel)) {
+      // The step where the account matters (Get week N's push, with the wrong account). While the
+      // accounts are open, the step's own command waits underneath.
+      const status = `<div class="status bad"><span class="icon">!</span><div><b>${esc(step.found)}</b></div></div>`;
+      // Say why first: the account doesn't own the copy (step.found), then the step's own commands.
+      const why = v.phase === "ready" ? `<div class="status wait"><span class="icon">!</span><div><b>${esc(step.found)}</b></div></div>` : "";
+      body = snap.account.panel ? `${status}${accountInline()}` : `${noticeBlock()}${why}${body}${accountInline()}`;
+    } else if (v.phase !== "passed" && v.phase !== "confirm") body = `${noticeBlock()}${body}`;
     return `${head(step, step.optional ? "Optional: you can skip this one" : "")}${body}`;
   }
 
@@ -3221,9 +3253,6 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
     const finished = snap.current >= total;
     $("[data-count]").textContent = total === 0 ? "" : finished ? "All done" : `${snap.current + 1} of ${total}`;
     $("[data-dry]").hidden = !snap.dryRun;
-    const account = snap.account;
-    $("[data-acct]").hidden = !account.login;
-    $("[data-acct]").innerHTML = account.login ? `Signed in as <b>${esc(account.login)}</b> · <button class="linkbtn" data-do="acct-open" title="Use a different GitHub account">change</button>` : "";
     // Nothing to do (week N isn't out yet): no steps, no progress, just the message.
     const empty = total === 0;
     /** @type {HTMLElement} */ (document.querySelector(".steps")).style.display = empty ? "none" : "";
@@ -3245,18 +3274,6 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
 
     const focused = document.activeElement instanceof HTMLInputElement && !document.activeElement.dataset.sink ? document.activeElement.name : "";
     const shown = viewing !== null && viewing !== snap.current ? viewing : null;
-    if (account.panel && shown === null) {
-      machine.stop();
-      $("[data-label]").textContent = "GitHub account";
-      $("[data-tag]").className = `tag ${account.panel.phase === "failed" ? "bad" : account.panel.phase === "running" ? "" : "now"}`;
-      $("[data-tag]").textContent = account.panel.phase === "failed" ? "needs a fix" : account.panel.phase === "running" ? "running" : "your turn";
-      $("[data-tag]").style.display = "";
-      $("[data-detail]").innerHTML = `<div class="inner">${accountView(account.panel)}</div>`;
-      paintLine();
-      paintOutput();
-      /** @type {HTMLElement | null} */ (document.querySelector("[data-sink]"))?.focus();
-      return;
-    }
     const showMachine = machineOpen && shown === null;
     $("[data-label]").textContent = showMachine
       ? "The computer you'll build"
@@ -3278,7 +3295,7 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       return;
     }
     machine.stop();
-    $("[data-detail]").innerHTML = `<div class="inner">${shown !== null ? otherView(snap.steps[shown]) : `${noticeBlock()}${finished ? finishView() : currentView(snap.steps[snap.current])}`}</div>`;
+    $("[data-detail]").innerHTML = `<div class="inner">${shown !== null ? otherView(snap.steps[shown]) : finished ? finishView() : currentView(snap.steps[snap.current])}</div>`;
     paintLine();
     paintOutput();
     const input = focused ? /** @type {HTMLInputElement | null} */ (document.querySelector(`input[name="${focused}"]`)) : null;
@@ -3451,7 +3468,7 @@ export function studioPage(token) {
 <header class="titlebar">
   <span class="brand">${LOGO_SVG}NetSim Studio</span>
   <span class="crumbs" data-crumb>Week 1 · <b>Setup</b></span>
-  <span class="right"><span class="acct" data-acct hidden></span><span class="pill" data-dry hidden>dry run: nothing really runs</span><span class="count" data-count></span></span>
+  <span class="right"><span class="pill" data-dry hidden>dry run: nothing really runs</span><span class="count" data-count></span></span>
 </header>
 <main class="work">
   <section class="panel steps" aria-label="Steps">
@@ -3569,14 +3586,17 @@ export function realContext({ dryRun = false, fresh = false, interactive = true 
         kill: () => child.kill(),
       };
     },
+    // NETSIM_STUDIO_NO_OPEN=1 (the test sandbox sets it): never open anything on the screen. The
+    // page still shows every link ("Open it here"), so nothing is lost.
     openUrl: (url) => {
+      if (process.env.NETSIM_STUDIO_NO_OPEN === "1") return;
       if (platform === "mac") detached("open", [url]);
       else if (platform === "windows") detached("rundll32", ["url.dll,FileProtocolHandler", url]);
       else detached("xdg-open", [url]);
     },
     openTerminal: (command) => {
       // Only the Homebrew installer uses this: it asks for the Mac password, which needs a real terminal.
-      if (platform !== "mac") return;
+      if (platform !== "mac" || process.env.NETSIM_STUDIO_NO_OPEN === "1") return;
       const script = command.display.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
       detached("osascript", ["-e", `tell application "Terminal" to do script "${script}"`, "-e", 'tell application "Terminal" to activate']);
     },
