@@ -18,9 +18,11 @@ That's hibernation, and it's how you'd checkpoint a long simulation.
 **The one rule:** a `restore` only checks and rebuilds. It validates the data (with the part's zod
 schema) and returns the state, or throws, without changing anything on the way.
 
-**Check it:** `persistence.test.ts` and `peripheral-snapshot.test.ts`; then on the
-board, stop the clock, **Save**, restart everything, **Restore**, and the programs finish with
-the same memory as a run you never interrupted.
+**Check it:** `tests/stretch/persistence.test.ts` and `peripheral-snapshot.test.ts`; then with the
+whole system running locally (`npm run dev:all`, then the dashboard at http://localhost:3005), stop
+the clock, **Save**, restart everything, **Restore**, and the programs finish with the same memory
+as a run you never interrupted. (Save and restore are dashboard-only: the in-page machine on
+`/board` and on GitHub Pages can't save.)
 
-**On your board:** a save/restore control, and a moment where the board visibly "wakes up" in
-the restored state.
+**For your portfolio:** a short screen recording of the dashboard saving mid-run and waking up in
+the restored state (the board on GitHub Pages runs the in-page machine, which can't save).
