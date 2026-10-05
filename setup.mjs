@@ -1473,12 +1473,13 @@ function printChecklist(ctx, steps, marks) {
 
 /**
  * Walk through the steps. Never moves on without a keypress, and never runs a command the
- * student didn't type (or ask to have run after three tries).
+ * student didn't type (or ask to have run after three tries). The exception: the first setupSteps
+ * steps (week 1's setup, above a week's steps) tick themselves off when they're already done.
  * @param {Step[]} steps
  * @param {Context} ctx
- * @param {{ week?: number }} [options]  week: getting week N's work (not the week-1 setup)
+ * @param {{ week?: number, setupSteps?: number, published?: boolean }} [options]  week: getting week N's work (not the week-1 setup)
  */
-export async function runSteps(steps, ctx, { week } = {}) {
+export async function runSteps(steps, ctx, { week, setupSteps = 0, published = true } = {}) {
   const { bold } = ctx.style;
   ctx.print(bold("NetSim: Building a Simulated Computer System"));
   ctx.print(week ? `Let's get week ${week}'s work into your folder, one step at a time.` : "I'll walk you through setting up your laptop, one step at a time.");
@@ -1491,6 +1492,17 @@ export async function runSteps(steps, ctx, { week } = {}) {
   if ((await ctx.ask("\nPress Enter to start (q = quit) ")).trim().toLowerCase() === "q") return { marks, quit: true };
 
   for (const [i, step] of steps.entries()) {
+    if (i === 0 && setupSteps > 0) ctx.print(`\n${bold("Week 1 · Setup")}`);
+    if (i === setupSteps && setupSteps > 0) ctx.print(`\n${bold(`Week ${week} · Get this week's work`)}`);
+    // Week 1's setup above a week's steps: done ones tick off without an Enter, an optional one is skipped.
+    if (i < setupSteps) {
+      const r = await checkStep(step, ctx);
+      if (r.done || step.optional) {
+        ctx.print(`  ${r.done ? ctx.style.green(`✓ ${step.title}`) : `${step.title}: skipped (optional)`}`);
+        marks[i] = r.done ? "done" : "skipped";
+        continue;
+      }
+    }
     ctx.print(`\n${bold(`Step ${i + 1} of ${steps.length} · ${step.title}`)}${step.optional ? " (optional)" : ""}`);
     ctx.print(`  ${bold("WHAT")}    ${step.technical}: ${step.explain}`);
     ctx.print(`  ${bold("WHY")}     ${step.why}`);
@@ -1504,6 +1516,10 @@ export async function runSteps(steps, ctx, { week } = {}) {
 
   ctx.print(`\n${bold("Your checklist")}`);
   printChecklist(ctx, steps, marks);
+  if (week && !published) {
+    ctx.print(`\nWeek ${week} isn't out yet. Check back before Monday's class.`);
+    return { marks, quit: false };
+  }
   const left = steps.filter((s, i) => marks[i] !== "done" && !s.optional);
   const guide = `docs/weeks/week-${String(week ?? 1).padStart(2, "0")}.md`;
   const next = week ? `open ${guide} and do the tasks marked TODO(week ${week}, …)` : `open ${guide} and do the take-home`;
@@ -1682,10 +1698,13 @@ const ACCOUNT_STEPS = new Set(["gh-login", "git-helper", "fork", "clone", "push"
  * current step planned, and only once the typed text matches.
  * @param {Context} ctx
  * @param {Step[]} steps
- * @param {{ mode?: "setup" | "week", week?: number, published?: boolean }} [meta]  what the page is for:
+ * @param {{ mode?: "setup" | "week", week?: number, published?: boolean, setupSteps?: number }} [meta]  what the page is for:
  *   setup (week 1), or getting week N (published: false when week N isn't out yet)
  */
 export function createStudio(ctx, steps, meta = {}) {
+  const setupSteps = meta.mode === "week" ? (meta.setupSteps ?? 0) : 0;
+  // Only the first pass ticks setup steps off by itself: going back to one later stays there.
+  let autoSetup = setupSteps > 0;
   /** @type {Set<(event: string, data: unknown) => void>} */
   const listeners = new Set();
   /** @type {Mark[]} */
@@ -1796,6 +1815,7 @@ export function createStudio(ctx, steps, meta = {}) {
       mode: meta.mode ?? "setup",
       week: meta.week ?? 1,
       published: meta.published ?? true,
+      setupSteps,
       // Only on the finish screen: it asks git.
       arrived: meta.mode === "week" && current >= steps.length && ctx.state.repoDir && meta.published !== false ? whatArrived(ctx, ctx.state.repoDir, meta.week ?? 2) : "",
       login: ctx.state.login ?? "",
@@ -1869,6 +1889,14 @@ export function createStudio(ctx, steps, meta = {}) {
     if (mine !== attempt) return;
     found[i] = r.found;
     updateCanChange();
+    // Week 1's setup, shown above a week's steps: done steps tick themselves off, an optional one
+    // not done yet is skipped, and the first one that needs the student stops here.
+    if (autoSetup && i < setupSteps && !ranHere && (r.done || step.optional)) {
+      marks[i] = r.done ? "done" : "skipped";
+      if (r.done && !ctx.dryRun) ctx.save?.();
+      return enter(i + 1);
+    }
+    autoSetup = false;
     if (r.done) return pass(r.found, !ranHere);
     if (r.ask) {
       view = { ...blank("confirm"), ask: r.ask };
@@ -2733,6 +2761,7 @@ kbd { font: 600 11px/1 "JetBrains Mono", monospace; border: 1px solid currentCol
 .prog b { font: 700 13px/1 "Inter", sans-serif; }
 .srow { display: grid; grid-template-columns: 20px 20px minmax(0, 1fr); gap: 8px; align-items: start; padding: 7px 16px; border-left: 3px solid transparent; cursor: pointer; width: 100%; background: none; border-top: 0; border-right: 0; border-bottom: 0; text-align: left; font: inherit; color: inherit; }
 .srow:hover { background: #f7f9f8; }
+.sgroup { padding: 10px 16px 4px; font: 700 11px/1.2 "JetBrains Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .srow .n { font: 600 11px/20px "JetBrains Mono", monospace; color: var(--muted); text-align: right; }
 .srow .t { font-weight: 600; font-size: 13.5px; line-height: 20px; }
 .srow small { display: block; font-size: 12px; color: var(--muted); }
@@ -3268,7 +3297,13 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
         const marked = s.mark === "skipped" ? "skip" : s.mark === "done" ? "ok" : "wait";
         const st = cls === "done" ? (s.mark === "skipped" ? "skip" : "ok") : cls === "wait" ? marked : cls === "now" ? (view?.phase === "running" ? "run" : view?.phase === "failed" ? "bad" : view?.phase === "passed" ? "ok" : "now") : "wait";
         const sub = cls === "now" && !s.optional ? `<small>${esc(s.technical)}</small>` : "";
-        return `<button class="srow ${cls} ${viewing === i ? "viewing" : ""}" data-do="view" data-n="${i}"><span class="n">${s.n}</span><span class="st ${st}"></span><span><span class="t">${esc(s.title)}${s.optional ? ' <span class="opt">optional</span>' : ""}</span>${sub}</span></button>`;
+        const group =
+          snap.setupSteps > 0 && i === 0
+            ? `<div class="sgroup">Week 1 · Setup</div>`
+            : snap.setupSteps > 0 && i === snap.setupSteps
+              ? `<div class="sgroup">Week ${esc(snap.week)} · Get this week's work</div>`
+              : "";
+        return `${group}<button class="srow ${cls} ${viewing === i ? "viewing" : ""}" data-do="view" data-n="${i}"><span class="n">${s.n}</span><span class="st ${st}"></span><span><span class="t">${esc(s.title)}${s.optional ? ' <span class="opt">optional</span>' : ""}</span>${sub}</span></button>`;
       })
       .join("");
 
@@ -3673,18 +3708,23 @@ function dryRunStream(argv, cwd, onData) {
 
 /**
  * Setup (week 1), or, once setup is done, getting the next week: which one this run is.
+ * withSetup (what `node setup.mjs` uses): week 1's setup steps stay at the top of a week's list,
+ * re-checked each time; the ones already done tick themselves off, so the student lands on the
+ * first thing left to do (meta.setupSteps says how many there are).
  * @param {Context} ctx
- * @param {{ forceSetup?: boolean }} [options]
- * @returns {{ steps: Step[], meta: { mode: "setup" | "week", week?: number, published?: boolean } }}
+ * @param {{ forceSetup?: boolean, withSetup?: boolean }} [options]
+ * @returns {{ steps: Step[], meta: { mode: "setup" | "week", week?: number, published?: boolean, setupSteps?: number } }}
  */
-export function chooseFlow(ctx, { forceSetup = false } = {}) {
+export function chooseFlow(ctx, { forceSetup = false, withSetup = false } = {}) {
   const dir = forceSetup || ctx.fresh ? null : findClone(ctx);
   if (!dir || !setupComplete(ctx, dir)) return { steps: courseSteps(), meta: { mode: "setup" } };
   ctx.state.repoDir = dir;
   const { week, published } = findWeek(ctx, dir);
-  if (!published) return { steps: [], meta: { mode: "week", week, published: false } };
+  const setup = withSetup ? courseSteps() : [];
+  const setupMeta = withSetup ? { setupSteps: setup.length } : {};
+  if (!published) return { steps: setup, meta: { mode: "week", week, published: false, ...setupMeta } };
   const onWork = output(ctx, ["git", "branch", "--show-current"], dir) === "work";
-  return { steps: weekSteps(week, { onWork }), meta: { mode: "week", week, published: true } };
+  return { steps: [...setup, ...weekSteps(week, { onWork })], meta: { mode: "week", week, published: true, ...setupMeta } };
 }
 
 /**
@@ -3693,7 +3733,7 @@ export function chooseFlow(ctx, { forceSetup = false } = {}) {
  * @param {{ open?: boolean, port?: number, forceSetup?: boolean }} options
  */
 async function runStudio(ctx, { open = true, port = 0, forceSetup = false }) {
-  const { steps, meta } = chooseFlow(ctx, { forceSetup });
+  const { steps, meta } = chooseFlow(ctx, { forceSetup, withSetup: true });
   const studio = createStudio(ctx, steps, meta);
   /** @type {Awaited<ReturnType<typeof serveStudio>> | null} */
   let server = null;
@@ -3724,13 +3764,9 @@ async function main() {
   if (ctx.dryRun) ctx.print("(dry run: commands are shown and typed, but not run)");
   const forceSetup = args.includes("--setup");
   if (!terminal) return runStudio(ctx, { open: !args.includes("--no-open"), port: portArg === -1 ? 0 : Number(args[portArg + 1]), forceSetup });
-  const { steps, meta } = chooseFlow(ctx, { forceSetup });
-  if (meta.mode === "week" && !meta.published) {
-    ctx.print(`Week ${meta.week} isn't out yet. Check back before Monday's class.`);
-    ctx.close();
-    return;
-  }
-  const { quit } = await runSteps(steps, ctx, { week: meta.mode === "week" ? meta.week : undefined });
+  const { steps, meta } = chooseFlow(ctx, { forceSetup, withSetup: true });
+  const week = meta.mode === "week" ? meta.week : undefined;
+  const { quit } = await runSteps(steps, ctx, { week, setupSteps: meta.setupSteps ?? 0, published: meta.published !== false });
   ctx.close();
   process.exitCode = quit ? 1 : 0;
 }
