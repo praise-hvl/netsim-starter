@@ -10,7 +10,9 @@ here is already a strong portfolio piece.
 - **Caches:** a small cache between the cores and memory. Design: hit and miss on the board, what
   happens when two cores cache the same address and one writes (coherence).
 - **A tiny RTOS kernel:** semaphores, a task that blocks on one, and **priority inversion** (a low
-  task holds a lock a high task needs while a middle task runs). The timer-handler race from week 6
-  is your first example of why you need a lock.
+  task holds a lock a high task needs while a middle task runs). Start from a race you can see on
+  your own board: three cores running the same counter handler at once end with the counter at 1,
+  not 3 (each loads the same old value, adds 1, stores it back: a **lost update**). Design the fix:
+  disabling interrupts around the read-modify-write, or a lock the handlers take first.
 - **DMA:** a device that copies a block of memory without the CPU, then interrupts when it's done.
   Design: how it shares the bus with the cores (arbitration again), and what the board shows.

@@ -10,7 +10,7 @@
   same address in one tick; who goes first, and why must it be the same every time?
 - **Validating by hand** (`isMemRead` in `protocol/messages.ts`, region `is-mem-read`): write the
   type guard for one message with `typeof` checks, then compare it with the one-line zod schema.
-  Check: `messages.test.ts`.
+  Check: `tests/stretch/is-mem-read.test.ts`.
 - **Joining the class bus** (`hello()` in `scripts/hello.ts`, region `hello-script`): connect, list
   who's there, print joins, leaves and every 10th tick.
   `BUS_URL=ws://<address>:3006 HELLO_ID=<you> npm run hello`. Check: `hello.test.ts`.
