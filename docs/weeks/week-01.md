@@ -347,7 +347,7 @@ Due before next session.
 3. **First Codex session, with the rules on.** Open the Codex panel and ask:
    *"What is this project, and what am I supposed to do in week 1?"* It answers from the course
    files, including `AGENTS.md` (see "Using Codex in this course" below). Then ask it to
-   "write the handshake in components/client.ts" (that's next week's work; don't keep what it
+   "write the handshake in components/client.ts" (that's week 3's work; don't keep what it
    writes). Notice that it asks you how you want to approach it, or offers you two options,
    before it writes anything. That's the course's rule: **you decide the design, Codex can do
    the typing.**
@@ -388,7 +388,7 @@ Due before next session.
 | `npm run doctor` | checks your setup: 8 checks, one line each, `→` hints for failures | ✅ |
 | `npx vitest run tests/week-01` | this week's test (your notes) | ✅ once your notes are written |
 | `npm run bus` | starts the bus on port 3006 (Ctrl+C to stop) | ✅ it runs; nothing connects yet |
-| `npm run hello`, `npm run component -- …`, `npm run dev:all` | the parts you build later | ❌ from week 2 onwards |
+| `npm run component -- …`, `npm run dev:all` | the parts you build later | ❌ from week 3 onwards (`npm run hello` is a stretch module) |
 
 Tests that gate this week (`tests/week-01/`):
 
@@ -462,8 +462,8 @@ understand it *for* you. A good rule: if you can't explain a line, you don't hav
 
 ## Stretch
 
-- Run `npm run bus` in one terminal and `npx vitest tests/week-02` in another. Read the failing
-  test names: that's next week's work.
+- Open `docs/notes/design-note-template.md`: next week you design the bus and memory on paper with
+  it, and in week 3 you build what you designed.
 - Read ARCHITECTURE.md's "A clock tick, step by step" diagram and follow one `mem.read` from
   the CPU to Memory and back.
 - Ask Codex to quiz you with five questions about the big picture. Answer them without looking.
