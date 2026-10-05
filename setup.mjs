@@ -26,6 +26,27 @@ import { pathToFileURL } from "node:url";
 
 export const STARTER = "praiseisaac/netsim-starter";
 export const STARTER_URL = `https://github.com/${STARTER}.git`;
+/**
+ * This studio's version. On start it looks at the newest published week: a newer studio there
+ * runs instead (see newerStudio), so every student uses the same one, whatever week their folder has.
+ */
+export const STUDIO_VERSION = 2;
+/**
+ * The course's weeks, in order. weeks.json in the course is the list the studio shows (read from
+ * GitHub on start, so a new title shows up without a new studio); this copy is the fallback offline.
+ * A week counts as out when its week-N-start branch is published.
+ * @type {{ week: number, title: string }[]}
+ */
+export const COURSE_WEEKS = [
+  { week: 1, title: "Setup & system roles" },
+  { week: 2, title: "Design: the machine and its bus" },
+  { week: 3, title: "Build: bus + memory on screen" },
+  { week: 4, title: "Design: the CPU" },
+  { week: 5, title: "Build: a CPU that runs programs" },
+  { week: 6, title: "Design: scheduling + interrupts" },
+  { week: 7, title: "Build: cores, scheduler, interrupts" },
+  { week: 8, title: "Demo: ship it" },
+];
 const WEEK_BRANCH = "week-1-start";
 /** What `remote.upstream.fetch` is when upstream brings every branch (every week). The doctor checks the same. */
 const ALL_UPSTREAM_BRANCHES = "+refs/heads/*:refs/remotes/upstream/*";
@@ -1477,9 +1498,9 @@ function printChecklist(ctx, steps, marks) {
  * steps (week 1's setup, above a week's steps) tick themselves off when they're already done.
  * @param {Step[]} steps
  * @param {Context} ctx
- * @param {{ week?: number, setupSteps?: number, autoSteps?: number, published?: boolean, nextWeek?: number }} [options]  week: getting week N's work (not the week-1 setup)
+ * @param {{ week?: number, setupSteps?: number, autoSteps?: number, published?: boolean, nextWeek?: number, groups?: WeekGroup[] }} [options]  week: getting week N's work (not the week-1 setup)
  */
-export async function runSteps(steps, ctx, { week, setupSteps = 0, autoSteps = setupSteps, published = true, nextWeek = 0 } = {}) {
+export async function runSteps(steps, ctx, { week, setupSteps = 0, autoSteps = setupSteps, published = true, nextWeek = 0, groups = [] } = {}) {
   const { bold } = ctx.style;
   ctx.print(bold("NetSim: Building a Simulated Computer System"));
   ctx.print(week ? `Let's get week ${week}'s work into your folder, one step at a time.` : "I'll walk you through setting up your laptop, one step at a time.");
@@ -1492,8 +1513,12 @@ export async function runSteps(steps, ctx, { week, setupSteps = 0, autoSteps = s
   if ((await ctx.ask("\nPress Enter to start (q = quit) ")).trim().toLowerCase() === "q") return { marks, quit: true };
 
   for (const [i, step] of steps.entries()) {
-    if (i === 0 && setupSteps > 0) ctx.print(`\n${bold("Week 1 · Setup")}`);
-    if (i === setupSteps && setupSteps > 0) ctx.print(`\n${bold(`Week ${week} · ${nextWeek ? "In your work" : "Get this week's work"}`)}`);
+    if (groups.length) {
+      for (const g of groups) if (g.count > 0 && g.start === i) ctx.print(`\n${bold(`Week ${g.week} · ${g.title}`)}${g.status === "done" ? " (done)" : ""}`);
+    } else {
+      if (i === 0 && setupSteps > 0) ctx.print(`\n${bold("Week 1 · Setup")}`);
+      if (i === setupSteps && setupSteps > 0) ctx.print(`\n${bold(`Week ${week} · ${nextWeek ? "In your work" : "Get this week's work"}`)}`);
+    }
     // Week 1's setup above a week's steps: done ones tick off without an Enter, an optional one is skipped.
     if (i < autoSteps) {
       const r = await checkStep(step, ctx);
@@ -1516,6 +1541,8 @@ export async function runSteps(steps, ctx, { week, setupSteps = 0, autoSteps = s
 
   ctx.print(`\n${bold("Your checklist")}`);
   printChecklist(ctx, steps, marks);
+  const notOut = groups.filter((g) => g.status === "future");
+  if (notOut.length) ctx.print(`\nNot out yet: ${notOut.map((g) => `week ${g.week} (${g.title})`).join(", ")}.`);
   if (nextWeek) ctx.print(`\nWeek ${nextWeek} isn't out yet. Check back before Monday's class.`);
   if (week && !published) {
     ctx.print(`\nWeek ${week} isn't out yet. Check back before Monday's class.`);
@@ -1699,7 +1726,7 @@ const ACCOUNT_STEPS = new Set(["gh-login", "git-helper", "fork", "clone", "push"
  * current step planned, and only once the typed text matches.
  * @param {Context} ctx
  * @param {Step[]} steps
- * @param {{ mode?: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number }} [meta]  what the page is for:
+ * @param {{ mode?: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number, groups?: WeekGroup[] }} [meta]  what the page is for:
  *   setup (week 1), or getting week N (published: false when week N isn't out yet)
  */
 export function createStudio(ctx, steps, meta = {}) {
@@ -1820,6 +1847,7 @@ export function createStudio(ctx, steps, meta = {}) {
       published: meta.published ?? true,
       setupSteps,
       inWork: Boolean(meta.inWork),
+      groups: meta.groups ?? [],
       next: meta.next ?? 0,
       // Only on the finish screen: it asks git.
       arrived: meta.mode === "week" && current >= steps.length && ctx.state.repoDir && meta.published !== false ? whatArrived(ctx, ctx.state.repoDir, meta.week ?? 2) : "",
@@ -2766,7 +2794,10 @@ kbd { font: 600 11px/1 "JetBrains Mono", monospace; border: 1px solid currentCol
 .prog b { font: 700 13px/1 "Inter", sans-serif; }
 .srow { display: grid; grid-template-columns: 20px 20px minmax(0, 1fr); gap: 8px; align-items: start; padding: 7px 16px; border-left: 3px solid transparent; cursor: pointer; width: 100%; background: none; border-top: 0; border-right: 0; border-bottom: 0; text-align: left; font: inherit; color: inherit; }
 .srow:hover { background: #f7f9f8; }
-.sgroup { padding: 10px 16px 4px; font: 700 11px/1.2 "JetBrains Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.sgroup { display: flex; justify-content: space-between; gap: 8px; padding: 12px 16px 4px; font: 700 11px/1.3 "JetBrains Mono", monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.sgroup em { font-style: normal; font-weight: 600; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.sgroup.get em, .sgroup.inwork em { color: var(--ink); }
+.sgroup.future, .sgroup.later { opacity: .55; padding-bottom: 8px; }
 .srow .n { font: 600 11px/20px "JetBrains Mono", monospace; color: var(--muted); text-align: right; }
 .srow .t { font-weight: 600; font-size: 13.5px; line-height: 20px; }
 .srow small { display: block; font-size: 12px; color: var(--muted); }
@@ -2909,6 +2940,7 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
   let out = { id: -1, text: "" };
   let showOutput = false;
   let outputFor = -1; // the step Show full output was opened on
+  let listedFor = -1; // the step the list last scrolled to
   let pasteNote = "";
   /** @type {Record<string, string>} */
   const formValues = {};
@@ -3280,6 +3312,12 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       <div class="row"><button class="btn ghost" data-do="m-close">Back to the summary</button></div>`;
   }
 
+  /** One week's heading in the list: its number, title, and where it stands. @param {{ week: number, title: string, status: string }} g */
+  function weekHeading(g) {
+    const note = { setup: "", done: "done", inwork: "in your work", get: "get it now", later: "after this one", future: "not out yet" }[g.status] ?? "";
+    return `<div class="sgroup ${g.status}"><span>Week ${esc(g.week)} · ${esc(g.title)}</span>${note ? `<em>${esc(note)}</em>` : ""}</div>`;
+  }
+
   function render() {
     if (!snap) return;
     if (snap.current !== outputFor) {
@@ -3289,7 +3327,8 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
     const weekMode = snap.mode === "week";
     $("[data-crumb]").innerHTML = weekMode ? `Week ${esc(snap.week)} · <b>${snap.inWork ? "In your work" : "Get this week's work"}</b>` : "Week 1 · <b>Setup</b>";
     document.title = weekMode ? `NetSim Studio · Get week ${snap.week}` : "NetSim Studio · Setup";
-    $("[data-panel]").textContent = weekMode ? (snap.inWork ? `Week ${snap.week}` : `Get week ${snap.week}`) : "Setup";
+    // The list is the whole course when there are week groups; the header says so.
+    $("[data-panel]").textContent = snap.groups.length ? "Your course" : weekMode ? (snap.inWork ? `Week ${snap.week}` : `Get week ${snap.week}`) : "Setup";
     const total = snap.total;
     const doneCount = snap.steps.filter((s) => s.mark !== "pending").length;
     const finished = snap.current >= total;
@@ -3310,15 +3349,20 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
         const marked = s.mark === "skipped" ? "skip" : s.mark === "done" ? "ok" : "wait";
         const st = cls === "done" ? (s.mark === "skipped" ? "skip" : "ok") : cls === "wait" ? marked : cls === "now" ? (view?.phase === "running" ? "run" : view?.phase === "failed" ? "bad" : view?.phase === "passed" ? "ok" : "now") : "wait";
         const sub = cls === "now" && !s.optional ? `<small>${esc(s.technical)}</small>` : "";
-        const group =
-          snap.setupSteps > 0 && i === 0
-            ? `<div class="sgroup">Week 1 · Setup</div>`
-            : snap.setupSteps > 0 && i === snap.setupSteps
-              ? `<div class="sgroup">Week ${esc(snap.week)} · ${snap.inWork ? "In your work" : "Get this week's work"}</div>`
-              : "";
+        const group = snap.groups
+          .filter((g) => g.count > 0 && g.start === i)
+          .map((g) => weekHeading(g))
+          .join("");
         return `${group}<button class="srow ${cls} ${viewing === i ? "viewing" : ""}" data-do="view" data-n="${i}"><span class="n">${s.n}</span><span class="st ${st}"></span><span><span class="t">${esc(s.title)}${s.optional ? ' <span class="opt">optional</span>' : ""}</span>${sub}</span></button>`;
       })
-      .join("");
+      .join("") + snap.groups.filter((g) => g.count === 0).map((g) => weekHeading(g)).join("");
+    // With every week in the list the current step can be far down: keep it in view when it changes.
+    if (listedFor !== current) {
+      listedFor = current;
+      const list = document.querySelector(".steps .body");
+      const row = list?.querySelector(".srow.now");
+      if (list && row) list.scrollTop += row.getBoundingClientRect().top - list.getBoundingClientRect().top - 48;
+    }
 
     const focused = document.activeElement instanceof HTMLInputElement && !document.activeElement.dataset.sink ? document.activeElement.name : "";
     const shown = viewing !== null && viewing !== snap.current ? viewing : null;
@@ -3677,8 +3721,10 @@ export function realContext({ dryRun = false, fresh = false, interactive = true 
       if (dryRun) return;
       try {
         mkdirSync(dirname(STATE_FILE), { recursive: true });
-        const { login, parent, repoDir, chatgpt, codexVersion } = state;
-        writeFileSync(STATE_FILE, JSON.stringify({ login, parent, repoDir, chatgpt, codexVersion }, null, 2));
+        // doctorOk and opened too: the doctor passing and the week's guide being opened can't be
+        // checked again without running something, so the next run (and the next week) needs them.
+        const { login, parent, repoDir, chatgpt, codexVersion, doctorOk, opened } = state;
+        writeFileSync(STATE_FILE, JSON.stringify({ login, parent, repoDir, chatgpt, codexVersion, doctorOk, opened }, null, 2));
       } catch {
         // Remembering is a convenience; the checks find everything again anyway.
       }
@@ -3721,30 +3767,91 @@ function dryRunStream(argv, cwd, onData) {
 }
 
 /**
- * Setup (week 1), or, once setup is done, getting the next week: which one this run is.
- * withSetup (what `node setup.mjs` uses): week 1's setup steps stay at the top of a week's list,
- * re-checked each time; the ones already done tick themselves off, so the student lands on the
- * first thing left to do (meta.setupSteps says how many there are).
- * @param {Context} ctx
- * @param {{ forceSetup?: boolean, withSetup?: boolean }} [options]
- * When the newest week is already in work and the next isn't out, the list shows that week too:
- * its fetch and merge are done (it's in), the rest are checked as usual (meta.inWork, meta.next).
- * @returns {{ steps: Step[], meta: { mode: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number } }}
+ * @typedef {{ week: number, title: string, status: "setup" | "done" | "inwork" | "get" | "later" | "future", start: number, count: number }} WeekGroup
+ *   One week in the studio's list. start/count: its steps in the flow (count 0: a heading only).
+ *   setup: week 1, re-checked. done: in work, a later week too. inwork: the newest week in work.
+ *   get: the week to get now. later: published, after the one to get. future: not out yet.
  */
-export function chooseFlow(ctx, { forceSetup = false, withSetup = false } = {}) {
+
+/**
+ * Setup (week 1), or, once setup is done, getting the next week: which one this run is.
+ * withSetup (what `node setup.mjs` uses): one list of every week of the course (weekList),
+ * meta.groups. Week 1's setup is re-checked; weeks already in work are done (their steps can be
+ * looked at again); the newest week in work keeps its push, install, doctor and guide checks; the
+ * week to get comes next; weeks not out yet are greyed out. Steps already done tick themselves off
+ * (meta.autoSteps), so the student lands on the first thing left to do.
+ * @param {Context} ctx
+ * @param {{ forceSetup?: boolean, withSetup?: boolean, weekList?: { week: number, title: string }[] }} [options]
+ * @returns {{ steps: Step[], meta: { mode: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number, groups?: WeekGroup[] } }}
+ */
+export function chooseFlow(ctx, { forceSetup = false, withSetup = false, weekList = COURSE_WEEKS } = {}) {
   const dir = forceSetup || ctx.fresh ? null : findClone(ctx);
-  if (!dir || !setupComplete(ctx, dir)) return { steps: courseSteps(), meta: { mode: "setup" } };
-  ctx.state.repoDir = dir;
-  const { week, published } = findWeek(ctx, dir);
-  const setup = withSetup ? courseSteps() : [];
-  const setupMeta = withSetup ? { setupSteps: setup.length } : {};
-  if (!published && withSetup && week > 2) {
-    const steps = [...setup, ...inWorkSteps(week - 1)];
-    return { steps, meta: { mode: "week", week: week - 1, published: true, setupSteps: setup.length, autoSteps: steps.length, inWork: true, next: week } };
+  const titled = (/** @type {number} */ n) => weekList.find((w) => w.week === n)?.title ?? `Week ${n}`;
+  const later = (/** @type {number} */ from) => weekList.filter((w) => w.week >= from);
+  if (!dir || !setupComplete(ctx, dir)) {
+    if (!withSetup) return { steps: courseSteps(), meta: { mode: "setup" } };
+    const steps = courseSteps();
+    /** @type {WeekGroup[]} */
+    const groups = [{ week: 1, title: titled(1), status: "setup", start: 0, count: steps.length }, ...later(2).map((w) => ({ ...w, status: /** @type {const} */ ("future"), start: steps.length, count: 0 }))];
+    return { steps, meta: { mode: "setup", groups } };
   }
-  if (!published) return { steps: setup, meta: { mode: "week", week, published: false, ...setupMeta } };
-  const onWork = output(ctx, ["git", "branch", "--show-current"], dir) === "work";
-  return { steps: [...setup, ...weekSteps(week, { onWork })], meta: { mode: "week", week, published: true, ...setupMeta } };
+  ctx.state.repoDir = dir;
+  if (!withSetup) {
+    const { week, published } = findWeek(ctx, dir);
+    if (!published) return { steps: [], meta: { mode: "week", week, published: false } };
+    const onWork = output(ctx, ["git", "branch", "--show-current"], dir) === "work";
+    return { steps: weekSteps(week, { onWork }), meta: { mode: "week", week, published: true } };
+  }
+  const { published, merged } = weekStates(ctx, dir);
+  const toGet = published.find((n) => !merged.includes(n)) ?? null;
+  const newest = Math.max(1, ...merged);
+  /** @type {Step[]} */
+  const steps = [];
+  /** @type {WeekGroup[]} */
+  const groups = [];
+  /** @param {number} week @param {WeekGroup["status"]} status @param {Step[]} list */
+  const add = (week, status, list) => {
+    groups.push({ week, title: titled(week), status, start: steps.length, count: list.length });
+    steps.push(...list);
+  };
+  add(1, "setup", courseSteps());
+  for (const n of merged.filter((m) => m > 1)) add(n, n === newest && toGet === null ? "inwork" : "done", n === newest && toGet === null ? inWorkSteps(n) : doneWeekSteps(n));
+  const autoSteps = steps.length;
+  if (toGet !== null) add(toGet, "get", weekSteps(toGet, { onWork: output(ctx, ["git", "branch", "--show-current"], dir) === "work" }));
+  for (const w of later(2)) {
+    if (groups.some((g) => g.week === w.week)) continue;
+    groups.push({ ...w, status: published.includes(w.week) ? "later" : "future", start: steps.length, count: 0 });
+  }
+  const setupSteps = groups[0].count;
+  if (toGet !== null) return { steps, meta: { mode: "week", week: toGet, published: true, setupSteps, autoSteps, groups } };
+  if (newest > 1) return { steps, meta: { mode: "week", week: newest, published: true, setupSteps, autoSteps, inWork: true, next: newest + 1, groups } };
+  return { steps, meta: { mode: "week", week: 2, published: false, setupSteps, autoSteps, groups } };
+}
+
+/**
+ * Which weeks are published on upstream (GitHub, else what was fetched before) and which of those
+ * are in work already, in week order.
+ * @param {Context} ctx
+ * @param {string} dir
+ */
+export function weekStates(ctx, dir) {
+  /** @type {Map<number, string>} */
+  const tips = new Map();
+  const local = output(ctx, ["git", "for-each-ref", "--format=%(objectname) %(refname:short)", "refs/remotes/upstream/"], dir) ?? "";
+  for (const m of local.matchAll(/^([0-9a-f]{40}) upstream\/week-(\d+)-start$/gm)) tips.set(Number(m[2]), m[1]);
+  for (const [n, sha] of remoteWeeks(ctx, dir)) tips.set(n, sha);
+  const published = [...tips.keys()].sort((a, b) => a - b);
+  const merged = published.filter((n) => ctx.capture(["git", "merge-base", "--is-ancestor", /** @type {string} */ (tips.get(n)), "work"], dir)?.code === 0);
+  return { published, merged };
+}
+
+/**
+ * Week N's steps once a later week is in work too: all done (they can still be looked at).
+ * @param {number} week
+ * @returns {Step[]}
+ */
+export function doneWeekSteps(week) {
+  return weekSteps(week).map((step) => ({ ...step, check: async () => ({ done: true, found: `Done: week ${week} is in your work.` }) }));
 }
 
 /**
@@ -3766,10 +3873,10 @@ export function inWorkSteps(week) {
 /**
  * The studio: start the server, open the browser, stop when the tab closes or on Ctrl+C.
  * @param {Context & { close: () => void }} ctx
- * @param {{ open?: boolean, port?: number, forceSetup?: boolean }} options
+ * @param {{ open?: boolean, port?: number, forceSetup?: boolean, weekList?: { week: number, title: string }[] }} options
  */
-async function runStudio(ctx, { open = true, port = 0, forceSetup = false }) {
-  const { steps, meta } = chooseFlow(ctx, { forceSetup, withSetup: true });
+async function runStudio(ctx, { open = true, port = 0, forceSetup = false, weekList = COURSE_WEEKS }) {
+  const { steps, meta } = chooseFlow(ctx, { forceSetup, withSetup: true, weekList });
   const studio = createStudio(ctx, steps, meta);
   /** @type {Awaited<ReturnType<typeof serveStudio>> | null} */
   let server = null;
@@ -3790,6 +3897,68 @@ async function runStudio(ctx, { open = true, port = 0, forceSetup = false }) {
   if (open) ctx.openUrl?.(server.url);
 }
 
+/**
+ * The newest week published on the course's repository (GitHub), or null offline / without git.
+ * @param {Context} ctx
+ */
+export function newestPublishedWeek(ctx) {
+  const heads = output(ctx, ["git", "ls-remote", "--heads", STARTER_URL, "week-*-start"]) ?? "";
+  const weeks = [...heads.matchAll(/refs\/heads\/week-(\d+)-start$/gm)].map((m) => Number(m[1]));
+  return weeks.length ? Math.max(...weeks) : null;
+}
+
+/**
+ * A text file from the newest published week, straight from GitHub; null when it can't be had
+ * quickly (offline, slow network): the studio then carries on with what it has.
+ * @param {number} week
+ * @param {string} file
+ */
+async function fromCourse(week, file) {
+  try {
+    const res = await fetch(`https://raw.githubusercontent.com/${STARTER}/week-${week}-start/${file}`, { signal: AbortSignal.timeout(4000) });
+    return res.ok ? await res.text() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The list of weeks: weeks.json from the newest published week on GitHub, else the course folder's
+ * copy, else the one built in here.
+ * @param {Context} ctx
+ * @param {number | null} newest
+ * @returns {Promise<{ week: number, title: string }[]>}
+ */
+export async function loadWeekList(ctx, newest) {
+  const local = ctx.readText(join(ctx.cwd, "weeks.json"));
+  for (const text of [newest ? await fromCourse(newest, "weeks.json") : null, local]) {
+    try {
+      const weeks = text ? JSON.parse(text).weeks : null;
+      if (Array.isArray(weeks) && weeks.every((w) => Number.isInteger(w?.week) && typeof w?.title === "string")) return weeks;
+    } catch {
+      // not a usable list: try the next one
+    }
+  }
+  return COURSE_WEEKS;
+}
+
+/**
+ * A newer studio than this one, from the newest published week: saved next to the studio's state,
+ * and its path returned (null when this one is the newest, or GitHub can't be reached).
+ * @param {number | null} newest
+ * @param {string} [dir]  where to save it (the studio's state folder)
+ */
+export async function newerStudio(newest, dir = dirname(STATE_FILE)) {
+  if (!newest) return null;
+  const text = await fromCourse(newest, "setup.mjs");
+  const version = Number(/^export const STUDIO_VERSION = (\d+);$/m.exec(text ?? "")?.[1] ?? 0);
+  if (!text || version <= STUDIO_VERSION) return null;
+  const path = join(dir, `studio-v${version}.mjs`);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path, text);
+  return path;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
@@ -3799,10 +3968,22 @@ async function main() {
   if (ctx.platform === "windows") ctx.print("(Windows support is untested on a real Windows machine so far. Tell Praise how it goes.)");
   if (ctx.dryRun) ctx.print("(dry run: commands are shown and typed, but not run)");
   const forceSetup = args.includes("--setup");
-  if (!terminal) return runStudio(ctx, { open: !args.includes("--no-open"), port: portArg === -1 ? 0 : Number(args[portArg + 1]), forceSetup });
-  const { steps, meta } = chooseFlow(ctx, { forceSetup, withSetup: true });
+  // One studio for everyone: a newer one on the newest published week runs instead of this copy.
+  // Not in a dry run, a sandbox or a test run (they use the studio they were given), and only once.
+  const newest = ctx.dryRun || process.env.NETSIM_SANDBOX ? null : newestPublishedWeek(ctx);
+  if (newest && !process.env.NETSIM_STUDIO_UPDATED && !process.env.NETSIM_NO_UPDATE) {
+    const newer = await newerStudio(newest);
+    if (newer) {
+      ctx.print(`(a newer NetSim Studio is out with week ${newest}: using it)`);
+      const child = spawnSync(process.execPath, [newer, ...args], { stdio: "inherit", env: { ...process.env, NETSIM_STUDIO_UPDATED: "1" } });
+      process.exit(child.status ?? 1);
+    }
+  }
+  const weekList = await loadWeekList(ctx, newest);
+  if (!terminal) return runStudio(ctx, { open: !args.includes("--no-open"), port: portArg === -1 ? 0 : Number(args[portArg + 1]), forceSetup, weekList });
+  const { steps, meta } = chooseFlow(ctx, { forceSetup, withSetup: true, weekList });
   const week = meta.mode === "week" ? meta.week : undefined;
-  const { quit } = await runSteps(steps, ctx, { week, setupSteps: meta.setupSteps ?? 0, autoSteps: meta.autoSteps, published: meta.published !== false, nextWeek: meta.next ?? 0 });
+  const { quit } = await runSteps(steps, ctx, { week, setupSteps: meta.setupSteps ?? 0, autoSteps: meta.autoSteps, published: meta.published !== false, nextWeek: meta.next ?? 0, groups: meta.groups ?? [] });
   ctx.close();
   process.exitCode = quit ? 1 : 0;
 }
