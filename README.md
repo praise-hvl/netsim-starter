@@ -22,20 +22,22 @@ build it, writing the core mechanisms yourself and working with your AI agent on
 end you have a portfolio piece: **a multi-core computer you designed and built, with a bus,
 memory, a CPU, a scheduler and interrupts, running live in the browser.**
 
-| Week | Session | Topic | You make |
-|---|---|---|---|
-| 1 | Setup | [Setup & System Roles](docs/weeks/week-01.md) | Your accounts, tools and copy of the code |
-| 2 | Design | [The machine and its bus](docs/weeks/week-02.md) | A design note: parts, messages, one read tick by tick, a sketch of the board |
-| 3 | Build | [Bus + memory on screen](docs/weeks/week-03.md) | Memory cells that light up as requests cross the bus |
-| 4 | Design | [The CPU](docs/weeks/week-04.md) | A design note: the core's state machine, instructions, how a step animates |
-| 5 | Build | [A CPU that runs programs](docs/weeks/week-05.md) | Countdown and blink, animated on the board |
-| 6 | Design | [The OS heart: scheduling + interrupts](docs/weeks/week-06.md) | A design note: processes, round robin, interrupt entry and exit |
-| 7 | Build | [Configurable cores, scheduler, interrupts](docs/weeks/week-07.md) | 1–8 cores taking turns, with interrupts flying in, live |
-| 8 | Demo | [Ship it](docs/weeks/week-08.md) | Your board on GitHub Pages, demoed live in class, and your portfolio README |
+| Week | Session | Topic | Page | You make |
+|---|---|---|---|---|
+| 1 | Setup | [Setup & System Roles](docs/weeks/week-01.md) | [open](https://htmlpreview.github.io/?https://github.com/praiseisaac/netsim-starter/blob/week-1-start/docs/weeks/week-01.html) | Your accounts, tools and copy of the code |
+| 2 | Design | [The machine and its bus](docs/weeks/week-02.md) | [open](https://htmlpreview.github.io/?https://github.com/praiseisaac/netsim-starter/blob/week-2-start/docs/weeks/week-02.html) | A design note: parts, messages, one read tick by tick, a sketch of the board |
+| 3 | Build | [Bus + memory on screen](docs/weeks/week-03.md) | | Memory cells that light up as requests cross the bus |
+| 4 | Design | [The CPU](docs/weeks/week-04.md) | | A design note: the core's state machine, instructions, how a step animates |
+| 5 | Build | [A CPU that runs programs](docs/weeks/week-05.md) | | Countdown and blink, animated on the board |
+| 6 | Design | [The OS heart: scheduling + interrupts](docs/weeks/week-06.md) | | A design note: processes, round robin, interrupt entry and exit |
+| 7 | Build | [Configurable cores, scheduler, interrupts](docs/weeks/week-07.md) | | 1–8 cores taking turns, with interrupts flying in, live |
+| 8 | Demo | [Ship it](docs/weeks/week-08.md) | | Your board on GitHub Pages, demoed live in class, and your portfolio README |
 
-Each guide has the goals, what to read
-before class, the in-class steps, the take-home with its acceptance criteria, the exact commands
-that work that week, and the explain-it-back questions you'll answer before the next session.
+Each guide has the goals, the in-class steps (the first is always getting the week), the
+take-home with its acceptance criteria, the exact commands that work that week, and the
+explain-it-back questions you'll answer before the next session. There's nothing to do before
+class. Weeks with a **Page** also come as a web page with the diagrams: open it from the table, or
+double-click `docs/weeks/week-NN.html` in your folder (it works offline).
 
 Optional extras for your portfolio (no extra credit) are in [docs/stretch/](docs/stretch/README.md).
 
@@ -55,9 +57,8 @@ options) before it writes, follow your design, explain what it wrote, and never 
 What's graded is whether you understand the hardware idea and your own code: each week's work is
 checked in a short **explain-it-back** with me before the next session, **without notes or AI**:
 a booked 5-minute slot, or a 3-minute video (your face and your screen) answering two questions
-I post after class. You walk through what you built and why. I may also ask one or two people
-live at the start of class. A good rule: if you can't explain a line,
-you don't have it yet.
+I post after class. You walk through what you built and why. A good rule: if you can't explain a
+line, you don't have it yet.
 
 ## Getting started (week 1)
 
@@ -84,15 +85,29 @@ work for you, the week-1 guide has the same steps by hand.
 All your work for the whole course goes on `work`. Every week you merge the new week into it;
 you never switch branches.
 
-**Every week after that**, before class, on your `work` branch:
+## Getting each week
+
+Every week after that starts in class with **getting the week** (5 minutes). In your course
+folder:
+
+```bash
+node setup.mjs
+```
+
+NetSim Studio opens in your browser. Its sidebar lists every week of the course (the ones not out
+yet are greyed) and walks you through getting the new one: save your work, fetch the week, merge
+it into `work`, push, install, check. Or in a terminal, on your `work` branch:
 
 ```bash
 git fetch upstream
 git merge upstream/week-N-start      # N = this week's number
+git push
 npm install
 ```
 
-That merge only adds the new week's tests and guide, so it won't conflict with your code.
+That merge only adds the new week's tests and guide, so it won't conflict with your code. Then
+open the week's page: double-click `docs/weeks/week-NN.html` in your folder (or use the **Page**
+link in the table above), with the guide `docs/weeks/week-NN.md` next to it.
 
 ## How the code is laid out
 
