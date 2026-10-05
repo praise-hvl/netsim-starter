@@ -8,6 +8,20 @@ message as it happens.
 It is also an 8-week course. Each week you build one piece of it, and each piece runs on the
 pieces you built before. By week 8 the computer on the screen is one you wrote.
 
+## Start here: the app
+
+The course is an app, **NetSim Studio**, and it's where every class starts. In your course folder:
+
+```bash
+node setup-week 3        # this class's week number
+```
+
+It gets the week ready with you (your setup in week 1; after that it saves your work, brings the
+new week in, installs and checks), then opens that week's page, your design note and the board.
+Every week that's in stays one click away in its sidebar. Week 1 starts it with the one-liner in
+"Getting started" below, and week 2 with `node setup.mjs`, since a week-1 folder doesn't have
+`setup-week` yet.
+
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![React Flow](https://img.shields.io/badge/React%20Flow-12-purple)
