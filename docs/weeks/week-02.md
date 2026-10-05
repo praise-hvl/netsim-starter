@@ -17,19 +17,6 @@ cross the bus.
 - **Design idea:** before you build, decide the parts, what they say to each other, and what it
   looks like. That's the design note, and it's what you hand your agent next week.
 
-## Before class
-
-1. Make sure `npm run doctor` still ends with `doctor: all 8 checks passed`, and merge this week:
-
-   ```bash
-   git fetch upstream && git merge upstream/week-2-start
-   ```
-
-2. Read [ARCHITECTURE.md](../ARCHITECTURE.md): **"The big picture"** and, in "The message
-   protocol", **"Envelope"** and the **message table** (just the `mem.*` and `fault` rows). About
-   10 minutes.
-3. Bring your week-1 drawing of the system.
-
 ## In class (1 hour, on Zoom)
 
 Class is on Zoom, camera on. You work **on your own** all hour, and we all stay in the one call.
@@ -44,7 +31,17 @@ Fill in your own design note: open `docs/notes/week-02.md` (it arrives with this
 with the nine headings from [the design-note template](../notes/design-note-template.md) and a
 comment under each saying what goes there). If it isn't there, copy the template to that path.
 
-1. **Act it out in the chat (10 min).** Four of you get roles and rename yourselves when I ask
+1. **Get the week (5 min).** In your course folder, run `node setup.mjs` and choose **Get week 2**
+   in the studio. In a terminal instead:
+
+   ```bash
+   git fetch upstream && git merge upstream/week-2-start
+   ```
+
+   ✅ The studio's checks are green (or `npm run doctor` ends with `doctor: all 8 checks passed`).
+   Then open this page and your design note, `docs/notes/week-02.md`.
+
+2. **Act it out in the chat (10 min).** Four of you get roles and rename yourselves when I ask
    (Participants → your name → More → Rename): `CPU-1`, `CPU-2`, `MEMORY` and `BUTTON`. I'm the
    **bus** and the **clock**. I send `MEMORY` four numbers privately: the bytes at addresses 0
    to 3. Everyone else watches the chat and notes what goes wrong. The rules:
@@ -74,29 +71,29 @@ comment under each saying what goes there). If it isn't there, copy the template
    Then answer in the chat: who owns time? What does the bus know about CPUs? What should happen
    at address 9?
 
-2. **Parts and their jobs (8 min).** Fill in sections 1 and 2 of your note for the bus, the
+3. **Parts and their jobs (8 min).** Fill in sections 1 and 2 of your note for the bus, the
    clock, memory, and "a component that asks memory for something" (it'll be the CPU later). For
    each part: its job in a few words, and what it knows. (Hint: does the bus know what's in
    memory? Does memory know who's asking?)
 
-3. **Messages (15 min).** Fill in section 3: every message a memory **read** and a memory
+4. **Messages (15 min).** Fill in section 3: every message a memory **read** and a memory
    **write** need, including what happens when the address is bad. For each: who sends it, to
-   whom, what it carries, and what the receiver does. When I share the `mem.*` and `fault` rows
-   of ARCHITECTURE.md's message table, compare: what did you name differently? What did you
+   whom, what it carries, and what the receiver does. When I share ARCHITECTURE.md's envelope and
+   the `mem.*` and `fault` rows of its message table, compare: what did you name differently? What did you
    miss? Keep your own names if you like them; note the difference in section 7.
 
-4. **One read, tick by tick (10 min).** Fill in section 5 for this scenario: *a component reads
+5. **One read, tick by tick (10 min).** Fill in section 5 for this scenario: *a component reads
    the byte at `0x010`.* Who sends what on which tick, who waits, and when the reply is used. Ask
    yourself: why does the reply get **used** on the next tick, not the moment it arrives? (Think
    of round 1 of the activity.) After the shares, I put the tick timeline on screen.
 
-5. **Sketch the board (9 min).** Draw what this will look like on screen: where the bus and
+6. **Sketch the board (9 min).** Draw what this will look like on screen: where the bus and
    memory sit, how a request and its reply travel, how a memory cell shows it was just read or
    written, and what a fault looks like. **On paper** (then photograph it) **or digitally**:
    Excalidraw (excalidraw.com), tldraw (tldraw.com), or anything that saves a PNG or JPEG. Don't
    worry about drawing well. Arrows and labels beat art.
 
-6. **Wrap up (3 min).** What's left goes home. Next week you'll hand section 9 of this note to
+7. **Wrap up (3 min).** What's left goes home. Next week you'll hand section 9 of this note to
    your agent, so it builds *your* design.
 
 ## Take-home
@@ -145,11 +142,10 @@ argue with, though. Use it like this:
 
 ## Explain it back
 
-Before next session, explain your design note to me without notes or AI: book a 5-minute slot
-with me (on Zoom: camera on, share your screen with your note and sketch, nothing else open), or
-record a 3-minute video (your face and your sketch, no notes) answering the two questions I post
-after class. I may also ask one or two people live at the start of class, the same way. Be ready
-to:
+Before next session, explain your design note to me without notes or AI: book a 5-minute slot with
+me (on Zoom: camera on, share your screen with your note and sketch, nothing else open), or record
+a 3-minute video (your face and your sketch, no notes) answering the two questions I post after
+class. Be ready to:
 
 1. **Walk through your sketch:** what each part on it is, and what moves or lights up during one
    memory read.
