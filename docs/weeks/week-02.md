@@ -1,9 +1,9 @@
 # Week 2 · DESIGN: The machine and its bus
 
 Today you design the first part of your computer: the **bus** that connects everything, and the
-**memory** that stores bytes. No code today. You'll leave with a design note and a sketch of what
-your board will look like, and next week you build it: memory cells lighting up as requests
-cross the bus.
+**memory** that stores bytes. No code today. The goal for today's class is to create a design note
+and sketch of what the board will look like. Next week, we'll work on the rendering of the memory
+cells as the requests pass through the bus.
 
 ## Goals
 
@@ -15,7 +15,8 @@ cross the bus.
 - **OS idea:** the clock tick is the system's heartbeat, and the bus is a shared resource that many
   parts want at the same time.
 - **Design idea:** before you build, decide the parts, what they say to each other, and what it
-  looks like. That's the design note, and it's what you hand your agent next week.
+  looks like. That's the design note, and it's what you will use when building with your coding
+  assistant next week.
 
 ## In class (1 hour, on Zoom)
 
