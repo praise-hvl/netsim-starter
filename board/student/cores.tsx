@@ -5,7 +5,7 @@ import type { Frame } from "@/board/feed/frames";
 import { Label } from "@/board/parts/box";
 import { coreColour, INK } from "@/board/parts/colours";
 import type { Rect } from "@/board/parts/geometry";
-import { hex } from "@/protocol/memory-map";
+import { ISR_BASE, ISR_SLOT_SIZE, hex } from "@/protocol/memory-map";
 import { CoreView } from "@/board/student/core";
 import { todo } from "@/core/todo";
 import { notBuilt } from "@/board/shell/layer";
@@ -31,14 +31,26 @@ export function schedulerMoves(previous: Pick<Frame, "processes">, frame: Pick<F
   // @end
 }
 
-/** An interrupt raised this tick: who raised it, its handler's address, and the core already running that handler (if any). */
-export type InterruptMarker = { from: string; vector: number; core: number | null };
+/**
+ * An interrupt, as one tick of the board can see it. A device's irq is "raised" on the bus in one
+ * tick; a core "takes" it (starts running its handler) a tick or more later, as soon as a core is
+ * between instructions. Never in the same tick. In between, `frame.pendingIrqs` counts the
+ * interrupts waiting for a core.
+ */
+export type InterruptMarker =
+  | { kind: "raised"; from: string; vector: number }
+  | { kind: "taken"; core: number; vector: number };
 
-export function interruptMarkers(frame: Pick<Frame, "packets" | "cores">): InterruptMarker[] {
-  // @student week=7 part=class id=board-interrupt-markers "One marker per irq packet this tick, with the core running its handler"
-  // TODO(week 7, board-interrupt-markers): One marker per irq packet this tick, with the core running its handler
+/** The handler a core is running: the start of its handler slot (0x200, 0x220, ...). */
+function handlerOf(pc: number): number {
+  return ISR_BASE + Math.floor((pc - ISR_BASE) / ISR_SLOT_SIZE) * ISR_SLOT_SIZE;
+}
+
+export function interruptMarkers(previous: Pick<Frame, "cores"> | null, frame: Pick<Frame, "packets" | "cores">): InterruptMarker[] {
+  // @student week=7 part=class id=board-interrupt-markers "A marker for each irq raised on the bus this tick, and one for each core that started a handler this tick"
+  // TODO(week 7, board-interrupt-markers): A marker for each irq raised on the bus this tick, and one for each core that started a handler this tick
   // Tests: tests/week-07/   Guide: docs/weeks/week-07.md
-  return todo("week 7: board-interrupt-markers", frame);
+  return todo("week 7: board-interrupt-markers", previous, frame);
   // @end
 }
 

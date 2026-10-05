@@ -28,6 +28,9 @@ export function BoardShell({ title, source, onSource, size, children }: BoardShe
   const feed = useFeed(source);
   // A bus (live or in the page) keeps running, so follow its newest tick; a recording starts paused.
   const [playback, dispatch] = usePlayback(feed.frames.length, source.kind === "trace" ? {} : { follow: true, playing: true });
+  // Following only makes sense on a running bus. A recording (e.g. what a machine that can't run
+  // yet falls back to) starts at its first tick, paused.
+  if (playback.follow && !feed.live && feed.state === "ready") dispatch({ type: "seek", index: 0 });
   const index = Math.min(playback.index, Math.max(0, feed.frames.length - 1));
   const frame = feed.frames[index];
   const margin = 4;
@@ -52,7 +55,9 @@ export function BoardShell({ title, source, onSource, size, children }: BoardShe
             </option>
           ))}
         </select>
-        <span className="min-w-0 truncate text-sm text-zinc-600">{feed.about}</span>
+        <span className="min-w-0 truncate text-sm text-zinc-600" title={feed.about}>
+          {feed.about}
+        </span>
         {/* On a running bus, press its buttons from here: no need to build a press into your board first. */}
         {feed.live && frame && (
           <div className="ml-auto flex shrink-0 items-center gap-1 text-sm font-semibold">

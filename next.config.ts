@@ -5,7 +5,14 @@ import type { NextConfig } from "next";
 const pages = process.env.NETSIM_PAGES === "1";
 
 const nextConfig: NextConfig = pages
-  ? { output: "export", basePath: process.env.NETSIM_BASE_PATH ?? "", trailingSlash: true, images: { unoptimized: true } }
+  ? {
+      output: "export",
+      basePath: process.env.NETSIM_BASE_PATH ?? "",
+      trailingSlash: true,
+      images: { unoptimized: true },
+      // Lets the page know it's the Pages build: /board then starts on your in-page machine.
+      env: { NEXT_PUBLIC_NETSIM_PAGES: "1" },
+    }
   : {};
 
 export default nextConfig;

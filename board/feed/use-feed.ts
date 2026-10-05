@@ -16,8 +16,12 @@ export type Source =
   | { kind: "trace"; name: TraceName }
   /** A bus somewhere else, e.g. the class bus: ws://... */
   | { kind: "live"; url: string }
-  /** A whole machine (bus, memory, CPU, devices) started in this page: works with no server at all. */
-  | { kind: "machine"; cores: number };
+  /**
+   * A whole machine (bus, memory, CPU, devices) started in this page: works with no server at
+   * all. It runs your own code, so until that's finished it can't start; then the board shows
+   * the `fallback` recording instead (if there is one) and says why.
+   */
+  | { kind: "machine"; cores: number; fallback?: TraceName };
 
 /** Core counts offered for the in-page machine. Any count 1-8 works through ?source=machine&cores=N. */
 export const MACHINE_CORES = [2, 8] as const;
@@ -41,14 +45,23 @@ export type Feed = {
   about: string;
   error: string | null;
   live: LiveControls | null;
+  /** Why the in-page machine couldn't start (e.g. "TODO(week 5: encode) ..."), or null. */
+  machineError?: string | null;
 };
 
 const RETRY_MS = 2000;
 
 export function useFeed(source: Source): Feed {
-  const trace = useTraceFeed(source.kind === "trace" ? source.name : null);
   const bus = useBusFeed(source.kind === "live" ? source.url : null, source.kind === "machine" ? source.cores : null);
-  return source.kind === "trace" ? trace : bus;
+  // A machine that can't start yet shows its fallback recording instead, if it has one.
+  const fallback = source.kind === "machine" && bus.machineError ? (source.fallback ?? null) : null;
+  const trace = useTraceFeed(source.kind === "trace" ? source.name : fallback);
+  if (source.kind === "trace") return trace;
+  if (fallback && bus.machineError) {
+    const about = `Your machine can't run in the page yet (${bus.machineError}), so this is a recorded run instead. Once that part is built, your own machine runs here.`;
+    return { ...trace, about };
+  }
+  return bus;
 }
 
 const LOADING: Feed = { frames: [], state: "loading", about: "", error: null, live: null };
@@ -111,7 +124,7 @@ function useBusFeed(url: string | null, machineCores: number | null): Feed {
     }
 
     async function open(): Promise<void> {
-      setFeed((f) => ({ ...f, state: "connecting", error: null }));
+      setFeed((f) => ({ ...f, state: "connecting", error: null, machineError: null }));
       try {
         let target = url ?? BUS_URL;
         if (machineCores !== null) {
@@ -161,7 +174,16 @@ function useBusFeed(url: string | null, machineCores: number | null): Feed {
         setFeed((f) => ({ ...f, state: "live", about, live }));
       } catch (error) {
         if (stopped) return;
-        setFeed((f) => ({ ...f, state: "closed", error: error instanceof Error ? error.message : String(error) }));
+        const message = error instanceof Error ? error.message : String(error);
+        // A machine that can't start (its code isn't finished yet) won't start on a retry either;
+        // only a connection to a bus somewhere else is worth retrying.
+        if (machineCores !== null && machine === null) {
+          const reason = message.replace(/^error from \w+: /, "");
+          const about = `Your machine can't run in the page yet (${reason}). Pick a recording above to watch one meanwhile.`;
+          setFeed((f) => ({ ...f, state: "closed", error: reason, about, machineError: reason }));
+          return;
+        }
+        setFeed((f) => ({ ...f, state: "closed", error: message }));
         retry = setTimeout(open, RETRY_MS);
       }
     }
