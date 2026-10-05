@@ -24,6 +24,7 @@
     "asm": "tsx scripts/asm.ts",
     "programs": "tsx scripts/programs-bundle.ts",
     "weeks": "tsx scripts/make-week-branches.ts",
+    "lessons": "tsx scripts/studio/lessons.ts",
     "course:catch-up": "tsx scripts/catch-up.ts",
     "fsm:export": "tsx scripts/fsm-export.ts",
     "portfolio": "tsx scripts/portfolio.ts"

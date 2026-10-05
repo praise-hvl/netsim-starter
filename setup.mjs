@@ -385,6 +385,117 @@ function ghLogin(ctx) {
 }
 
 /**
+ * Is this a possible GitHub username? Letters, digits and single hyphens, not at either end, at
+ * most 39 characters. Only names that pass this ever go into a command the studio plans.
+ * @param {unknown} name
+ * @returns {name is string}
+ */
+export function isGithubUsername(name) {
+  return typeof name === "string" && /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/.test(name);
+}
+
+/**
+ * The github.com accounts gh knows, from `gh auth status`. Newer gh (2.40+) lists every account,
+ * "Logged in to github.com account NAME" with an "Active account: true/false" line; older gh has
+ * one, "Logged in to github.com as NAME". An account whose sign-in failed isn't listed: switching
+ * to it wouldn't work.
+ * @param {string} text  what gh printed (it writes to stderr or stdout, depending on the version)
+ * @returns {{ login: string, active: boolean }[]}
+ */
+export function parseGhAccounts(text) {
+  /** @type {{ login: string, active: boolean }[]} */
+  const accounts = [];
+  /** @type {{ login: string, active: boolean } | null} */
+  let last = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    const account = /Logged in to (\S+) (?:account|as) (\S+)/.exec(line);
+    if (account) {
+      last = null;
+      if (/^(?:X|✗|×)\s/.test(line) || /Failed to log in/i.test(line)) continue;
+      if (account[1].toLowerCase() !== "github.com" || !isGithubUsername(account[2])) continue;
+      if (accounts.some((a) => a.login.toLowerCase() === account[2].toLowerCase())) continue;
+      last = { login: account[2], active: false };
+      accounts.push(last);
+      continue;
+    }
+    const active = /Active account:\s*(true|false)/i.exec(line);
+    if (active && last) last.active = active[1].toLowerCase() === "true";
+  }
+  // Older gh: one account, and no "Active account" line, so that one is in use.
+  if (accounts.length === 1 && !/Active account:/i.test(text)) accounts[0].active = true;
+  return accounts;
+}
+
+/**
+ * Every github.com account gh knows on this laptop.
+ * @param {Context} ctx
+ */
+export function ghAccounts(ctx) {
+  const result = ctx.capture(["gh", "auth", "status", "-h", "github.com"]);
+  // gh exits 1 when any account has a problem, and still lists the others.
+  return result ? parseGhAccounts(`${result.stdout}\n${result.stderr}`) : [];
+}
+
+/**
+ * The account gh (and so git) uses now. It reads gh's own settings, without going to GitHub, so
+ * the studio can show it at any time.
+ * @param {Context} ctx
+ */
+export function ghActiveAccount(ctx) {
+  const user = output(ctx, ["gh", "config", "get", "-h", "github.com", "user"]);
+  return isGithubUsername(user) ? user : null;
+}
+
+/**
+ * Who the course folder's copy on GitHub (origin) belongs to, or null when there's no folder yet.
+ * @param {Context} ctx
+ */
+function cloneOwner(ctx) {
+  const dir = ctx.state.repoDir ?? findClone(ctx);
+  if (!dir) return null;
+  const url = output(ctx, ["git", "remote", "get-url", "origin"], dir);
+  return url ? (parseRemote(url)?.owner ?? null) : null;
+}
+
+/**
+ * "Your copy belongs to A; you're now B." when the folder's copy isn't this account's, else "".
+ * @param {Context} ctx
+ * @param {string | null | undefined} login
+ */
+export function ownerMismatch(ctx, login) {
+  const owner = cloneOwner(ctx);
+  if (!owner || !login || owner.toLowerCase() === login.toLowerCase()) return "";
+  return `Your copy belongs to ${owner}; you're now ${login}.`;
+}
+
+/**
+ * Switch gh (and so git) to another account it already knows.
+ * @param {string} login  checked with isGithubUsername by the caller
+ * @returns {Command}
+ */
+export function switchAccountCommand(login) {
+  return {
+    display: `gh auth switch --user ${login}`,
+    argv: ["gh", "auth", "switch", "-h", "github.com", "--user", login],
+    what: `Makes ${login} the account gh and git use on this laptop. Nothing is signed out: you can switch back the same way.`,
+    words: [["auth", "sign-in (authentication)"], ["switch", "use another account gh already knows"], ["--user", "which account"]],
+  };
+}
+
+/** Sign in to one more GitHub account; gh then uses it. @returns {Command} */
+export function addAccountCommand() {
+  return {
+    display: "gh auth login",
+    argv: ["gh", "auth", "login", "--web", "-h", "github.com", "-p", "https"],
+    what: "Signs in to another GitHub account, next to the ones gh already knows, and makes it the one in use. The studio shows a one-time code and opens github.com: sign in there with the other account, paste the code and approve.",
+    words: [["auth", "sign-in (authentication)"], ["login", "sign in (to one more account)"]],
+    waitFor: "browser",
+    openUrl: true,
+  };
+}
+
+/**
  * The course folder, if there is one here or where the student chose to put it.
  * @param {Context} ctx
  */
@@ -398,6 +509,41 @@ function findClone(ctx) {
     if (pkg && ctx.exists(join(dir, ".git")) && /"name":\s*"simulated-cpu"/.test(pkg)) return dir;
   }
   return null;
+}
+
+/**
+ * Step 9 on a laptop without the course folder: choose where, then download the fork.
+ * @returns {Action[]}
+ */
+function cloneFresh() {
+  return [
+    {
+      kind: "folder",
+      label: "Which folder should the course go in?",
+      hint: "A netsim folder is made inside it. Your home folder is fine.",
+      initial: (ctx) => ctx.state.parent ?? ctx.cwd,
+      submit: (ctx, value) => {
+        const path = resolve(ctx.cwd, value.trim().replace(/^~(?=$|[/\\])/, homedir()) || ".");
+        if (!(ctx.isDir ?? ctx.exists)(path)) return `There's no folder at ${path}.`;
+        if (ctx.exists(join(path, "netsim"))) return `There's already a netsim folder in ${tildify(path)}. Pick another folder (or delete that one if it's an old attempt).`;
+        ctx.state.parent = path;
+        return null;
+      },
+    },
+    {
+      kind: "command",
+      command: (ctx) => {
+        const login = ctx.state.login ?? "<you>";
+        return {
+          display: `gh repo clone ${login}/netsim-starter netsim`,
+          argv: ["gh", "repo", "clone", `${login}/netsim-starter`, "netsim"],
+          cwd: ctx.state.parent ?? ctx.cwd,
+          what: "Downloads your fork into a new folder called netsim, and links it to GitHub.",
+          words: [["clone", "download a repository, with its history"], [`${login}/netsim-starter`, "your fork"], ["netsim", "the folder to make"]],
+        };
+      },
+    },
+  ];
 }
 
 // ── The 15 steps ───────────────────────────────────────────────────────────
@@ -527,7 +673,7 @@ export function courseSteps() {
           openUrl: true,
         }),
       ],
-      hint: () => "If you have two GitHub accounts, sign in with the one for this course. Already signed in to both? `gh auth switch` picks one.",
+      hint: () => "If you have two GitHub accounts, sign in with the one for this course. Signed in to both? Use \"change\" next to your account at the top of the page.",
     },
     {
       id: "git-helper",
@@ -589,7 +735,7 @@ export function courseSteps() {
         // It has to be a real fork: the starter itself (Praise's account) doesn't count.
         const info = output(ctx, ["gh", "repo", "view", `${login}/netsim-starter`, "--json", "nameWithOwner,isFork", "--jq", '.nameWithOwner + " " + (.isFork|tostring)']);
         const [name, isFork] = (info ?? "").split(" ");
-        if (!info) return { done: false, found: `There's no ${login}/netsim-starter yet.` };
+        if (!info) return { done: false, found: `There's no ${login}/netsim-starter yet.${ownerMismatch(ctx, login) ? ` ${ownerMismatch(ctx, login)} Make a copy for ${login} below, or switch back (top of the page).` : ""}` };
         return { done: isFork === "true", found: isFork === "true" ? `Your fork exists: github.com/${name}` : `github.com/${name} isn't a fork of ${STARTER}.` };
       },
       plan: () => [
@@ -612,36 +758,28 @@ export function courseSteps() {
       check: async (ctx) => {
         const dir = findClone(ctx);
         if (dir) ctx.state.repoDir = dir;
+        const mismatch = dir ? ownerMismatch(ctx, ctx.state.login) : "";
+        if (mismatch) return { done: false, found: `${mismatch} The folder at ${tildify(/** @type {string} */ (dir))} still sends your work to ${cloneOwner(ctx)}'s copy.` };
         return { done: dir !== null, found: dir ? `The course is at ${tildify(dir)}.` : "The course isn't on this laptop yet." };
       },
-      plan: () => [
-        {
-          kind: "folder",
-          label: "Which folder should the course go in?",
-          hint: "A netsim folder is made inside it. Your home folder is fine.",
-          initial: (ctx) => ctx.state.parent ?? ctx.cwd,
-          submit: (ctx, value) => {
-            const path = resolve(ctx.cwd, value.trim().replace(/^~(?=$|[/\\])/, homedir()) || ".");
-            if (!(ctx.isDir ?? ctx.exists)(path)) return `There's no folder at ${path}.`;
-            if (ctx.exists(join(path, "netsim"))) return `There's already a netsim folder in ${tildify(path)}. Pick another folder (or delete that one if it's an old attempt).`;
-            ctx.state.parent = path;
-            return null;
-          },
-        },
-        {
-          kind: "command",
-          command: (ctx) => {
-            const login = ctx.state.login ?? "<you>";
-            return {
-              display: `gh repo clone ${login}/netsim-starter netsim`,
-              argv: ["gh", "repo", "clone", `${login}/netsim-starter`, "netsim"],
-              cwd: ctx.state.parent ?? ctx.cwd,
-              what: "Downloads your fork into a new folder called netsim, and links it to GitHub.",
-              words: [["clone", "download a repository, with its history"], [`${login}/netsim-starter`, "your fork"], ["netsim", "the folder to make"]],
-            };
-          },
-        },
-      ],
+      plan: (ctx) => {
+        const dir = findClone(ctx);
+        const login = ctx.state.login;
+        // The folder is here but linked to another account's copy (the student switched accounts):
+        // point it at this account's copy instead of downloading again.
+        if (dir && isGithubUsername(login) && ownerMismatch(ctx, login)) {
+          const url = `https://github.com/${login}/netsim-starter.git`;
+          return [
+            cmd(`git remote set-url origin ${url}`, ["git", "remote", "set-url", "origin", url], {
+              cwd: dir,
+              label: `Send your work to ${login}'s copy from now on`,
+              what: `Points your folder's link to GitHub (origin) at ${login}/netsim-starter. Your files don't change.`,
+              words: [["remote", "a named link to a copy on GitHub"], ["set-url", "change where it points"], ["origin", "the link to your own copy"]],
+            }),
+          ];
+        }
+        return cloneFresh();
+      },
       pretend: (ctx) => {
         (ctx.state.dryDone ??= {}).upstream = true; // gh repo clone links upstream for a fork
       },
@@ -729,8 +867,14 @@ export function courseSteps() {
       diagram: true,
       example: "Your work branch is on GitHub, at your-github-name/netsim-starter.",
       check: async (ctx) => {
+        const mismatch = ownerMismatch(ctx, ctx.state.login);
+        if (mismatch) return { done: false, found: `${mismatch} Your work branch would go to the wrong copy.` };
         const tracking = output(ctx, ["git", "rev-parse", "--abbrev-ref", "work@{upstream}"], repoDir(ctx));
-        return { done: tracking === "origin/work", found: tracking === "origin/work" ? "Your work branch is on GitHub, linked to origin/work." : "Your work branch isn't on GitHub yet." };
+        if (tracking !== "origin/work") return { done: false, found: "Your work branch isn't on GitHub yet." };
+        // Ask GitHub too (when it answers): after an account switch, the new copy may not have it yet.
+        const remote = ctx.capture(["git", "ls-remote", "--heads", "origin", "work"], repoDir(ctx));
+        if (remote?.code === 0 && !remote.stdout.includes("refs/heads/work")) return { done: false, found: `Your work branch isn't on ${ctx.state.login ?? "your"}'s copy on GitHub yet.` };
+        return { done: true, found: "Your work branch is on GitHub, linked to origin/work." };
       },
       plan: (ctx) => [
         cmd("git push -u origin work", ["git", "push", "-u", "origin", "work"], {
@@ -1133,11 +1277,25 @@ export function weekSteps(week, { onWork = true } = {}) {
       why: `So your fork on GitHub has week ${week} too, and Praise sees the same thing you do.`,
       example: "Your fork on GitHub has it too.",
       check: async (ctx) => {
+        // Pushing as another account than the copy's owner fails: say so before trying.
+        const mismatch = ownerMismatch(ctx, ghActiveAccount(ctx));
+        if (mismatch) return { done: false, found: `${mismatch} GitHub would refuse the push.` };
         const ahead = output(ctx, ["git", "rev-list", "--count", "origin/work..work"], repoDir(ctx));
         return { done: ahead === "0", found: ahead === "0" ? "Your fork on GitHub has it too." : `GitHub doesn't have ${ahead ?? "your latest"} of your commits yet.` };
       },
-      plan: (ctx) => [cmd("git push", ["git", "push"], { cwd: repoDir(ctx), what: "Sends your work branch to your fork on GitHub.", words: [["push", "send commits to GitHub"]] })],
-      hint: () => "If GitHub refused, run node setup.mjs --setup and check steps 5 and 6.",
+      plan: (ctx) => {
+        const owner = cloneOwner(ctx);
+        // Signed in as someone else, and gh knows the copy's owner: switch to it first.
+        const back = owner && ownerMismatch(ctx, ghActiveAccount(ctx)) && ghAccounts(ctx).some((a) => a.login.toLowerCase() === owner.toLowerCase()) ? owner : null;
+        return [
+          ...(back && isGithubUsername(back) ? [{ kind: /** @type {const} */ ("command"), command: { ...switchAccountCommand(back), label: `First: use ${back}, the account your copy belongs to` } }] : []),
+          cmd("git push", ["git", "push"], { cwd: repoDir(ctx), what: "Sends your work branch to your fork on GitHub.", words: [["push", "send commits to GitHub"]] }),
+        ];
+      },
+      hint: (ctx) =>
+        ownerMismatch(ctx, ghActiveAccount(ctx))
+          ? `Use the account your copy belongs to: "change" next to your account at the top of the page. ${ownerMismatch(ctx, ghActiveAccount(ctx))}`
+          : "If GitHub refused, run node setup.mjs --setup and check steps 5 and 6.",
     },
     {
       id: "install-week",
@@ -1510,6 +1668,9 @@ export function lineReader(input, output, onEnd) {
 
 const OUTPUT_LIMIT = 200_000;
 
+/** The steps that depend on which GitHub account is in use: checked again after a switch. */
+const ACCOUNT_STEPS = new Set(["gh-login", "git-helper", "fork", "clone", "push", "doctor", "push-week", "doctor-week"]);
+
 /**
  * The studio's state and the only way to change it. The browser sends actions; each is checked
  * against the current step and its plan, so the only commands that ever run are the ones the
@@ -1568,6 +1729,21 @@ export function createStudio(ctx, steps, meta = {}) {
    *   ask: string, note: string, slowNote: string, slowAfterMs: number, startedAt: number, code: string, url: string, waitFor: string, formError: string }}
    */
   let view = blank("checking");
+  /** The account gh uses now, shown at the top of the page. A dry run shows the pretend login. */
+  let active = ctx.dryRun ? (ctx.state.login ?? null) : ghActiveAccount(ctx);
+  const refreshActive = () => {
+    active = ctx.dryRun ? (ctx.state.login ?? active) : ghActiveAccount(ctx);
+  };
+  /**
+   * "Use a different account", while it's open: the accounts gh knows, then the one command the
+   * student picked. Only an account gh listed (or "add") can become a command.
+   * @type {null | { phase: "choose" | "ready" | "running" | "failed", accounts: { login: string, active: boolean }[], choice: string,
+   *   command: Command | null, attempt: number, error: string, code: string, url: string, before: string | null }}
+   */
+  let acct = null;
+  let acctRun = 0; // which account command is running (an older one's ending is ignored)
+  let notice = ""; // what changed after a switch, shown above the step
+  let keepNotice = false;
 
   /** @param {string} phase */
   function blank(phase) {
@@ -1613,6 +1789,21 @@ export function createStudio(ctx, steps, meta = {}) {
       // Only on the finish screen: it asks git.
       arrived: meta.mode === "week" && current >= steps.length && ctx.state.repoDir && meta.published !== false ? whatArrived(ctx, ctx.state.repoDir, meta.week ?? 2) : "",
       login: ctx.state.login ?? "",
+      account: {
+        login: active ?? "",
+        notice,
+        panel: acct && {
+          phase: acct.phase,
+          others: acct.accounts.filter((x) => !x.active && x.login !== active).map((x) => x.login),
+          choice: acct.choice,
+          action: acct.command ? describe({ kind: "command", command: acct.command }) : null,
+          attempt: acct.attempt,
+          error: acct.error,
+          code: acct.code,
+          url: acct.url,
+          waitFor: acct.command?.waitFor ?? "",
+        },
+      },
       codexVersion: ctx.state.codexVersion ?? "",
       repoDir: ctx.state.repoDir ? tildify(ctx.state.repoDir) : "",
       steps: steps.map((s, i) => ({
@@ -1656,6 +1847,9 @@ export function createStudio(ctx, steps, meta = {}) {
     }
     current = i;
     plan = [];
+    if (!keepNotice) notice = "";
+    keepNotice = false;
+    refreshActive();
     const mine = ++attempt;
     view = blank("checking");
     publish();
@@ -1742,6 +1936,7 @@ export function createStudio(ctx, steps, meta = {}) {
     if (limit) clearTimeout(limit);
     if (mine !== attempt) return;
     child = null;
+    if (!ctx.dryRun && command.argv[0] === "gh") refreshActive();
     if (auto) ran[current].push(command.display);
     if (timedOut)
       return fail({ what: `\`${command.display}\` didn't finish within ${Math.round((command.timeoutMs ?? 0) / 60_000)} minutes.`, fix: command.slowNote ?? step.hint(ctx) });
@@ -1796,6 +1991,8 @@ export function createStudio(ctx, steps, meta = {}) {
    * @returns {Promise<{ ok: boolean, status: number, error: string }>}
    */
   async function act(a) {
+    if (typeof a.type === "string" && a.type.startsWith("account-")) return accountAct(a);
+    if (acct) return reject(409, "Finish changing the GitHub account first, or close it.");
     // Going back to an earlier step works from anywhere, the finish screen included.
     if (a.type === "back") {
       const to = Number(a.to);
@@ -1916,6 +2113,144 @@ export function createStudio(ctx, steps, meta = {}) {
       default:
         return reject(400, "Unknown action.");
     }
+  }
+
+  /**
+   * "Use a different account": open it, pick one of gh's accounts (or add one), type its command,
+   * run it. Afterwards every step that depends on the account is checked again.
+   * @param {{ type?: unknown, choice?: unknown, typed?: unknown }} a
+   */
+  async function accountAct(a) {
+    switch (a.type) {
+      case "account-open": {
+        if (acct) return ok;
+        if (child) return reject(409, "Wait for the command that's running to finish, then change the account.");
+        const accounts = ctx.dryRun && ctx.fresh ? [] : ghAccounts(ctx);
+        const using = accounts.find((x) => x.active);
+        if (using && !ctx.dryRun) active = using.login;
+        acct = { phase: "choose", accounts, choice: "", command: null, attempt: 0, error: "", code: "", url: "", before: null };
+        publish();
+        return ok;
+      }
+      case "account-close": {
+        if (!acct) return ok;
+        acctRun++;
+        if (acct.phase === "running") {
+          child?.kill();
+          child = null;
+        }
+        acct = null;
+        publish();
+        return ok;
+      }
+      case "account-pick": {
+        if (!acct || acct.phase === "running") return reject(409, "There's nothing to choose right now.");
+        /** @type {Command} */
+        let command;
+        if (a.choice === "add") command = addAccountCommand();
+        else {
+          const pick = acct.accounts.find((x) => !x.active && x.login === a.choice);
+          if (!pick || !isGithubUsername(pick.login)) return reject(400, "gh doesn't know that account on this laptop.");
+          command = switchAccountCommand(pick.login);
+        }
+        acct = { ...acct, phase: "ready", choice: String(a.choice), command, attempt: acct.attempt + 1, error: "" };
+        publish();
+        return ok;
+      }
+      case "account-back": {
+        if (!acct || acct.phase === "running") return reject(409, "There's nothing to go back to.");
+        acct = { ...acct, phase: "choose", choice: "", command: null, error: "" };
+        publish();
+        return ok;
+      }
+      case "account-run": {
+        if (!acct || acct.phase !== "ready" || !acct.command) return reject(409, "There's no command to run right now.");
+        if (typeof a.typed !== "string" || normalizeCommand(a.typed) !== normalizeCommand(acct.command.display)) return reject(400, "What was typed doesn't match the command.");
+        void runAccount(acct.command);
+        return ok;
+      }
+      case "account-recheck": {
+        // Back from signing in to another account in the browser: done once gh uses a new one.
+        if (!acct || acct.phase !== "running" || acct.command?.waitFor !== "browser" || ctx.dryRun) return ok;
+        const now = ghActiveAccount(ctx);
+        if (now && now !== acct.before) {
+          acctRun++;
+          child?.kill();
+          child = null;
+          await finishAccount();
+        }
+        return ok;
+      }
+      default:
+        return reject(400, "Unknown action.");
+    }
+  }
+
+  /** @param {Command} command */
+  async function runAccount(command) {
+    if (!acct) return;
+    const mine = ++acctRun;
+    acct = { ...acct, phase: "running", code: "", url: "", before: active };
+    out = "";
+    outputId++;
+    for (const l of listeners) l("output", { id: outputId, text: "", reset: true });
+    publish();
+    const run = /** @type {NonNullable<Context["stream"]>} */ (ctx.stream)(command.argv, command.cwd, (chunk) => {
+      if (mine !== acctRun) return;
+      out = (out + chunk).slice(-OUTPUT_LIMIT);
+      for (const l of listeners) l("output", { id: outputId, text: chunk });
+      if (command.waitFor === "browser" && acct && !acct.code) {
+        const clean = cleanOutput(out);
+        const code = /one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})/.exec(clean)?.[1] ?? "";
+        const url = /(https:\/\/\S+)/.exec(clean)?.[1] ?? "";
+        if (code || url) {
+          if (command.openUrl && url && /Open this URL/i.test(clean)) ctx.openUrl?.(url);
+          acct = { ...acct, code, url };
+          publish();
+        }
+      }
+    });
+    child = run;
+    const code = await run.done;
+    if (mine !== acctRun || !acct) return;
+    child = null;
+    if (code !== 0) {
+      const said = lastLine(cleanOutput(out));
+      acct = { ...acct, phase: "failed", error: `\`${command.display}\` stopped with an error (exit code ${code}).${said ? ` gh said: ${said}` : ""}` };
+      return publish();
+    }
+    await finishAccount();
+  }
+
+  /** The switch (or sign-in) worked: use the new account, and check again what depends on it. */
+  async function finishAccount() {
+    const choice = acct?.choice ?? "";
+    const before = ctx.state.login ?? acct?.before ?? active;
+    acct = null;
+    const now = ctx.dryRun ? (isGithubUsername(choice) ? choice : before) : ghActiveAccount(ctx);
+    active = now;
+    const changed = Boolean(now && now !== before);
+    if (now) ctx.state.login = now; // the student chose this account: it's the course account now
+    if (changed) delete ctx.state.doctorOk; // the doctor checks you can push: run it again
+    if (!ctx.dryRun) ctx.save?.();
+    // Check again every step already done that depends on the account; go back to the first that no longer holds.
+    let first = -1;
+    for (let i = 0; i < Math.min(current, steps.length); i++) {
+      if (marks[i] !== "done" || !ACCOUNT_STEPS.has(steps[i].id)) continue;
+      const r = await checkStep(steps[i], ctx);
+      found[i] = r.found;
+      if (!r.done) {
+        marks[i] = "pending";
+        if (first < 0) first = i;
+      }
+    }
+    notice = !changed
+      ? ""
+      : first >= 0
+        ? `You're now using ${now} on GitHub. Step ${first + 1} needs doing again for ${now}: ${found[first]}`
+        : `You're now using ${now} on GitHub. Everything done so far still holds for ${now}.`;
+    keepNotice = true;
+    await enter(first >= 0 ? first : current);
   }
 
   return {
@@ -2359,6 +2694,14 @@ kbd { font: 600 11px/1 "JetBrains Mono", monospace; border: 1px solid currentCol
 .titlebar .count { font-weight: 700; color: #fff; }
 .tag { display: inline-flex; padding: 3px 9px; border-radius: 999px; font: 600 12px/1.4 "Inter", sans-serif; background: var(--well); color: var(--muted); text-transform: none; letter-spacing: 0; }
 .tag.ok { background: #dcf3e8; color: var(--mint-ink); } .tag.bad { background: #ffe1e4; color: var(--red-ink); } .tag.now { background: #fff1c2; color: #6b5200; }
+.acct { color: var(--chrome-muted); white-space: nowrap; }
+.acct b { color: #fff; font-weight: 600; }
+.linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--yellow); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.accounts { display: grid; gap: 10px; }
+.account { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.account .who { font: 600 15px/1.3 "JetBrains Mono", monospace; overflow-wrap: anywhere; }
+.account.now { background: #e3f6ec; border-color: var(--mint); }
+.account .btn { margin-left: auto; }
 .pill { font: 600 11.5px/1 "Inter", sans-serif; padding: 5px 8px; border-radius: 999px; background: var(--yellow); color: var(--ink); }
 
 .work { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; padding: 14px; min-height: 0; }
@@ -2496,6 +2839,7 @@ const LOGO_SVG = `<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="7" 
 /**
  * @typedef {ReturnType<ReturnType<typeof createStudio>["snapshot"]>} Snapshot  what the page is sent
  * @typedef {Snapshot["steps"][number]} StepView
+ * @typedef {NonNullable<Snapshot["account"]["panel"]>} AccountPanel
  */
 
 /**
@@ -2570,6 +2914,11 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
   }, 1000);
   // Back from the browser or another window: check again straight away.
   window.addEventListener("focus", () => {
+    const panel = snap?.account.panel;
+    if (panel) {
+      if (panel.phase === "running" && panel.waitFor === "browser") act({ type: "account-recheck" });
+      return;
+    }
     const step = snap?.steps[snap.current];
     if (step && snap?.view && ["waiting", "failed", "running"].includes(snap.view.phase)) act({ type: "recheck", stepId: step.id });
   });
@@ -2658,6 +3007,62 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
 
   function outputBlock() {
     return `<details class="out" ${showOutput ? "open" : ""} data-outbox><summary>Show full output</summary><pre data-output></pre></details>`;
+  }
+
+  /** "Use a different account": the accounts gh knows, then the chosen one's command. */
+  function accountView(/** @type {AccountPanel} */ p) {
+    const snap = present();
+    const login = snap.account.login;
+    const top = `<div><p class="eyebrow">GitHub account</p><h1 class="q">Use a different account</h1>
+      <p class="tech">Your fork, your folder's link to it and every push belong to one GitHub account. This changes which one gh and git use on this laptop.</p></div>`;
+    const cancel = `<button class="btn ghost" data-do="acct-close">${login ? `Keep ${esc(login)}` : "Close"}</button>`;
+    if (p.phase === "choose") {
+      const others = p.others.length
+        ? p.others.map((o) => `<div class="account"><span class="who">${esc(o)}</span><button class="btn" data-do="acct-pick" data-choice="${esc(o)}">Use ${esc(o)}</button></div>`).join("")
+        : `<p class="note">gh doesn't know any other account on this laptop yet.</p>`;
+      return `${top}<div class="block"><h3>Accounts on this laptop</h3><div class="accounts">
+          ${login ? `<div class="account now"><span class="who">${esc(login)}</span><span class="muted">in use now</span></div>` : ""}
+          ${others}
+          <div class="account"><span>An account gh doesn't know yet</span><button class="btn ghost" data-do="acct-pick" data-choice="add">Add another account</button></div>
+        </div></div>
+        <div class="row">${cancel}</div>`;
+    }
+    const a = p.action;
+    if (!a) return top;
+    if (p.phase === "ready") {
+      const display = a.display ?? "";
+      const key = `account:${p.attempt}:${display}`;
+      if (lineFor !== key) {
+        lineFor = key;
+        line = lineStart(display);
+        pasteNote = "";
+      }
+      return `${top}<div class="block"><h3>${esc(a.label || "Type this command")}</h3>
+          <label class="cmd" data-cmdline><input class="sink" data-sink aria-label="Type: ${esc(a.display)}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"><span class="cmdtext" data-cmdtext></span></label>
+          <p class="cmdnote" data-cmdnote></p>
+          <p class="what"><b>What this does:</b> ${esc(a.what)}</p>${words(a.words ?? [])}
+          ${a.runs ? `<p class="runs">The studio runs it as <code>${esc(a.runs)}</code>.</p>` : ""}</div>
+        <div class="row"><button class="btn ghost" data-do="acct-back">Choose another</button>${cancel}</div>`;
+    }
+    if (p.phase === "running") {
+      const browser = p.waitFor === "browser";
+      return `${top}<div class="cmd doneline"><span class="p">$</span>${esc(a.display)}<span class="ok">running…</span></div>
+        ${browser
+          ? `<div class="status wait"><i class="spin"></i><div><b>Sign in with the other account in the browser, then come back.</b>
+              ${p.code ? `<div class="sub">Your one-time code (type it on the GitHub page):</div><div class="otp">${esc(p.code)}</div>` : ""}
+              ${p.url ? `<div class="sub">The page didn't open? <a href="${esc(p.url)}" target="_blank" rel="noreferrer">Open it here</a></div>` : ""}
+              <div class="sub">Signed in to GitHub with the wrong account in the browser? Sign out there first, then use the code.</div></div></div>`
+          : `<div class="status run"><i class="spin"></i><div><b>Running ${esc(a.display)}</b><div class="summary" data-summary></div></div></div>`}
+        <div class="row"><button class="btn ghost" data-do="acct-close">Stop</button></div>${outputBlock()}`;
+    }
+    return `${top}<div class="status bad"><span class="icon">!</span><div><b>${esc(p.error)}</b><div class="sub">Nothing changed: gh still uses ${esc(login || "the same account")}.</div></div></div>
+      <div class="row"><button class="btn primary" data-do="acct-pick" data-choice="${esc(p.choice)}">Try again</button><button class="btn ghost" data-do="acct-back">Choose another</button>${cancel}</div>${outputBlock()}`;
+  }
+
+  /** What a switch changed, above the step it sent the student back to. */
+  function noticeBlock() {
+    const notice = present().account.notice;
+    return notice ? `<div class="banner" style="margin-bottom:14px"><b>${esc(notice)}</b></div>` : "";
   }
 
   function currentView(/** @type {StepView} */ step) {
@@ -2816,6 +3221,9 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
     const finished = snap.current >= total;
     $("[data-count]").textContent = total === 0 ? "" : finished ? "All done" : `${snap.current + 1} of ${total}`;
     $("[data-dry]").hidden = !snap.dryRun;
+    const account = snap.account;
+    $("[data-acct]").hidden = !account.login;
+    $("[data-acct]").innerHTML = account.login ? `Signed in as <b>${esc(account.login)}</b> · <button class="linkbtn" data-do="acct-open" title="Use a different GitHub account">change</button>` : "";
     // Nothing to do (week N isn't out yet): no steps, no progress, just the message.
     const empty = total === 0;
     /** @type {HTMLElement} */ (document.querySelector(".steps")).style.display = empty ? "none" : "";
@@ -2837,6 +3245,18 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
 
     const focused = document.activeElement instanceof HTMLInputElement && !document.activeElement.dataset.sink ? document.activeElement.name : "";
     const shown = viewing !== null && viewing !== snap.current ? viewing : null;
+    if (account.panel && shown === null) {
+      machine.stop();
+      $("[data-label]").textContent = "GitHub account";
+      $("[data-tag]").className = `tag ${account.panel.phase === "failed" ? "bad" : account.panel.phase === "running" ? "" : "now"}`;
+      $("[data-tag]").textContent = account.panel.phase === "failed" ? "needs a fix" : account.panel.phase === "running" ? "running" : "your turn";
+      $("[data-tag]").style.display = "";
+      $("[data-detail]").innerHTML = `<div class="inner">${accountView(account.panel)}</div>`;
+      paintLine();
+      paintOutput();
+      /** @type {HTMLElement | null} */ (document.querySelector("[data-sink]"))?.focus();
+      return;
+    }
     const showMachine = machineOpen && shown === null;
     $("[data-label]").textContent = showMachine
       ? "The computer you'll build"
@@ -2858,7 +3278,7 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       return;
     }
     machine.stop();
-    $("[data-detail]").innerHTML = `<div class="inner">${shown !== null ? otherView(snap.steps[shown]) : finished ? finishView() : currentView(snap.steps[snap.current])}</div>`;
+    $("[data-detail]").innerHTML = `<div class="inner">${shown !== null ? otherView(snap.steps[shown]) : `${noticeBlock()}${finished ? finishView() : currentView(snap.steps[snap.current])}`}</div>`;
     paintLine();
     paintOutput();
     const input = focused ? /** @type {HTMLInputElement | null} */ (document.querySelector(`input[name="${focused}"]`)) : null;
@@ -2881,6 +3301,11 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
   }
 
   function run() {
+    const panel = snap?.account.panel;
+    if (panel) {
+      if (panel.phase === "ready" && lineComplete(line)) act({ type: "account-run", typed: line.typed });
+      return;
+    }
     const step = currentStep();
     if (!step || !lineComplete(line)) return;
     act({ type: "run", stepId: step.id, index: actionIndex(), typed: line.typed });
@@ -2907,11 +3332,19 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       viewing = null;
       return act({ type: "back", to: Number(el?.dataset.to) });
     }
+    if (what === "acct-open") {
+      viewing = null;
+      machineOpen = false;
+      return act({ type: "account-open" });
+    }
+    if (what === "acct-close" || what === "acct-back") return act({ type: what === "acct-close" ? "account-close" : "account-back" });
+    if (what === "acct-pick") return act({ type: "account-pick", choice: el?.dataset.choice ?? "" });
+    if (what === "run" && snap?.account.panel) return run();
     if (!step || !what) return;
     viewing = null;
     if (what === "run") return run();
     if (what === "yes") return act({ type: "confirm", stepId: step.id, answer: "yes" });
-    if (what === "switch") return act({ type: "confirm", stepId: step.id, answer: "switch" });
+    if (what === "switch") return act({ type: "account-open" }); // the accounts gh knows, or add one
     if (what === "submit") return act({ type: "submit", stepId: step.id, index: actionIndex(), values: {} });
     act({ type: what, stepId: step.id });
   }
@@ -2978,7 +3411,7 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       return;
     }
     if (e.key !== "Enter" || e.repeat || target instanceof HTMLInputElement || target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement) return;
-    if (viewing !== null) return;
+    if (viewing !== null || snap?.account.panel) return;
     if (snap && snap.current >= snap.total) {
       if (snap.mode === "week") return;
       e.preventDefault();
@@ -3018,7 +3451,7 @@ export function studioPage(token) {
 <header class="titlebar">
   <span class="brand">${LOGO_SVG}NetSim Studio</span>
   <span class="crumbs" data-crumb>Week 1 · <b>Setup</b></span>
-  <span class="right"><span class="pill" data-dry hidden>dry run: nothing really runs</span><span class="count" data-count></span></span>
+  <span class="right"><span class="acct" data-acct hidden></span><span class="pill" data-dry hidden>dry run: nothing really runs</span><span class="count" data-count></span></span>
 </header>
 <main class="work">
   <section class="panel steps" aria-label="Steps">
