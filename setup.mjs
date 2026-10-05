@@ -1726,7 +1726,7 @@ const ACCOUNT_STEPS = new Set(["gh-login", "git-helper", "fork", "clone", "push"
  * current step planned, and only once the typed text matches.
  * @param {Context} ctx
  * @param {Step[]} steps
- * @param {{ mode?: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number, groups?: WeekGroup[] }} [meta]  what the page is for:
+ * @param {{ mode?: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number, groups?: WeekGroup[], update?: boolean }} [meta]  what the page is for:
  *   setup (week 1), or getting week N (published: false when week N isn't out yet)
  */
 export function createStudio(ctx, steps, meta = {}) {
@@ -1848,6 +1848,7 @@ export function createStudio(ctx, steps, meta = {}) {
       setupSteps,
       inWork: Boolean(meta.inWork),
       groups: meta.groups ?? [],
+      update: Boolean(meta.update),
       next: meta.next ?? 0,
       // Only on the finish screen: it asks git.
       arrived: meta.mode === "week" && current >= steps.length && ctx.state.repoDir && meta.published !== false ? whatArrived(ctx, ctx.state.repoDir, meta.week ?? 2) : "",
@@ -3314,8 +3315,8 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
 
   /** One week's heading in the list: its number, title, and where it stands. @param {{ week: number, title: string, status: string }} g */
   function weekHeading(g) {
-    const note = { setup: "", done: "done", inwork: "in your work", get: "get it now", later: "after this one", future: "not out yet" }[g.status] ?? "";
-    return `<div class="sgroup ${g.status}"><span>Week ${esc(g.week)} · ${esc(g.title)}</span>${note ? `<em>${esc(note)}</em>` : ""}</div>`;
+    const note = g.update ? "get the update" : ({ setup: "", done: "done", inwork: "in your work", get: "get it now", later: "after this one", future: "not out yet" }[g.status] ?? "");
+    return `<div class="sgroup ${g.status}"><span>Week ${esc(g.week)} · ${esc(g.title)}${g.update ? " · update" : ""}</span>${note ? `<em>${esc(note)}</em>` : ""}</div>`;
   }
 
   function render() {
@@ -3325,7 +3326,7 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       showOutput = false;
     }
     const weekMode = snap.mode === "week";
-    $("[data-crumb]").innerHTML = weekMode ? `Week ${esc(snap.week)} · <b>${snap.inWork ? "In your work" : "Get this week's work"}</b>` : "Week 1 · <b>Setup</b>";
+    $("[data-crumb]").innerHTML = weekMode ? `Week ${esc(snap.week)} · <b>${snap.inWork ? "In your work" : snap.update ? "Get the update" : "Get this week's work"}</b>` : "Week 1 · <b>Setup</b>";
     document.title = weekMode ? `NetSim Studio · Get week ${snap.week}` : "NetSim Studio · Setup";
     // The list is the whole course when there are week groups; the header says so.
     $("[data-panel]").textContent = snap.groups.length ? "Your course" : weekMode ? (snap.inWork ? `Week ${snap.week}` : `Get week ${snap.week}`) : "Setup";
@@ -3767,7 +3768,7 @@ function dryRunStream(argv, cwd, onData) {
 }
 
 /**
- * @typedef {{ week: number, title: string, status: "setup" | "done" | "inwork" | "get" | "later" | "future", start: number, count: number }} WeekGroup
+ * @typedef {{ week: number, title: string, status: "setup" | "done" | "inwork" | "get" | "later" | "future", start: number, count: number, update?: boolean }} WeekGroup
  *   One week in the studio's list. start/count: its steps in the flow (count 0: a heading only).
  *   setup: week 1, re-checked. done: in work, a later week too. inwork: the newest week in work.
  *   get: the week to get now. later: published, after the one to get. future: not out yet.
@@ -3782,7 +3783,7 @@ function dryRunStream(argv, cwd, onData) {
  * (meta.autoSteps), so the student lands on the first thing left to do.
  * @param {Context} ctx
  * @param {{ forceSetup?: boolean, withSetup?: boolean, weekList?: { week: number, title: string }[] }} [options]
- * @returns {{ steps: Step[], meta: { mode: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number, groups?: WeekGroup[] } }}
+ * @returns {{ steps: Step[], meta: { mode: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number, groups?: WeekGroup[], update?: boolean } }}
  */
 export function chooseFlow(ctx, { forceSetup = false, withSetup = false, weekList = COURSE_WEEKS } = {}) {
   const dir = forceSetup || ctx.fresh ? null : findClone(ctx);
@@ -3817,13 +3818,17 @@ export function chooseFlow(ctx, { forceSetup = false, withSetup = false, weekLis
   add(1, "setup", courseSteps());
   for (const n of merged.filter((m) => m > 1)) add(n, n === newest && toGet === null ? "inwork" : "done", n === newest && toGet === null ? inWorkSteps(n) : doneWeekSteps(n));
   const autoSteps = steps.length;
-  if (toGet !== null) add(toGet, "get", weekSteps(toGet, { onWork: output(ctx, ["git", "branch", "--show-current"], dir) === "work" }));
+  if (toGet !== null) {
+    add(toGet, "get", weekSteps(toGet, { onWork: output(ctx, ["git", "branch", "--show-current"], dir) === "work" }));
+    // An earlier week changed after a later one came in (a fix Praise published): an update, not a second week 1.
+    if (toGet === 1 || toGet <= newest) groups[groups.length - 1].update = true;
+  }
   for (const w of later(2)) {
     if (groups.some((g) => g.week === w.week)) continue;
     groups.push({ ...w, status: published.includes(w.week) ? "later" : "future", start: steps.length, count: 0 });
   }
   const setupSteps = groups[0].count;
-  if (toGet !== null) return { steps, meta: { mode: "week", week: toGet, published: true, setupSteps, autoSteps, groups } };
+  if (toGet !== null) return { steps, meta: { mode: "week", week: toGet, published: true, setupSteps, autoSteps, groups, ...(groups.some((g) => g.update) ? { update: true } : {}) } };
   if (newest > 1) return { steps, meta: { mode: "week", week: newest, published: true, setupSteps, autoSteps, inWork: true, next: newest + 1, groups } };
   return { steps, meta: { mode: "week", week: 2, published: false, setupSteps, autoSteps, groups } };
 }
