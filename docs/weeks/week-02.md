@@ -30,48 +30,73 @@ cross the bus.
    10 minutes.
 3. Bring your week-1 drawing of the system.
 
-## In class (1 hour)
+## In class (1 hour, on Zoom)
 
-You work in pairs. Each of you fills in your own design note: open `docs/notes/week-02.md` (it
-arrives with this week's merge, with the nine headings from
-[the design-note template](../notes/design-note-template.md) and a comment under each saying what
-goes there). If it isn't there, copy the template to that path.
+Class is on Zoom, camera on. You work **on your own** all hour, and we all stay in the one call.
+Keep Zoom's **chat** open: I post the time for each block there.
 
-1. **Act it out (10 min).** Volunteers play CLOCK, CPU, MEMORY and the BUS (me). Memory holds a
-   few index cards with numbers on them, at addresses 0 to 3. The rules:
-   - Nobody acts between ticks: you only act when the clock says "tick".
-   - The CPU never walks over to Memory. It writes a request slip ("read address 2") and hands it
-     to the bus, and the bus delivers it.
-   - Round 1: two CPUs send requests, and the replies come back without a name on them. Who gets
-     which number?
-   - Round 2: every slip gets a ticket number, and every reply says "re: ticket 7".
-   - Then someone asks for address 9.
+- **Stuck?** Raise your Zoom hand or send me a private message. I'll answer with a question.
+- **Sharing:** at the end of each block I ask two or three of you to share your screen for a
+  minute or two. Everyone shares at least once over the design weeks. While someone shares,
+  answer in the chat: what did you write differently?
 
-   Talk about it: who owns time? What does the bus know about CPUs? What should happen at
-   address 9?
+Fill in your own design note: open `docs/notes/week-02.md` (it arrives with this week's merge,
+with the nine headings from [the design-note template](../notes/design-note-template.md) and a
+comment under each saying what goes there). If it isn't there, copy the template to that path.
 
-2. **Parts and their jobs (10 min).** Fill in sections 1 and 2 of your note for the bus, the
+1. **Act it out in the chat (10 min).** Four of you get roles and rename yourselves when I ask
+   (Participants → your name → More → Rename): `CPU-1`, `CPU-2`, `MEMORY` and `BUTTON`. I'm the
+   **bus** and the **clock**. I send `MEMORY` four numbers privately: the bytes at addresses 0
+   to 3. Everyone else watches the chat and notes what goes wrong. The rules:
+   - Nobody acts between ticks: you only type after I post `— tick 3 —` in the chat.
+   - Nobody talks to anyone but the bus. Send every message **to me, privately** (in the chat, pick
+     my name instead of "Everyone"), and I deliver it.
+   - When you've done your part for the tick, send me `done`. The next tick starts only when
+     everyone has.
+
+   **Round 1** (no names): CPUs send me `read 2`; `MEMORY` answers me with just the number,
+   e.g. `42`. I post the answers to everyone. Who gets which number?
+
+   **Round 2** (ticket numbers): every message gets an `id`, and every reply says which `id` it
+   answers:
+
+   ```
+   CPU-1  → bus:  id=c1-1 to=memory mem.read 2
+   MEMORY → bus:  id=m-1 replyTo=c1-1 mem.data 42
+   CPU-2  → bus:  id=c2-1 to=memory mem.read 9
+   MEMORY → bus:  id=m-2 replyTo=c2-1 fault OUT_OF_RANGE
+   BUTTON → bus:  id=b-1 to=cpu-1 irq
+   ```
+
+   (Number your own ids: `c1-1`, `c1-2`, …) Someone will ask for address 9; `MEMORY` only has 0
+   to 3. And `BUTTON` will press in the middle of a tick: `CPU-1`, when do you react?
+
+   Then answer in the chat: who owns time? What does the bus know about CPUs? What should happen
+   at address 9?
+
+2. **Parts and their jobs (8 min).** Fill in sections 1 and 2 of your note for the bus, the
    clock, memory, and "a component that asks memory for something" (it'll be the CPU later). For
    each part: its job in a few words, and what it knows. (Hint: does the bus know what's in
    memory? Does memory know who's asking?)
 
 3. **Messages (15 min).** Fill in section 3: every message a memory **read** and a memory
    **write** need, including what happens when the address is bad. For each: who sends it, to
-   whom, what it carries, and what the receiver does. Then compare with the `mem.*` and `fault`
-   rows of ARCHITECTURE.md's message table. What did you name differently? What did you miss?
-   Keep your own names if you like them; note the difference in section 7.
+   whom, what it carries, and what the receiver does. When I share the `mem.*` and `fault` rows
+   of ARCHITECTURE.md's message table, compare: what did you name differently? What did you
+   miss? Keep your own names if you like them; note the difference in section 7.
 
 4. **One read, tick by tick (10 min).** Fill in section 5 for this scenario: *a component reads
    the byte at `0x010`.* Who sends what on which tick, who waits, and when the reply is used. Ask
-   yourselves: why does the reply get **used** on the next tick, not the moment it arrives? (Think
-   of round 1 of the activity.)
+   yourself: why does the reply get **used** on the next tick, not the moment it arrives? (Think
+   of round 1 of the activity.) After the shares, I put the tick timeline on screen.
 
-5. **Sketch the board (10 min).** On paper, draw what this will look like on screen: where the bus
-   and memory sit, how a request and its reply travel, how a memory cell shows it was just read or
-   written, and what a fault looks like. Don't worry about drawing well. Arrows and labels beat
-   art. Photograph it.
+5. **Sketch the board (9 min).** Draw what this will look like on screen: where the bus and
+   memory sit, how a request and its reply travel, how a memory cell shows it was just read or
+   written, and what a fault looks like. **On paper** (then photograph it) **or digitally**:
+   Excalidraw (excalidraw.com), tldraw (tldraw.com), or anything that saves a PNG or JPEG. Don't
+   worry about drawing well. Arrows and labels beat art.
 
-6. **Wrap up (5 min).** What's left goes home. Next week you'll hand section 9 of this note to
+6. **Wrap up (3 min).** What's left goes home. Next week you'll hand section 9 of this note to
    your agent, so it builds *your* design.
 
 ## Take-home
@@ -89,6 +114,8 @@ Due before next session.
      week-3 regions: only the bus and memory on the board, and a small panel to send a read or a
      write by hand, since there's no CPU yet.
 2. **Commit your sketch** as `docs/notes/week-02-board.jpg` (or `.png`) and link it in section 6.
+   A phone photo or a digital export both work, as long as it's a real PNG or JPEG image (the check
+   looks for one, bigger than 2 KB). From Excalidraw or tldraw: **Export → PNG**.
 3. **Commit and push** your `work` branch.
 
 ### Acceptance criteria
@@ -106,8 +133,8 @@ Due before next session.
 
 ## Using Codex this week
 
-Today the design is the work, so it's yours: Codex shouldn't write your note. It's a good
-sparring partner, though. Use it like this:
+Today the design is the work, so it's yours: Codex shouldn't write your note. It's good to
+argue with, though. Use it like this:
 
 | Fine to ask Codex | You must be able to explain yourself |
 |---|---|
@@ -119,9 +146,10 @@ sparring partner, though. Use it like this:
 ## Explain it back
 
 Before next session, explain your design note to me without notes or AI: book a 5-minute slot
-with me, or record a 3-minute video (your face and your sketch, no notes) answering the two
-questions I post after class. I may also ask one or two people live at the start of class. Be
-ready to:
+with me (on Zoom: camera on, share your screen with your note and sketch, nothing else open), or
+record a 3-minute video (your face and your sketch, no notes) answering the two questions I post
+after class. I may also ask one or two people live at the start of class, the same way. Be ready
+to:
 
 1. **Walk through your sketch:** what each part on it is, and what moves or lights up during one
    memory read.
