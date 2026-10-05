@@ -67,8 +67,8 @@ ul.checklist{list-style:none;padding-left:0}
 }
 .term{border-bottom:1.5px dotted currentColor;cursor:help;position:relative;outline-offset:2px}
 .term:focus-visible{outline:2px solid var(--mint-ink);border-radius:2px}
-.term>.tip{position:absolute;left:0;top:calc(100% + 6px);z-index:30;width:max-content;max-width:min(300px,calc(100vw - 32px));padding:8px 11px;border-radius:8px;background:var(--ink);color:var(--bg);font:400 15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;letter-spacing:0;text-transform:none;white-space:normal;text-align:left;box-shadow:0 4px 14px rgba(0,0,0,.22);visibility:hidden;opacity:0;transition:opacity .12s;pointer-events:none}
-.term:hover>.tip,.term:focus>.tip,.term.open>.tip{visibility:visible;opacity:1}
+.term>.tip{position:absolute;left:0;top:calc(100% + 6px);z-index:30;width:max-content;max-width:min(300px,calc(100vw - 32px));padding:8px 11px;border-radius:8px;background:var(--ink);color:var(--bg);font:400 15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;letter-spacing:0;text-transform:none;white-space:normal;text-align:left;box-shadow:0 4px 14px rgba(0,0,0,.22);display:none;pointer-events:none}
+.term:hover>.tip,.term:focus>.tip,.term.open>.tip{display:block}
 </style>
 </head>
 <body>
@@ -202,6 +202,6 @@ BUTTON → bus:  id=b-1 to=cpu-1 irq</code></pre>
 
 </main>
 <script>addEventListener('beforeprint',()=>document.querySelectorAll('details').forEach(d=>d.open=true));</script>
-<script>(function(){var terms=document.querySelectorAll('.term');function place(t){var tip=t.querySelector('.tip');tip.style.left='0px';var r=tip.getBoundingClientRect(),dx=0,max=document.documentElement.clientWidth-16;if(r.right>max)dx=max-r.right;if(r.left+dx<16)dx=16-r.left;tip.style.left=dx+'px'}function closeAll(x){terms.forEach(function(t){if(t!==x)t.classList.remove('open')})}terms.forEach(function(t){t.addEventListener('mouseenter',function(){place(t)});t.addEventListener('focus',function(){place(t)});t.addEventListener('click',function(e){e.stopPropagation();closeAll(t);place(t);t.classList.toggle('open')})});document.addEventListener('click',function(){closeAll()});document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeAll();if(document.activeElement&&document.activeElement.classList.contains('term'))document.activeElement.blur()}})})();</script>
+<script>(function(){var terms=document.querySelectorAll('.term');function place(t){var tip=t.querySelector('.tip');tip.style.left='0px';tip.style.display='block';var r=tip.getBoundingClientRect(),dx=0,max=document.documentElement.clientWidth-16;tip.style.display='';if(r.right>max)dx=max-r.right;if(r.left+dx<16)dx=16-r.left;tip.style.left=dx+'px'}function closeAll(x){terms.forEach(function(t){if(t!==x)t.classList.remove('open')})}terms.forEach(function(t){t.addEventListener('mouseenter',function(){place(t)});t.addEventListener('focus',function(){place(t)});t.addEventListener('click',function(e){e.stopPropagation();closeAll(t);place(t);t.classList.toggle('open')})});document.addEventListener('click',function(){closeAll()});document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeAll();if(document.activeElement&&document.activeElement.classList.contains('term'))document.activeElement.blur()}})})();</script>
 </body>
 </html>
