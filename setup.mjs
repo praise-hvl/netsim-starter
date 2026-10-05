@@ -1477,9 +1477,9 @@ function printChecklist(ctx, steps, marks) {
  * steps (week 1's setup, above a week's steps) tick themselves off when they're already done.
  * @param {Step[]} steps
  * @param {Context} ctx
- * @param {{ week?: number, setupSteps?: number, published?: boolean }} [options]  week: getting week N's work (not the week-1 setup)
+ * @param {{ week?: number, setupSteps?: number, autoSteps?: number, published?: boolean, nextWeek?: number }} [options]  week: getting week N's work (not the week-1 setup)
  */
-export async function runSteps(steps, ctx, { week, setupSteps = 0, published = true } = {}) {
+export async function runSteps(steps, ctx, { week, setupSteps = 0, autoSteps = setupSteps, published = true, nextWeek = 0 } = {}) {
   const { bold } = ctx.style;
   ctx.print(bold("NetSim: Building a Simulated Computer System"));
   ctx.print(week ? `Let's get week ${week}'s work into your folder, one step at a time.` : "I'll walk you through setting up your laptop, one step at a time.");
@@ -1493,9 +1493,9 @@ export async function runSteps(steps, ctx, { week, setupSteps = 0, published = t
 
   for (const [i, step] of steps.entries()) {
     if (i === 0 && setupSteps > 0) ctx.print(`\n${bold("Week 1 · Setup")}`);
-    if (i === setupSteps && setupSteps > 0) ctx.print(`\n${bold(`Week ${week} · Get this week's work`)}`);
+    if (i === setupSteps && setupSteps > 0) ctx.print(`\n${bold(`Week ${week} · ${nextWeek ? "In your work" : "Get this week's work"}`)}`);
     // Week 1's setup above a week's steps: done ones tick off without an Enter, an optional one is skipped.
-    if (i < setupSteps) {
+    if (i < autoSteps) {
       const r = await checkStep(step, ctx);
       if (r.done || step.optional) {
         ctx.print(`  ${r.done ? ctx.style.green(`✓ ${step.title}`) : `${step.title}: skipped (optional)`}`);
@@ -1516,6 +1516,7 @@ export async function runSteps(steps, ctx, { week, setupSteps = 0, published = t
 
   ctx.print(`\n${bold("Your checklist")}`);
   printChecklist(ctx, steps, marks);
+  if (nextWeek) ctx.print(`\nWeek ${nextWeek} isn't out yet. Check back before Monday's class.`);
   if (week && !published) {
     ctx.print(`\nWeek ${week} isn't out yet. Check back before Monday's class.`);
     return { marks, quit: false };
@@ -1698,13 +1699,15 @@ const ACCOUNT_STEPS = new Set(["gh-login", "git-helper", "fork", "clone", "push"
  * current step planned, and only once the typed text matches.
  * @param {Context} ctx
  * @param {Step[]} steps
- * @param {{ mode?: "setup" | "week", week?: number, published?: boolean, setupSteps?: number }} [meta]  what the page is for:
+ * @param {{ mode?: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number }} [meta]  what the page is for:
  *   setup (week 1), or getting week N (published: false when week N isn't out yet)
  */
 export function createStudio(ctx, steps, meta = {}) {
   const setupSteps = meta.mode === "week" ? (meta.setupSteps ?? 0) : 0;
+  // How many leading steps tick themselves off when done: the setup, or everything when the week is already in.
+  const autoSteps = meta.mode === "week" ? (meta.autoSteps ?? setupSteps) : 0;
   // Only the first pass ticks setup steps off by itself: going back to one later stays there.
-  let autoSetup = setupSteps > 0;
+  let autoSetup = autoSteps > 0;
   /** @type {Set<(event: string, data: unknown) => void>} */
   const listeners = new Set();
   /** @type {Mark[]} */
@@ -1816,6 +1819,8 @@ export function createStudio(ctx, steps, meta = {}) {
       week: meta.week ?? 1,
       published: meta.published ?? true,
       setupSteps,
+      inWork: Boolean(meta.inWork),
+      next: meta.next ?? 0,
       // Only on the finish screen: it asks git.
       arrived: meta.mode === "week" && current >= steps.length && ctx.state.repoDir && meta.published !== false ? whatArrived(ctx, ctx.state.repoDir, meta.week ?? 2) : "",
       login: ctx.state.login ?? "",
@@ -1891,7 +1896,7 @@ export function createStudio(ctx, steps, meta = {}) {
     updateCanChange();
     // Week 1's setup, shown above a week's steps: done steps tick themselves off, an optional one
     // not done yet is skipped, and the first one that needs the student stops here.
-    if (autoSetup && i < setupSteps && !ranHere && (r.done || step.optional)) {
+    if (autoSetup && i < autoSteps && !ranHere && (r.done || step.optional)) {
       marks[i] = r.done ? "done" : "skipped";
       if (r.done && !ctx.dryRun) ctx.save?.();
       return enter(i + 1);
@@ -3223,6 +3228,14 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       return `<div class="finish"><p class="eyebrow">Get this week's work</p><h1>Week ${esc(snap.week)} isn't out yet.</h1>
         <p class="why" style="margin-top:10px">Check back before Monday's class.</p></div>
         <p class="note">You can close this tab: the studio stops when you do.</p>`;
+    if (snap.inWork)
+      return `<div class="finish"><p class="eyebrow">Week ${esc(snap.week)}</p><h1>Week ${esc(snap.week)} is in your work.</h1>
+        <p class="why" style="margin-top:10px">Week ${esc(snap.next)} isn't out yet: check back before Monday's class.</p></div>
+        <div class="block"><h3>What to do now</h3><ol>
+          <li><b>Read the guide:</b> <code>docs/weeks/week-${String(snap.week).padStart(2, "0")}.md</code> in your folder.</li>
+          <li><b>Do the tasks</b> marked <code>TODO(week ${esc(snap.week)}, …)</code>, and the take-home.</li>
+        </ol></div>
+        <p class="note">You can close this tab: the studio stops when you do.</p>`;
     return `<div class="finish"><p class="eyebrow">Week ${esc(snap.week)}</p><h1>Week ${esc(snap.week)} is in your work!</h1>
       <p class="why" style="margin-top:10px">${esc(snap.arrived || `Week ${snap.week}'s files are in your folder, and on GitHub.`)}</p></div>
       <div class="block"><h3>What to do next</h3><ol>
@@ -3274,9 +3287,9 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       showOutput = false;
     }
     const weekMode = snap.mode === "week";
-    $("[data-crumb]").innerHTML = weekMode ? `Week ${esc(snap.week)} · <b>Get this week's work</b>` : "Week 1 · <b>Setup</b>";
+    $("[data-crumb]").innerHTML = weekMode ? `Week ${esc(snap.week)} · <b>${snap.inWork ? "In your work" : "Get this week's work"}</b>` : "Week 1 · <b>Setup</b>";
     document.title = weekMode ? `NetSim Studio · Get week ${snap.week}` : "NetSim Studio · Setup";
-    $("[data-panel]").textContent = weekMode ? `Get week ${snap.week}` : "Setup";
+    $("[data-panel]").textContent = weekMode ? (snap.inWork ? `Week ${snap.week}` : `Get week ${snap.week}`) : "Setup";
     const total = snap.total;
     const doneCount = snap.steps.filter((s) => s.mark !== "pending").length;
     const finished = snap.current >= total;
@@ -3301,7 +3314,7 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
           snap.setupSteps > 0 && i === 0
             ? `<div class="sgroup">Week 1 · Setup</div>`
             : snap.setupSteps > 0 && i === snap.setupSteps
-              ? `<div class="sgroup">Week ${esc(snap.week)} · Get this week's work</div>`
+              ? `<div class="sgroup">Week ${esc(snap.week)} · ${snap.inWork ? "In your work" : "Get this week's work"}</div>`
               : "";
         return `${group}<button class="srow ${cls} ${viewing === i ? "viewing" : ""}" data-do="view" data-n="${i}"><span class="n">${s.n}</span><span class="st ${st}"></span><span><span class="t">${esc(s.title)}${s.optional ? ' <span class="opt">optional</span>' : ""}</span>${sub}</span></button>`;
       })
@@ -3714,7 +3727,9 @@ function dryRunStream(argv, cwd, onData) {
  * first thing left to do (meta.setupSteps says how many there are).
  * @param {Context} ctx
  * @param {{ forceSetup?: boolean, withSetup?: boolean }} [options]
- * @returns {{ steps: Step[], meta: { mode: "setup" | "week", week?: number, published?: boolean, setupSteps?: number } }}
+ * When the newest week is already in work and the next isn't out, the list shows that week too:
+ * its fetch and merge are done (it's in), the rest are checked as usual (meta.inWork, meta.next).
+ * @returns {{ steps: Step[], meta: { mode: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number } }}
  */
 export function chooseFlow(ctx, { forceSetup = false, withSetup = false } = {}) {
   const dir = forceSetup || ctx.fresh ? null : findClone(ctx);
@@ -3723,9 +3738,29 @@ export function chooseFlow(ctx, { forceSetup = false, withSetup = false } = {}) 
   const { week, published } = findWeek(ctx, dir);
   const setup = withSetup ? courseSteps() : [];
   const setupMeta = withSetup ? { setupSteps: setup.length } : {};
+  if (!published && withSetup && week > 2) {
+    const steps = [...setup, ...inWorkSteps(week - 1)];
+    return { steps, meta: { mode: "week", week: week - 1, published: true, setupSteps: setup.length, autoSteps: steps.length, inWork: true, next: week } };
+  }
   if (!published) return { steps: setup, meta: { mode: "week", week, published: false, ...setupMeta } };
   const onWork = output(ctx, ["git", "branch", "--show-current"], dir) === "work";
   return { steps: [...setup, ...weekSteps(week, { onWork })], meta: { mode: "week", week, published: true, ...setupMeta } };
+}
+
+/**
+ * Week N's steps once week N is already in work: getting it (save, fetch, merge) is done, so those
+ * tick off; pushing, installing, the doctor and opening the guide are still checked for real.
+ * @param {number} week
+ * @returns {Step[]}
+ */
+export function inWorkSteps(week) {
+  const inAlready = new Set(["half-merged", "on-work", "saved", "fetch", "merge"]);
+  return weekSteps(week).map((step) => {
+    if (inAlready.has(step.id)) return { ...step, check: async () => ({ done: true, found: `Done: week ${week} is in your work.` }) };
+    if (step.id === "doctor-week")
+      return { ...step, check: async (/** @type {Context} */ ctx) => ({ done: ctx.state.doctorOk === true, found: ctx.state.doctorOk ? "doctor: all 8 checks passed" : "The doctor hasn't passed yet." }) };
+    return step;
+  });
 }
 
 /**
@@ -3767,7 +3802,7 @@ async function main() {
   if (!terminal) return runStudio(ctx, { open: !args.includes("--no-open"), port: portArg === -1 ? 0 : Number(args[portArg + 1]), forceSetup });
   const { steps, meta } = chooseFlow(ctx, { forceSetup, withSetup: true });
   const week = meta.mode === "week" ? meta.week : undefined;
-  const { quit } = await runSteps(steps, ctx, { week, setupSteps: meta.setupSteps ?? 0, published: meta.published !== false });
+  const { quit } = await runSteps(steps, ctx, { week, setupSteps: meta.setupSteps ?? 0, autoSteps: meta.autoSteps, published: meta.published !== false, nextWeek: meta.next ?? 0 });
   ctx.close();
   process.exitCode = quit ? 1 : 0;
 }
