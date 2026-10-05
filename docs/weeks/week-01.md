@@ -123,8 +123,10 @@ Ctrl+C there stops it). The studio goes through the 15 steps **one at a time**:
 - Nothing moves on by itself: every step ends with you pressing Enter. Optional steps have
   **Skip**. If something fails, the studio says what went wrong and how to fix it.
 - **Rerun it any time** and it checks everything again from the top. Once the course is cloned,
-  rerun it from inside the course folder with `npm run setup`. Prefer the terminal?
-  `node setup.mjs --terminal` walks the same steps there.
+  rerun it from inside the course folder with `node setup-week 1` (or `npm run setup`). Prefer the
+  terminal? `node setup.mjs --terminal` walks the same steps there.
+- **It's your module for every class.** Each class starts with `node setup-week N` (N = that
+  week): the studio gets the week, then opens its page, your note and the board.
 
 **The steps**, exactly as the studio shows them:
 
@@ -384,6 +386,7 @@ Due before next session.
 | Command | What it does | Works this week? |
 |---|---|---|
 | `node setup.mjs` / `npm run setup` | the guided setup tool (the second once you're in the course folder) | ✅ |
+| `node setup-week N` | the studio for week N's class: gets the week, then opens its page and board | ✅ (`node setup-week 1` reruns setup) |
 | `npm install` | installs the project's packages | ✅ |
 | `npm run doctor` | checks your setup: 8 checks, one line each, `→` hints for failures | ✅ |
 | `npx vitest run tests/week-01` | this week's test (your notes) | ✅ once your notes are written |
