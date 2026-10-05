@@ -35,17 +35,18 @@ export const STUDIO_VERSION = 2;
  * The course's weeks, in order. weeks.json in the course is the list the studio shows (read from
  * GitHub on start, so a new title shows up without a new studio); this copy is the fallback offline.
  * A week counts as out when its week-N-start branch is published.
- * @type {{ week: number, title: string }[]}
+ * @typedef {{ week: number, title: string, kind?: string, guide?: string | null, page?: string | null, note?: string | null, board?: boolean }} CourseWeek
+ * @type {CourseWeek[]}
  */
 export const COURSE_WEEKS = [
-  { week: 1, title: "Setup & system roles" },
-  { week: 2, title: "Design: the machine and its bus" },
-  { week: 3, title: "Build: bus + memory on screen" },
-  { week: 4, title: "Design: the CPU" },
-  { week: 5, title: "Build: a CPU that runs programs" },
-  { week: 6, title: "Design: scheduling + interrupts" },
-  { week: 7, title: "Build: cores, scheduler, interrupts" },
-  { week: 8, title: "Demo: ship it" },
+  { week: 1, title: "Setup & system roles", kind: "setup", guide: "docs/weeks/week-01.md", page: "docs/weeks/week-01.html", note: "docs/notes/week-01.md", board: false },
+  { week: 2, title: "Design: the machine and its bus", kind: "design", guide: "docs/weeks/week-02.md", page: "docs/weeks/week-02.html", note: "docs/notes/week-02.md", board: false },
+  { week: 3, title: "Build: bus + memory on screen", kind: "build", guide: "docs/weeks/week-03.md", page: null, note: null, board: true },
+  { week: 4, title: "Design: the CPU", kind: "design", guide: "docs/weeks/week-04.md", page: null, note: "docs/notes/week-04.md", board: false },
+  { week: 5, title: "Build: a CPU that runs programs", kind: "build", guide: "docs/weeks/week-05.md", page: null, note: null, board: true },
+  { week: 6, title: "Design: scheduling + interrupts", kind: "design", guide: "docs/weeks/week-06.md", page: null, note: "docs/notes/week-06.md", board: false },
+  { week: 7, title: "Build: cores, scheduler, interrupts", kind: "build", guide: "docs/weeks/week-07.md", page: null, note: null, board: true },
+  { week: 8, title: "Demo: ship it", kind: "demo", guide: "docs/weeks/week-08.md", page: null, note: null, board: true },
 ];
 const WEEK_BRANCH = "week-1-start";
 /** What `remote.upstream.fetch` is when upstream brings every branch (every week). The doctor checks the same. */
@@ -1726,7 +1727,7 @@ const ACCOUNT_STEPS = new Set(["gh-login", "git-helper", "fork", "clone", "push"
  * current step planned, and only once the typed text matches.
  * @param {Context} ctx
  * @param {Step[]} steps
- * @param {{ mode?: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number, groups?: WeekGroup[], update?: boolean }} [meta]  what the page is for:
+ * @param {{ mode?: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number, groups?: WeekGroup[], update?: boolean, focus?: number }} [meta]  what the page is for:
  *   setup (week 1), or getting week N (published: false when week N isn't out yet)
  */
 export function createStudio(ctx, steps, meta = {}) {
@@ -1848,6 +1849,7 @@ export function createStudio(ctx, steps, meta = {}) {
       setupSteps,
       inWork: Boolean(meta.inWork),
       groups: meta.groups ?? [],
+      focus: meta.focus ?? 0,
       update: Boolean(meta.update),
       next: meta.next ?? 0,
       // Only on the finish screen: it asks git.
@@ -2337,6 +2339,24 @@ export function createStudio(ctx, steps, meta = {}) {
     start: () => enter(0),
     act,
     snapshot,
+    /**
+     * A week's page (or its guide when it has no page) from the student's folder, once that week is
+     * in their work. Only docs/weeks/week-NN.html or .md, inside the course folder; null otherwise.
+     * @param {number} week
+     * @returns {{ type: "html" | "md", text: string } | null}
+     */
+    weekPage: (week) => {
+      const g = (meta.groups ?? []).find((x) => x.week === week);
+      const isIn = g && (["setup", "done", "inwork"].includes(g.status) || (g.status === "get" && current >= steps.length));
+      const dir = ctx.state.repoDir;
+      if (!isIn || !dir) return null;
+      for (const rel of [g.page, g.guide ?? `docs/weeks/week-${pad2(week)}.md`]) {
+        if (!rel || !/^docs\/weeks\/week-\d{2}\.(html|md)$/.test(rel)) continue;
+        const text = ctx.readText(join(dir, rel));
+        if (text !== null) return { type: rel.endsWith(".html") ? "html" : "md", text };
+      }
+      return null;
+    },
     output: () => ({ id: outputId, text: out }),
     /** @param {(event: string, data: unknown) => void} listener */
     subscribe: (listener) => {
@@ -2371,6 +2391,18 @@ export function checkRequest(req, studio) {
 }
 
 /**
+ * A week's guide (markdown) as a plain, readable page, for weeks without an HTML page.
+ * @param {number} week
+ * @param {string} markdown
+ */
+export function guidePage(week, markdown) {
+  const esc = (/** @type {string} */ t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Week ${week} guide</title>
+<style>body{margin:0;background:#fff;color:#16201b;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}main{max-width:860px;margin:0 auto;padding:32px 20px}pre{white-space:pre-wrap;word-break:break-word;font:inherit;margin:0}@media (prefers-color-scheme:dark){body{background:#0f1512;color:#e8efeb}}</style>
+</head><body><main><pre>${esc(markdown)}</pre></main></body></html>`;
+}
+
+/**
  * Serve the studio on 127.0.0.1, on a free port. Resolves once it's listening.
  * @param {ReturnType<typeof createStudio>} studio
  * @param {{ token?: string, port?: number, onIdle?: () => void, idleMs?: number, log?: (line: string) => void }} [options]
@@ -2398,6 +2430,22 @@ export function serveStudio(studio, { token = randomBytes(24).toString("base64ur
           "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:; frame-src http://localhost:3005 http://127.0.0.1:3005; base-uri 'none'; form-action 'none'",
       });
       res.end(studioPage(token));
+      return;
+    }
+    // A week's page, from the student's own folder (studio.weekPage decides which, and only once it's in).
+    const weekMatch = /^\/week\/(\d{1,2})$/.exec(url.pathname);
+    if (req.method === "GET" && weekMatch) {
+      const page = studio.weekPage(Number(weekMatch[1]));
+      if (!page) {
+        res.writeHead(404, { ...secure, "content-type": "text/plain" }).end("That week isn't in your work yet.");
+        return;
+      }
+      res.writeHead(200, {
+        ...secure,
+        "content-type": "text/html; charset=utf-8",
+        "content-security-policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'",
+      });
+      res.end(page.type === "html" ? page.text : guidePage(Number(weekMatch[1]), page.text));
       return;
     }
     if (req.method === "GET" && url.pathname === "/events") {
@@ -2799,6 +2847,11 @@ kbd { font: 600 11px/1 "JetBrains Mono", monospace; border: 1px solid currentCol
 .sgroup em { font-style: normal; font-weight: 600; letter-spacing: 0; text-transform: none; white-space: nowrap; }
 .sgroup.get em, .sgroup.inwork em { color: var(--ink); }
 .sgroup.future, .sgroup.later { opacity: .55; padding-bottom: 8px; }
+button.sgroup { width: 100%; background: none; border: 0; border-left: 3px solid transparent; text-align: left; cursor: pointer; }
+button.sgroup:hover { background: #f7f9f8; color: var(--ink); }
+button.sgroup.viewing { outline: 2px solid var(--mint); outline-offset: -2px; }
+ul.home { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 12px; }
+ul.home .sub { display: block; margin-top: 4px; font-size: 12.5px; color: var(--muted); }
 .srow .n { font: 600 11px/20px "JetBrains Mono", monospace; color: var(--muted); text-align: right; }
 .srow .t { font-weight: 600; font-size: 13.5px; line-height: 20px; }
 .srow small { display: block; font-size: 12px; color: var(--muted); }
@@ -2942,6 +2995,9 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
   let showOutput = false;
   let outputFor = -1; // the step Show full output was opened on
   let listedFor = -1; // the step the list last scrolled to
+  /** @type {number | null} */
+  let viewingWeek = null; // a week's home is open (its page, note, board)
+  let focusShown = false; // node setup-week N: N's home opens once, when nothing before it is left to do
   let pasteNote = "";
   /** @type {Record<string, string>} */
   const formValues = {};
@@ -3261,22 +3317,18 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       return `<div class="finish"><p class="eyebrow">Get this week's work</p><h1>Week ${esc(snap.week)} isn't out yet.</h1>
         <p class="why" style="margin-top:10px">Check back before Monday's class.</p></div>
         <p class="note">You can close this tab: the studio stops when you do.</p>`;
-    if (snap.inWork)
+    if (snap.inWork) {
+      const home = snap.groups.find((g) => g.week === snap.week);
       return `<div class="finish"><p class="eyebrow">Week ${esc(snap.week)}</p><h1>Week ${esc(snap.week)} is in your work.</h1>
         <p class="why" style="margin-top:10px">Week ${esc(snap.next)} isn't out yet: check back before Monday's class.</p></div>
-        <div class="block"><h3>What to do now</h3><ol>
-          <li><b>Read the guide:</b> <code>docs/weeks/week-${String(snap.week).padStart(2, "0")}.md</code> in your folder.</li>
-          <li><b>Do the tasks</b> marked <code>TODO(week ${esc(snap.week)}, …)</code>, and the take-home.</li>
-        </ol></div>
+        ${home ? weekHomeBody(home) : ""}
         <p class="note">You can close this tab: the studio stops when you do.</p>`;
+    }
+    const home = snap.groups.find((g) => g.week === snap.week);
     return `<div class="finish"><p class="eyebrow">Week ${esc(snap.week)}</p><h1>Week ${esc(snap.week)} is in your work!</h1>
       <p class="why" style="margin-top:10px">${esc(snap.arrived || `Week ${snap.week}'s files are in your folder, and on GitHub.`)}</p></div>
-      <div class="block"><h3>What to do next</h3><ol>
-        <li><b>Read the guide:</b> <code>docs/weeks/week-${String(snap.week).padStart(2, "0")}.md</code> in your folder.</li>
-        <li><b>Do the tasks</b> marked <code>TODO(week ${esc(snap.week)}, …)</code>, in the guide's order. Codex can help write; you lead the design and explain every line.</li>
-        <li><b>See how you're doing:</b> <code>npm test</code> runs the tests that check your work.</li>
-      </ol></div>
-      <p class="note">Next week, run <code>node setup.mjs</code> again the same way. You can close this tab: the studio stops when you do.</p>`;
+      ${home ? weekHomeBody(home) : ""}
+      <p class="note">Next class, run <code>node setup-week ${esc(snap.week + 1)}</code> the same way. You can close this tab: the studio stops when you do.</p>`;
   }
 
   function finishView() {
@@ -3287,9 +3339,9 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       <p class="why" style="margin-top:10px">Your laptop has everything the course needs, and your own copy of the course is on GitHub and on this laptop.</p>
       ${snap.codexVersion ? `<p class="note" style="margin-top:10px">Codex version: <code>${esc(snap.codexVersion)}</code></p>` : ""}</div>
       <div class="block"><h3>What to do next</h3><ol>
-        <li><b>Open the week-1 guide:</b> <a href="${WEEK1_GUIDE_URL}" target="_blank" rel="noreferrer">docs/weeks/week-01.md</a> (it's in your folder too).</li>
+        <li>${snap.groups.length && snap.repoDir ? `<a class="btn" href="/week/1?t=${encodeURIComponent(TOKEN)}" target="_blank" rel="noopener noreferrer">Open the week-1 page</a> (from your folder), or the` : "<b>Open the week-1 guide:</b>"} <a href="${WEEK1_GUIDE_URL}" target="_blank" rel="noreferrer">guide on GitHub</a>.</li>
         <li><b>Do the take-home:</b> paste the doctor's output into <code>docs/notes/week-01.md</code>, and try Codex on a real file.</li>
-        <li><b>From week 2:</b> open a terminal in <code>${esc(folder)}</code> and run <code>node setup.mjs</code> again. The studio gets that week's work for you.</li>
+        <li><b>Each class from week 2:</b> open a terminal in <code>${esc(folder)}</code> and run <code>node setup-week 2</code> (then 3, 4, …). The studio gets that week's work for you, then opens its page and board.</li>
       </ol></div>
       <div class="row"><button class="btn primary" data-do="machine">See the computer you'll build <kbd>↵</kbd></button></div>
       <p class="note">You can close this tab: the studio stops when you do.</p>`;
@@ -3316,7 +3368,38 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
   /** One week's heading in the list: its number, title, and where it stands. @param {{ week: number, title: string, status: string }} g */
   function weekHeading(g) {
     const note = g.update ? "get the update" : ({ setup: "", done: "done", inwork: "in your work", get: "get it now", later: "after this one", future: "not out yet" }[g.status] ?? "");
-    return `<div class="sgroup ${g.status}"><span>Week ${esc(g.week)} · ${esc(g.title)}${g.update ? " · update" : ""}</span>${note ? `<em>${esc(note)}</em>` : ""}</div>`;
+    const inner = `<span>Week ${esc(g.week)} · ${esc(g.title)}${g.update ? " · update" : ""}</span>${note ? `<em>${esc(note)}</em>` : ""}`;
+    // A week that's in opens its home: its page, note and board.
+    return weekIsIn(g) ? `<button class="sgroup ${g.status} open ${viewingWeek === g.week ? "viewing" : ""}" data-do="week" data-w="${g.week}" title="Open week ${g.week}">${inner}</button>` : `<div class="sgroup ${g.status}">${inner}</div>`;
+  }
+
+  /** In the student's work, so its page and board can open. @param {{ status: string }} g */
+  function weekIsIn(g) {
+    return ["setup", "done", "inwork"].includes(g.status) || (g.status === "get" && !!snap && snap.current >= snap.total);
+  }
+
+  /**
+   * A week's home: what the student opens for that class once the week is in. Room for more later
+   * (a build week's tasks, Join class) without changing its shape.
+   * @param {{ week: number, title: string, kind?: string, page?: string | null, guide?: string | null, note?: string | null, board?: boolean }} g
+   */
+  function weekHomeBody(g) {
+    const nn = String(g.week).padStart(2, "0");
+    const items = [
+      `<li><a class="btn" href="/week/${g.week}?t=${encodeURIComponent(TOKEN)}" target="_blank" rel="noopener noreferrer">Open the week-${g.week} ${g.page ? "page" : "guide"}</a> <span class="sub">${esc(g.page ?? g.guide ?? `docs/weeks/week-${nn}.md`)} from your folder</span></li>`,
+      g.note ? `<li><b>Your ${g.kind === "setup" ? "notes" : "design note"}:</b> <code>${esc(g.note)}</code>. Open it in VS Code: <code>code ${esc(g.note)}</code></li>` : "",
+      g.board ? `<li><b>The board:</b> in a terminal, in your course folder, run <code>npm run dev:all</code>, then <a href="http://localhost:3005/board" target="_blank" rel="noopener noreferrer">open the board</a>.</li>` : "",
+      g.kind === "setup" ? `<li><b>Your setup check:</b> <code>npm run doctor</code></li>` : `<li><b>Your checks:</b> <code>npx vitest run tests/week-${nn}</code></li>`,
+    ];
+    return `<div class="block"><h3>Week ${esc(g.week)} · ${esc(g.title)}</h3><ul class="home">${items.join("")}</ul></div>
+      <div class="row"><button class="btn ghost" data-do="machine">See the computer you'll build</button></div>`;
+  }
+
+  /** A week's home on its own (picked in the list). @param {number} week */
+  function weekHomeView(week) {
+    const g = snap?.groups.find((x) => x.week === week);
+    if (!g) return "";
+    return `<div><p class="eyebrow">Week ${esc(g.week)}${g.kind ? ` · ${esc(g.kind)}` : ""}</p><h1 class="q">${esc(g.title)}</h1></div>${weekHomeBody(g)}`;
   }
 
   function render() {
@@ -3368,14 +3451,23 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
     const focused = document.activeElement instanceof HTMLInputElement && !document.activeElement.dataset.sink ? document.activeElement.name : "";
     const shown = viewing !== null && viewing !== snap.current ? viewing : null;
     const showMachine = machineOpen && shown === null;
+    // node setup-week N: once N's own steps are done, its home opens (once; the list still shows what's next).
+    const focusGroup = snap.focus ? snap.groups.find((g) => g.week === snap.focus) : undefined;
+    if (!focusShown && focusGroup && weekIsIn(focusGroup) && snap.current >= focusGroup.start + focusGroup.count) {
+      focusShown = true;
+      if (!finished) viewingWeek = focusGroup.week;
+    }
+    const showWeek = viewingWeek !== null && shown === null && !showMachine;
     $("[data-label]").textContent = showMachine
       ? "The computer you'll build"
+      : showWeek
+        ? `Week ${viewingWeek}`
       : finished && shown === null
         ? weekMode ? (snap.published ? `Week ${snap.week} is in` : `Week ${snap.week}`) : "Setup complete"
         : `Step ${(shown ?? snap.current) + 1} of ${total}`;
     const phase = snap.view?.phase ?? "done";
     const tags = { ready: ["now", "your turn"], checking: ["", "checking"], running: ["", "running"], waiting: ["now", "waiting for you"], passed: ["ok", "done"], failed: ["bad", "needs a fix"], confirm: ["now", "your turn"], done: ["ok", "all done"] };
-    const [tagClass, tagText] = shown === null ? /** @type {Record<string, string[]>} */ (tags)[phase] : ["", "looking back"];
+    const [tagClass, tagText] = showWeek ? ["ok", "this week"] : shown === null ? /** @type {Record<string, string[]>} */ (tags)[phase] : ["", "looking back"];
     $("[data-tag]").className = `tag ${tagClass}`;
     $("[data-tag]").textContent = tagText;
     $("[data-tag]").style.display = total === 0 ? "none" : "";
@@ -3388,7 +3480,7 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       return;
     }
     machine.stop();
-    $("[data-detail]").innerHTML = `<div class="inner">${shown !== null ? otherView(snap.steps[shown]) : finished ? finishView() : currentView(snap.steps[snap.current])}</div>`;
+    $("[data-detail]").innerHTML = `<div class="inner">${shown !== null ? otherView(snap.steps[shown]) : showWeek ? weekHomeView(/** @type {number} */ (viewingWeek)) : finished ? finishView() : currentView(snap.steps[snap.current])}</div>`;
     paintLine();
     paintOutput();
     const input = focused ? /** @type {HTMLInputElement | null} */ (document.querySelector(`input[name="${focused}"]`)) : null;
@@ -3427,11 +3519,19 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       const n = el?.dataset.n;
       viewing = n === "" || n === undefined || Number(n) === snap?.current ? null : Number(n);
       machineOpen = false;
+      viewingWeek = null;
+      return render();
+    }
+    if (what === "week") {
+      viewingWeek = Number(el?.dataset.w);
+      viewing = null;
+      machineOpen = false;
       return render();
     }
     if (what === "machine" || what === "m-close") {
       machineOpen = what === "machine";
       viewing = null;
+      viewingWeek = null;
       return render();
     }
     if (what === "m-play") return machine.toggle();
@@ -3768,7 +3868,7 @@ function dryRunStream(argv, cwd, onData) {
 }
 
 /**
- * @typedef {{ week: number, title: string, status: "setup" | "done" | "inwork" | "get" | "later" | "future", start: number, count: number, update?: boolean }} WeekGroup
+ * @typedef {CourseWeek & { status: "setup" | "done" | "inwork" | "get" | "later" | "future", start: number, count: number, update?: boolean }} WeekGroup
  *   One week in the studio's list. start/count: its steps in the flow (count 0: a heading only).
  *   setup: week 1, re-checked. done: in work, a later week too. inwork: the newest week in work.
  *   get: the week to get now. later: published, after the one to get. future: not out yet.
@@ -3782,18 +3882,20 @@ function dryRunStream(argv, cwd, onData) {
  * week to get comes next; weeks not out yet are greyed out. Steps already done tick themselves off
  * (meta.autoSteps), so the student lands on the first thing left to do.
  * @param {Context} ctx
- * @param {{ forceSetup?: boolean, withSetup?: boolean, weekList?: { week: number, title: string }[] }} [options]
+ * @param {{ forceSetup?: boolean, withSetup?: boolean, weekList?: CourseWeek[] }} [options]
  * @returns {{ steps: Step[], meta: { mode: "setup" | "week", week?: number, published?: boolean, setupSteps?: number, autoSteps?: number, inWork?: boolean, next?: number, groups?: WeekGroup[], update?: boolean } }}
  */
 export function chooseFlow(ctx, { forceSetup = false, withSetup = false, weekList = COURSE_WEEKS } = {}) {
   const dir = forceSetup || ctx.fresh ? null : findClone(ctx);
   const titled = (/** @type {number} */ n) => weekList.find((w) => w.week === n)?.title ?? `Week ${n}`;
+  /** A week from the list (its resources: page, note, board…), or just its number and title. @param {number} n */
+  const entry = (n) => ({ ...(weekList.find((w) => w.week === n) ?? {}), week: n, title: titled(n) });
   const later = (/** @type {number} */ from) => weekList.filter((w) => w.week >= from);
   if (!dir || !setupComplete(ctx, dir)) {
     if (!withSetup) return { steps: courseSteps(), meta: { mode: "setup" } };
     const steps = courseSteps();
     /** @type {WeekGroup[]} */
-    const groups = [{ week: 1, title: titled(1), status: "setup", start: 0, count: steps.length }, ...later(2).map((w) => ({ ...w, status: /** @type {const} */ ("future"), start: steps.length, count: 0 }))];
+    const groups = [{ ...entry(1), status: "setup", start: 0, count: steps.length }, ...later(2).map((w) => ({ ...w, status: /** @type {const} */ ("future"), start: steps.length, count: 0 }))];
     return { steps, meta: { mode: "setup", groups } };
   }
   ctx.state.repoDir = dir;
@@ -3812,7 +3914,7 @@ export function chooseFlow(ctx, { forceSetup = false, withSetup = false, weekLis
   const groups = [];
   /** @param {number} week @param {WeekGroup["status"]} status @param {Step[]} list */
   const add = (week, status, list) => {
-    groups.push({ week, title: titled(week), status, start: steps.length, count: list.length });
+    groups.push({ ...entry(week), status, start: steps.length, count: list.length });
     steps.push(...list);
   };
   add(1, "setup", courseSteps());
@@ -3878,10 +3980,11 @@ export function inWorkSteps(week) {
 /**
  * The studio: start the server, open the browser, stop when the tab closes or on Ctrl+C.
  * @param {Context & { close: () => void }} ctx
- * @param {{ open?: boolean, port?: number, forceSetup?: boolean, weekList?: { week: number, title: string }[] }} options
+ * @param {{ open?: boolean, port?: number, forceSetup?: boolean, weekList?: CourseWeek[], focus?: number }} options
  */
-async function runStudio(ctx, { open = true, port = 0, forceSetup = false, weekList = COURSE_WEEKS }) {
+async function runStudio(ctx, { open = true, port = 0, forceSetup = false, weekList = COURSE_WEEKS, focus = 0 }) {
   const { steps, meta } = chooseFlow(ctx, { forceSetup, withSetup: true, weekList });
+  if (focus) Object.assign(meta, { focus });
   const studio = createStudio(ctx, steps, meta);
   /** @type {Awaited<ReturnType<typeof serveStudio>> | null} */
   let server = null;
@@ -3932,7 +4035,7 @@ async function fromCourse(week, file) {
  * copy, else the one built in here.
  * @param {Context} ctx
  * @param {number | null} newest
- * @returns {Promise<{ week: number, title: string }[]>}
+ * @returns {Promise<CourseWeek[]>}
  */
 export async function loadWeekList(ctx, newest) {
   const local = ctx.readText(join(ctx.cwd, "weeks.json"));
@@ -3964,6 +4067,21 @@ export async function newerStudio(newest, dir = dirname(STATE_FILE)) {
   return path;
 }
 
+/**
+ * A week's home in the terminal: where its page, note and board are.
+ * @param {WeekGroup} g
+ */
+export function weekHomeLines(g) {
+  const nn = pad2(g.week);
+  return [
+    `\nWeek ${g.week} · ${g.title}`,
+    `  The ${g.page ? "page" : "guide"}: ${g.page ?? g.guide ?? `docs/weeks/week-${nn}.md`} (open it from your folder${g.page ? ": double-click it" : ""})`,
+    ...(g.note ? [`  Your ${g.kind === "setup" ? "notes" : "design note"}: ${g.note}`] : []),
+    ...(g.board ? ["  The board: npm run dev:all, then open http://localhost:3005/board"] : []),
+    g.kind === "setup" ? "  Your setup check: npm run doctor" : `  Your checks: npx vitest run tests/week-${nn}`,
+  ];
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
@@ -3973,6 +4091,14 @@ async function main() {
   if (ctx.platform === "windows") ctx.print("(Windows support is untested on a real Windows machine so far. Tell Praise how it goes.)");
   if (ctx.dryRun) ctx.print("(dry run: commands are shown and typed, but not run)");
   const forceSetup = args.includes("--setup");
+  // node setup-week N (or --week N): the studio for week N's class. Its home opens once it's in.
+  const weekArg = args.indexOf("--week");
+  const focus = weekArg === -1 ? 0 : Number(args[weekArg + 1]);
+  if (weekArg !== -1 && !(Number.isInteger(focus) && focus >= 1)) {
+    console.log("Which week? For example: node setup-week 2");
+    process.exitCode = 2;
+    return;
+  }
   // One studio for everyone: a newer one on the newest published week runs instead of this copy.
   // Not in a dry run, a sandbox or a test run (they use the studio they were given), and only once.
   const newest = ctx.dryRun || process.env.NETSIM_SANDBOX ? null : newestPublishedWeek(ctx);
@@ -3985,10 +4111,12 @@ async function main() {
     }
   }
   const weekList = await loadWeekList(ctx, newest);
-  if (!terminal) return runStudio(ctx, { open: !args.includes("--no-open"), port: portArg === -1 ? 0 : Number(args[portArg + 1]), forceSetup, weekList });
+  if (!terminal) return runStudio(ctx, { open: !args.includes("--no-open"), port: portArg === -1 ? 0 : Number(args[portArg + 1]), forceSetup, weekList, focus });
   const { steps, meta } = chooseFlow(ctx, { forceSetup, withSetup: true, weekList });
   const week = meta.mode === "week" ? meta.week : undefined;
   const { quit } = await runSteps(steps, ctx, { week, setupSteps: meta.setupSteps ?? 0, autoSteps: meta.autoSteps, published: meta.published !== false, nextWeek: meta.next ?? 0, groups: meta.groups ?? [] });
+  const home = (meta.groups ?? []).find((g) => g.week === (focus || week));
+  if (!quit && home && ["setup", "done", "inwork", "get"].includes(home.status)) for (const line of weekHomeLines(home)) ctx.print(line);
   ctx.close();
   process.exitCode = quit ? 1 : 0;
 }

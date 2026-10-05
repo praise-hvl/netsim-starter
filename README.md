@@ -79,24 +79,26 @@ irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/se
 
 It installs git, the GitHub CLI, VS Code and Codex, signs you in, forks the course, clones your
 fork into a `netsim` folder, makes your `work` branch, installs the packages, and ends with
-`npm run doctor`. Rerun it any time (inside the course folder: `npm run setup`). If it doesn't
-work for you, the week-1 guide has the same steps by hand.
+`npm run doctor`. Rerun it any time (inside the course folder: `node setup-week 1`, or `npm run setup`).
+If it doesn't work for you, the week-1 guide has the same steps by hand.
 
 All your work for the whole course goes on `work`. Every week you merge the new week into it;
 you never switch branches.
 
 ## Getting each week
 
-Every week after that starts in class with **getting the week** (5 minutes). In your course
-folder:
+Every class after that starts with **getting the week** (5 minutes). In your course folder:
 
 ```bash
-node setup.mjs
+node setup-week 3        # this class's week number
 ```
 
-NetSim Studio opens in your browser. Its sidebar lists every week of the course (the ones not out
-yet are greyed) and walks you through getting the new one: save your work, fetch the week, merge
-it into `work`, push, install, check. Or in a terminal, on your `work` branch:
+NetSim Studio opens in your browser: it's your module for the class. Its sidebar lists every week
+of the course (the ones not out yet are greyed). It walks you through getting the week (save your
+work, fetch it, merge it into `work`, push, install, check), and once the week is in, it opens
+that week's page, your design note and the board. Click any week that's in to open its page again.
+(Week 2 is the exception: your week-1 folder doesn't have `setup-week` yet, so run
+`node setup.mjs`.) Or in a terminal, on your `work` branch:
 
 ```bash
 git fetch upstream
@@ -131,6 +133,7 @@ Which of these work depends on the week: parts that later weeks build throw a cl
 error until you get there. Your week guide lists exactly what works.
 
 ```bash
+node setup-week 3                    # the studio for this class's week (setup in week 1), then its page and board
 npm run setup                        # week 1: the guided setup (rerun any time)
 npm run doctor                       # week 1: check your setup
 npm run bus                          # just the bus
