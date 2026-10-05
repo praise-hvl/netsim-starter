@@ -32,10 +32,10 @@ Fill in your own design note: open `docs/notes/week-02.md` (it arrives with this
 with the nine headings from [the design-note template](../notes/design-note-template.md) and a
 comment under each saying what goes there). If it isn't there, copy the template to that path.
 
-1. **Get the week (5 min).** In your course folder, run `node setup.mjs`. NetSim Studio opens and
-   walks you through getting week 2. From now on the studio is your module for each class: once
-   week 2 is in, `node setup-week 2` opens it again with this page and your design note (next
-   class it's `node setup-week 3`). In a terminal instead:
+1. **Open the app (5 min).** In your course folder, run `node setup.mjs` (this once: from next
+   class it's `node setup-week 3`). The app is where every class starts: it gets week 2 ready
+   (saves your work, brings the week in, checks), and once it's in, `node setup-week 2` opens this
+   page and your design note from it. If the app won't start, the same by hand:
 
    ```bash
    git fetch upstream && git merge upstream/week-2-start
