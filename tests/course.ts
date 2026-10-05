@@ -1,5 +1,6 @@
-// Week 6's take-home is one peripheral of the student's choice, named in course.json. Tests for
-// the other options are skipped. With no choice made (the instructor's netsim branch) all of them run.
+// The sensors stretch module: a student builds one optional peripheral, named in course.json's
+// "peripheral". Tests for the other options are skipped. With no choice made (the instructor's
+// netsim branch) all of them run.
 import { readFileSync } from "node:fs";
 
 export const OPTIONAL_PERIPHERALS = ["sensor", "proximity", "potentiometer"] as const;
