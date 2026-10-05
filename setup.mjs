@@ -1213,7 +1213,7 @@ export function weekSteps(week, { onWork = true } = {}) {
               }),
             ]),
       ],
-      hint: () => "If git says it doesn't know who you are, run node setup.mjs --setup (step 3).",
+      hint: () => "If git says it doesn't know who you are, go back to step 3 (\"Who should your work be signed by?\") in the setup steps above.",
     },
     {
       id: "fetch",
@@ -1300,7 +1300,7 @@ export function weekSteps(week, { onWork = true } = {}) {
       hint: (ctx) =>
         ownerMismatch(ctx, ghActiveAccount(ctx))
           ? `Use the account your copy belongs to ("Use a different account" in this step). ${ownerMismatch(ctx, ghActiveAccount(ctx))}`
-          : "If GitHub refused, run node setup.mjs --setup and check steps 5 and 6.",
+          : "If GitHub refused, go back to steps 5 and 6 (signing in to GitHub) in the setup steps above.",
     },
     {
       id: "install-week",
@@ -3496,6 +3496,7 @@ export function studioPage(token) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>NetSim Studio</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap">
 <style>${STUDIO_CSS}</style>
 </head>
