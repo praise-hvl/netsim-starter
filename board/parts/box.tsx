@@ -17,12 +17,14 @@ export type BoxProps = {
   /** Drop shadow offset in pixels; 0 for none. */
   shadow?: number;
   opacity?: number;
+  /** What this part is, shown in a popover when someone hovers it (the board pauses meanwhile). */
+  explain?: string;
 };
 
-export function Box({ rect, fill, stroke = INK.outline, width = 1.6, radius = 2, shadow = 0, opacity = 1 }: BoxProps) {
+export function Box({ rect, fill, stroke = INK.outline, width = 1.6, radius = 2, shadow = 0, opacity = 1, explain }: BoxProps) {
   const r = screenRect(rect);
   return (
-    <g opacity={opacity}>
+    <g opacity={opacity} data-explain={explain}>
       {shadow > 0 && <rect {...r} x={r.x + shadow} y={r.y + shadow} rx={radius} fill={INK.outline} />}
       {shadow > 0 && <rect {...r} rx={radius} fill={INK.white} />}
       <rect {...r} rx={radius} fill={fill} transform={`translate(${OFFSET.x} ${OFFSET.y})`} />
