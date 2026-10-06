@@ -1,9 +1,6 @@
 #!/usr/bin/env node
-// node setup-week N: NetSim Studio for week N's class. It walks you through getting ready (setup in
-// week 1, then each new week), and once week N is in, it opens that week's page, note and board.
-//   node setup-week 2              the studio, in your browser
-//   node setup-week 2 --terminal   the same steps, in this terminal
-// It runs setup.mjs (next to this file) with --week N; everything else is passed along.
+// An old alias: node setup-week N is npm start -- --week N (NetSim Studio, opened on week N). The
+// course's one entry point is npm start; this stays only for anyone who learned the old command.
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

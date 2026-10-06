@@ -100,12 +100,12 @@ or **PowerShell** (Windows), go to the folder where you keep projects and run:
 
 ```bash
 # macOS
-curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -o setup.mjs && node setup.mjs
+curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/HEAD/setup.mjs -o setup.mjs && node setup.mjs
 ```
 
 ```powershell
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -OutFile setup.mjs; node setup.mjs
+irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/HEAD/setup.mjs -OutFile setup.mjs; node setup.mjs
 ```
 
 (The Windows path hasn't been tried on a real Windows machine yet. If something goes wrong,
@@ -123,10 +123,10 @@ Ctrl+C there stops it). The studio goes through the 15 steps **one at a time**:
 - Nothing moves on by itself: every step ends with you pressing Enter. Optional steps have
   **Skip**. If something fails, the studio says what went wrong and how to fix it.
 - **Rerun it any time** and it checks everything again from the top. Once the course is cloned,
-  rerun it from inside the course folder with `node setup-week 1` (or `npm run setup`). Prefer the
-  terminal? `node setup.mjs --terminal` walks the same steps there.
-- **It's your module for every class.** Each class starts with `node setup-week N` (N = that
-  week): the studio gets the week, then opens its page, your note and the board.
+  rerun it from inside the course folder with `npm start`. Prefer the terminal? `npm start --
+  --terminal` walks the same steps there.
+- **It's the whole course in one app.** Every class starts with `npm start` in your course folder:
+  the studio gets the week, then shows its lesson page, your note, the board and the checks.
 
 **The steps**, exactly as the studio shows them:
 
@@ -298,7 +298,7 @@ can stay HTTPS either way:
 cd netsim
 git remote add upstream https://github.com/praiseisaac/netsim-starter.git
 git fetch upstream
-git switch -c work upstream/week-1-start   # your branch for the whole course
+git switch -c work upstream/week-N-start   # your branch for the whole course (N = the course's current week)
 git push -u origin work
 ```
 
@@ -386,7 +386,7 @@ Due before next session.
 | Command | What it does | Works this week? |
 |---|---|---|
 | `node setup.mjs` / `npm run setup` | the guided setup tool (the second once you're in the course folder) | ✅ |
-| `node setup-week N` | the studio for week N's class: gets the week, then opens its page and board | ✅ (`node setup-week 1` reruns setup) |
+| `npm start` | NetSim Studio: setup, then every class (its page, note, board and checks) | ✅ |
 | `npm install` | installs the project's packages | ✅ |
 | `npm run doctor` | checks your setup: 8 checks, one line each, `→` hints for failures | ✅ |
 | `npx vitest run tests/week-01` | this week's test (your notes) | ✅ once your notes are written |

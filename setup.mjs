@@ -2,8 +2,10 @@
 // NetSim Studio, week 1: gets a laptop ready for the course, one step at a time. Once that's done,
 // running it again gets the next week's work (fetch, merge, push, install, check), every week.
 //
-//   macOS:   curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -o setup.mjs && node setup.mjs
-//   Windows: irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -OutFile setup.mjs; node setup.mjs
+//   The first time (before the course folder exists), from the course's current week (its default branch):
+//   macOS:   curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/HEAD/setup.mjs -o setup.mjs && node setup.mjs
+//   Windows: irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/HEAD/setup.mjs -OutFile setup.mjs; node setup.mjs
+//   Every class after that, inside the course folder: npm start  (npm start -- --week N for an earlier week)
 //   Again, inside the course folder: npm run setup
 //
 //   node setup.mjs              the studio: a local page in your browser where you type each command
@@ -17,15 +19,48 @@
 // @ts-check
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { homedir } from "node:os";
-import { delimiter, dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 
 export const STARTER = "praiseisaac/netsim-starter";
 export const STARTER_URL = `https://github.com/${STARTER}.git`;
+/** Where the board's server (Next.js, what `npm run dev` serves) shows the board. */
+export const BOARD_URL = "http://localhost:3005/board";
+
+/**
+ * What `npm run dev:all` runs, as fixed commands the studio can start and stop itself: the demo
+ * programs first (once), then the bus, the components and the board's server, from the course
+ * folder's own packages (no npx, no shell).
+ * @param {string} dir
+ * @returns {{ programs: [string[], string], servers: [string[], string][] }}
+ */
+export function boardCommands(dir) {
+  const tsx = join(dir, "node_modules", "tsx", "dist", "cli.mjs");
+  const next = join(dir, "node_modules", "next", "dist", "bin", "next");
+  return {
+    programs: [[process.execPath, tsx, "scripts/programs-bundle.ts"], dir],
+    servers: [
+      [[process.execPath, tsx, "bus/start.ts"], dir],
+      [[process.execPath, tsx, "components/run.ts", "memory", "cpu", "host"], dir],
+      [[process.execPath, next, "dev", "-p", "3005"], dir],
+    ],
+  };
+}
+
+/**
+ * A week's checks: week 1's is the doctor, every other week's is its tests.
+ * @param {string} dir
+ * @param {number} week
+ * @returns {[string[], string]}
+ */
+export function checkCommand(dir, week) {
+  if (week === 1) return [[process.execPath, join(dir, "node_modules", "tsx", "dist", "cli.mjs"), "scripts/doctor.ts"], dir];
+  return [[process.execPath, join(dir, "node_modules", "vitest", "vitest.mjs"), "run", `tests/week-${String(week).padStart(2, "0")}`], dir];
+}
 /**
  * This studio's version. On start it looks at the newest published week: a newer studio there
  * runs instead (see newerStudio), so every student uses the same one, whatever week their folder has.
@@ -48,12 +83,22 @@ export const COURSE_WEEKS = [
   { week: 7, title: "Build: cores, scheduler, interrupts", kind: "build", guide: "docs/weeks/week-07.md", page: null, note: null, board: true },
   { week: 8, title: "Demo: ship it", kind: "demo", guide: "docs/weeks/week-08.md", page: null, note: null, board: true },
 ];
-const WEEK_BRANCH = "week-1-start";
+/**
+ * The newest week's branch fetched from the course (upstream/week-N-start): where a new student's
+ * work branch starts, so someone setting up in week 3 starts from week 3. Week 1's when none is.
+ * @param {Context} ctx
+ * @param {string} dir
+ */
+function newestFetchedWeek(ctx, dir) {
+  const refs = output(ctx, ["git", "for-each-ref", "--format=%(refname:short)", "refs/remotes/upstream/"], dir) ?? "";
+  const weeks = [...refs.matchAll(/^upstream\/week-(\d+)-start$/gm)].map((m) => Number(m[1]));
+  return `week-${weeks.length ? Math.max(...weeks) : 1}-start`;
+}
 /** What `remote.upstream.fetch` is when upstream brings every branch (every week). The doctor checks the same. */
 const ALL_UPSTREAM_BRANCHES = "+refs/heads/*:refs/remotes/upstream/*";
 const HOMEBREW_INSTALL = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"';
 const REOPEN_TERMINAL = "Close and reopen the terminal, then run `node setup.mjs` again (new programs only show up in a new terminal).";
-const WEEK1_GUIDE = `https://github.com/${STARTER}/blob/${WEEK_BRANCH}/docs/weeks/week-01.md`;
+const WEEK1_GUIDE = `https://github.com/${STARTER}/blob/HEAD/docs/weeks/week-01.md`;
 // Every time the studio starts codex: no update check, which would add a network wait (and a prompt).
 const CODEX_FLAGS = ["-c", "check_for_update_on_startup=false"];
 
@@ -138,6 +183,7 @@ const CODEX_FLAGS = ["-c", "check_for_update_on_startup=false"];
  *   stream?: (argv: string[], cwd: string | undefined, onData: (text: string) => void) => Running,
  *   openUrl?: (url: string) => void,
  *   openTerminal?: (command: Command) => void,
+ *   httpStatus?: (url: string) => Promise<number>,
  *   ask: (question: string) => Promise<string>,
  *   print: (line: string) => void,
  *   exists: (path: string) => boolean,
@@ -145,7 +191,7 @@ const CODEX_FLAGS = ["-c", "check_for_update_on_startup=false"];
  *   mtime?: (path: string) => number | null,
  *   readText: (path: string) => string | null,
  *   save?: () => void,
- *   state: { login?: string, seenLogin?: string, parent?: string, repoDir?: string, chatgpt?: string, doctorOk?: boolean, opened?: number, codexVersion?: string, dryDone?: Record<string, boolean>, dryFound?: Record<string, string> },
+ *   state: { login?: string, seenLogin?: string, parent?: string, repoDir?: string, chatgpt?: string, doctorOk?: boolean, codexVersion?: string, dryDone?: Record<string, boolean>, dryFound?: Record<string, string> },
  * }} Context
  */
 
@@ -828,8 +874,8 @@ export function courseSteps() {
         // gh links upstream for one branch only; every week's branch has to come down.
         const refspecs = (output(ctx, ["git", "config", "--get-all", "remote.upstream.fetch"], dir) ?? "").split("\n").map((l) => l.trim());
         if (!refspecs.includes(ALL_UPSTREAM_BRANCHES)) return { done: false, found: "upstream is linked, but only for some of the course's branches." };
-        const fetched = output(ctx, ["git", "rev-parse", "--verify", "--quiet", `refs/remotes/upstream/${WEEK_BRANCH}`], dir) !== null;
-        return { done: fetched, found: fetched ? `upstream is linked to the course: github.com/${STARTER}` : "upstream is linked, but week 1 hasn't been fetched yet." };
+        const fetched = /^upstream\/week-\d+-start$/m.test(output(ctx, ["git", "for-each-ref", "--format=%(refname:short)", "refs/remotes/upstream/"], dir) ?? "");
+        return { done: fetched, found: fetched ? `upstream is linked to the course: github.com/${STARTER}` : "upstream is linked, but the course's weeks haven't been fetched yet." };
       },
       plan: (ctx) => {
         const dir = repoDir(ctx);
@@ -861,9 +907,9 @@ export function courseSteps() {
       title: "Make your work branch",
       technical: "branch",
       explain: "a named line of work in git. You'll do all your course work on one called work.",
-      why: "Your work branch starts from week 1's starting point. Each week you bring in the next week and carry on.",
+      why: "Your work branch starts from the course's current week. Each week after that you bring in the next one and carry on.",
       diagram: true,
-      example: "You're on your work branch, started from week 1.",
+      example: "You're on your work branch, started from this week.",
       check: async (ctx) => {
         const branch = output(ctx, ["git", "branch", "--show-current"], repoDir(ctx));
         return { done: branch === "work", found: branch === "work" ? "You're on your work branch." : branch ? `You're on '${branch}', not work.` : "The course folder isn't there yet (step 9)." };
@@ -874,10 +920,10 @@ export function courseSteps() {
         return [
           hasWork
             ? cmd("git switch work", ["git", "switch", "work"], { cwd: dir, what: "Moves you onto your work branch.", words: [["switch", "move to a branch"]] })
-            : cmd(`git switch -c work upstream/${WEEK_BRANCH}`, ["git", "switch", "-c", "work", `upstream/${WEEK_BRANCH}`], {
+            : cmd(`git switch -c work upstream/${newestFetchedWeek(ctx, dir)}`, ["git", "switch", "-c", "work", `upstream/${newestFetchedWeek(ctx, dir)}`], {
                 cwd: dir,
-                what: "Makes a branch called work, starting from week 1's starting point, and moves you onto it.",
-                words: [["switch", "move to a branch"], ["-c", "create it first"], ["work", "the new branch's name"], [`upstream/${WEEK_BRANCH}`, "where it starts: week 1 on the course's repository"]],
+                what: "Makes a branch called work, starting from the course's current week, and moves you onto it.",
+                words: [["switch", "move to a branch"], ["-c", "create it first"], ["work", "the new branch's name"], [`upstream/${newestFetchedWeek(ctx, dir)}`, "where it starts: the newest week on the course's repository"]],
               }),
         ];
       },
@@ -1161,7 +1207,6 @@ function conflictedFiles(ctx, dir) {
 export function weekSteps(week, { onWork = true } = {}) {
   const branch = weekBranch(week);
   const ref = `upstream/${branch}`;
-  const guide = `docs/weeks/week-${pad2(week)}.md`;
   /** @type {Step[]} */
   const steps = [
     {
@@ -1351,27 +1396,6 @@ export function weekSteps(week, { onWork = true } = {}) {
       check: async () => ({ done: false, found: "The doctor hasn't run yet." }),
       plan: (ctx) => [doctorCommand(ctx, repoDir(ctx))],
       hint: () => "Fix each one as it says, then try again. Stuck? Show me in class.",
-    },
-    {
-      id: "open-week",
-      title: "Open this week's work",
-      technical: "the week's guide",
-      explain: `docs/weeks/week-${pad2(week)}.md: what week ${week} is about, and its tasks in order.`,
-      why: `Everything for week ${week} is in your folder now. The guide walks you through it.`,
-      example: `You've opened the week-${week} guide.`,
-      check: async (ctx) => ({ done: ctx.state.opened === week, found: ctx.state.opened === week ? `You've opened the week-${week} guide.` : "Not opened yet." }),
-      plan: (ctx) => [
-        {
-          kind: "choice",
-          question: `Open the week-${week} guide and start reading.`,
-          links: [{ label: `The week-${week} guide (${guide}) on GitHub`, url: `https://github.com/${ctx.state.login ?? "praiseisaac"}/netsim-starter/blob/work/${guide}` }],
-          yes: "I've opened it",
-          submit: (c) => {
-            c.state.opened = week;
-          },
-        },
-      ],
-      hint: () => `It's also in your folder: ${guide}.`,
     },
   );
   return steps;
@@ -1849,6 +1873,8 @@ export function createStudio(ctx, steps, meta = {}) {
       setupSteps,
       inWork: Boolean(meta.inWork),
       groups: meta.groups ?? [],
+      board: { phase: board.phase, error: board.error, url: BOARD_URL },
+      checks: { week: checks.week, phase: checks.phase, out: cleanOutput(checks.out) },
       focus: meta.focus ?? 0,
       update: Boolean(meta.update),
       next: meta.next ?? 0,
@@ -2062,12 +2088,107 @@ export function createStudio(ctx, steps, meta = {}) {
   const reject = (status, error) => ({ ok: false, status, error });
   const ok = { ok: true, status: 200, error: "" };
 
+  // ── The board and the week's checks, inside the studio ────────────────────────────────
+  // The board is what `npm run dev:all` runs (the bus, the components, the board's server), started
+  // here from fixed commands when the student asks, shown in the studio, and stopped with it.
+  /** @type {{ phase: "off" | "starting" | "on" | "failed", ours: boolean, error: string }} */
+  let board = { phase: "off", ours: false, error: "" };
+  /** @type {Running[]} */
+  let boardRuns = [];
+  let boardLog = "";
+  /** @type {{ week: number, phase: "off" | "running" | "passed" | "failed", out: string }} */
+  let checks = { week: 0, phase: "off", out: "" };
+  /** @type {Running | null} */
+  let checksRun = null;
+
+  function stopBoard() {
+    for (const r of boardRuns) r.kill();
+    boardRuns = [];
+    if (board.ours) board = { phase: "off", ours: false, error: "" };
+  }
+
+  async function startBoard() {
+    const dir = ctx.state.repoDir;
+    if (!dir) return reject(409, "The course folder isn't set up yet.");
+    if (board.phase === "starting" || board.phase === "on") return ok;
+    const http = ctx.httpStatus ?? (async () => 0);
+    if ((await http(BOARD_URL)) === 200) {
+      board = { phase: "on", ours: false, error: "" }; // already running (npm run dev:all in a terminal)
+      publish();
+      return ok;
+    }
+    if (!ctx.exists(join(dir, "node_modules", "next", "package.json"))) {
+      board = { phase: "failed", ours: false, error: "The course's packages aren't installed yet: run npm install in your course folder, then try again." };
+      publish();
+      return ok;
+    }
+    board = { phase: "starting", ours: true, error: "" };
+    boardLog = "";
+    publish();
+    const log = (/** @type {string} */ t) => (boardLog = (boardLog + t).slice(-20_000));
+    const stream = /** @type {NonNullable<Context["stream"]>} */ (ctx.stream);
+    const programs = stream(...boardCommands(dir).programs, log);
+    if ((await programs.done) !== 0) {
+      board = { phase: "failed", ours: true, error: `Building the demo programs failed:\n${boardLog.slice(-2000)}` };
+      return publish();
+    }
+    boardRuns = boardCommands(dir).servers.map(([argv, cwd]) => stream(argv, cwd, log));
+    for (const r of boardRuns)
+      void r.done.then((code) => {
+        if (board.phase === "starting" && board.ours) {
+          stopBoard();
+          board = { phase: "failed", ours: true, error: `Part of the board stopped (exit code ${code}):\n${boardLog.slice(-2000)}` };
+          publish();
+        }
+      });
+    for (let waited = 0; waited < 180 && board.phase === "starting"; waited++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      if ((await http(BOARD_URL)) === 200 && board.phase === "starting") {
+        board = { phase: "on", ours: true, error: "" };
+        publish();
+      }
+    }
+    if (board.phase === "starting") {
+      stopBoard();
+      board = { phase: "failed", ours: true, error: `The board didn't start within 3 minutes:\n${boardLog.slice(-2000)}` };
+      publish();
+    }
+    return ok;
+  }
+
+  /** @param {number} week */
+  async function runChecks(week) {
+    const dir = ctx.state.repoDir;
+    const g = (meta.groups ?? []).find((x) => x.week === week);
+    if (!dir || !g || !(["setup", "done", "inwork"].includes(g.status) || (g.status === "get" && current >= steps.length))) return reject(409, "That week isn't in your work yet.");
+    if (checksRun) return reject(409, "The checks are already running.");
+    checks = { week, phase: "running", out: "" };
+    publish();
+    const [argv, cwd] = checkCommand(dir, week);
+    checksRun = /** @type {NonNullable<Context["stream"]>} */ (ctx.stream)(argv, cwd, (t) => {
+      checks.out = (checks.out + t).slice(-40_000);
+      publish();
+    });
+    const code = await checksRun.done;
+    checksRun = null;
+    checks = { ...checks, phase: code === 0 ? "passed" : "failed" };
+    publish();
+    return ok;
+  }
+
   /**
    * One action from the browser. Anything that isn't allowed right now is refused, with a reason.
-   * @param {{ type?: unknown, stepId?: unknown, index?: unknown, typed?: unknown, values?: unknown, answer?: unknown, to?: unknown }} a
+   * @param {{ type?: unknown, stepId?: unknown, index?: unknown, typed?: unknown, values?: unknown, answer?: unknown, to?: unknown, week?: unknown }} a
    * @returns {Promise<{ ok: boolean, status: number, error: string }>}
    */
   async function act(a) {
+    if (a.type === "board-start") return startBoard();
+    if (a.type === "board-stop") {
+      stopBoard();
+      publish();
+      return ok;
+    }
+    if (a.type === "checks") return runChecks(Number(a.week));
     if (typeof a.type === "string" && a.type.startsWith("account-")) return accountAct(a);
     if (acct) return reject(409, "Finish changing the GitHub account first, or close it.");
     // Going back to an earlier step works from anywhere, the finish screen included.
@@ -2343,7 +2464,7 @@ export function createStudio(ctx, steps, meta = {}) {
      * A week's page (or its guide when it has no page) from the student's folder, once that week is
      * in their work. Only docs/weeks/week-NN.html or .md, inside the course folder; null otherwise.
      * @param {number} week
-     * @returns {{ type: "html" | "md", text: string } | null}
+     * @returns {string | null}  the page's path in the course folder
      */
     weekPage: (week) => {
       const g = (meta.groups ?? []).find((x) => x.week === week);
@@ -2351,12 +2472,12 @@ export function createStudio(ctx, steps, meta = {}) {
       const dir = ctx.state.repoDir;
       if (!isIn || !dir) return null;
       for (const rel of [g.page, g.guide ?? `docs/weeks/week-${pad2(week)}.md`]) {
-        if (!rel || !/^docs\/weeks\/week-\d{2}\.(html|md)$/.test(rel)) continue;
-        const text = ctx.readText(join(dir, rel));
-        if (text !== null) return { type: rel.endsWith(".html") ? "html" : "md", text };
+        if (rel && /^docs\/weeks\/week-\d{2}\.(html|md)$/.test(rel) && ctx.exists(join(dir, rel))) return rel;
       }
       return null;
     },
+    /** The course folder, once there is one. */
+    repoDir: () => ctx.state.repoDir ?? null,
     output: () => ({ id: outputId, text: out }),
     /** @param {(event: string, data: unknown) => void} listener */
     subscribe: (listener) => {
@@ -2366,6 +2487,8 @@ export function createStudio(ctx, steps, meta = {}) {
     stop: () => {
       child?.kill();
       child = null;
+      checksRun?.kill();
+      stopBoard();
     },
   };
 }
@@ -2391,15 +2514,191 @@ export function checkRequest(req, studio) {
 }
 
 /**
- * A week's guide (markdown) as a plain, readable page, for weeks without an HTML page.
- * @param {number} week
+ * Markdown to HTML for the course's own documents (guides, ARCHITECTURE.md, design notes), shown
+ * inside the studio: headings, paragraphs, lists (nested, with code inside), code fences, tables,
+ * quotes, rules, links and images. Everything is escaped first; only safe link schemes survive.
+ * @param {string} markdown
+ * @returns {string}
+ */
+export function renderMarkdown(markdown) {
+  const lines = markdown.replace(/\r\n?/g, "\n").replace(/<!--[\s\S]*?-->/g, "").split("\n");
+  return blocks(lines);
+}
+
+/** @param {string} t */
+const escHtml = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+/** A link target the course's documents may use: relative, #anchor, http(s) or mailto. @param {string} url */
+const safeUrl = (url) => (/^(?:[a-z][a-z0-9+.-]*:)/i.test(url) && !/^(?:https?|mailto):/i.test(url) ? "#" : url);
+
+/** @param {string} text */
+function inline(text) {
+  return text
+    .split(/(`+[^`]*`+)/)
+    .map((part, i) => {
+      if (i % 2 === 1) return `<code>${escHtml(part.replace(/^`+|`+$/g, ""))}</code>`;
+      return escHtml(part)
+        .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, alt, url) => `<img alt="${alt}" src="${safeUrl(url)}">`)
+        .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, url) => `<a href="${safeUrl(url)}">${label}</a>`)
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>");
+    })
+    .join("");
+}
+
+const listMarker = /^(\s*)([-*+]|\d+[.)])\s+/;
+const tableRule = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
+/** @param {string} line */
+const indentOf = (line) => (/^\s*/.exec(line)?.[0].length ?? 0);
+/** @param {string} line */
+const cells = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+
+/** @param {string[]} lines */
+function blocks(lines) {
+  const out = [];
+  let i = 0;
+  /** @param {string} line */
+  const startsBlock = (line) => /^\s*(```|#{1,6}\s|>|(?:---|\*\*\*|___)\s*$)/.test(line) || listMarker.test(line);
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) {
+      i++;
+      continue;
+    }
+    const fence = /^(\s*)```(.*)$/.exec(line);
+    if (fence) {
+      const body = [];
+      i++;
+      while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) body.push(lines[i++].slice(fence[1].length));
+      i++;
+      out.push(`<pre><code>${escHtml(body.join("\n"))}</code></pre>`);
+      continue;
+    }
+    const heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    if (heading) {
+      const id = heading[2].toLowerCase().replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-");
+      out.push(`<h${heading[1].length} id="${escHtml(id)}">${inline(heading[2])}</h${heading[1].length}>`);
+      i++;
+      continue;
+    }
+    if (/^\s*(?:---|\*\*\*|___)\s*$/.test(line)) {
+      out.push("<hr>");
+      i++;
+      continue;
+    }
+    if (/^\s*>/.test(line)) {
+      const body = [];
+      while (i < lines.length && /^\s*>/.test(lines[i])) body.push(lines[i++].replace(/^\s*>\s?/, ""));
+      out.push(`<blockquote>${blocks(body)}</blockquote>`);
+      continue;
+    }
+    if (line.includes("|") && i + 1 < lines.length && tableRule.test(lines[i + 1])) {
+      const head = cells(line);
+      i += 2;
+      const rows = [];
+      while (i < lines.length && lines[i].includes("|") && lines[i].trim()) rows.push(cells(lines[i++]));
+      out.push(
+        `<div class="table"><table><thead><tr>${head.map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${rows
+          .map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`)
+          .join("")}</tbody></table></div>`,
+      );
+      continue;
+    }
+    const marker = listMarker.exec(line);
+    if (marker) {
+      const base = marker[1].length;
+      const ordered = /\d/.test(marker[2]);
+      const items = [];
+      while (i < lines.length) {
+        const m = listMarker.exec(lines[i]);
+        if (!m || m[1].length !== base || /\d/.test(m[2]) !== ordered) break;
+        const content = m[0].length;
+        const body = [lines[i].slice(content)];
+        i++;
+        while (i < lines.length) {
+          const next = lines[i];
+          if (!next.trim()) {
+            // A blank line: the item goes on only if what follows is indented under it.
+            let j = i;
+            while (j < lines.length && !lines[j].trim()) j++;
+            if (j < lines.length && indentOf(lines[j]) >= content) {
+              while (i < j) body.push(lines[i++].slice(content));
+              continue;
+            }
+            break;
+          }
+          if (indentOf(next) >= content) body.push(next.slice(content));
+          else if (!startsBlock(next) && body.at(-1)?.trim()) body.push(next.trim());
+          else break;
+          i++;
+        }
+        const checkbox = /^\[( |x)\]\s+/i.exec(body[0]);
+        if (checkbox) body[0] = body[0].slice(checkbox[0].length);
+        let html = blocks(body);
+        if (!body.slice(1).some((b) => !b.trim())) html = html.replace(/^<p>([\s\S]*?)<\/p>/, "$1");
+        items.push(`<li${checkbox ? ' class="task"' : ""}>${checkbox ? (checkbox[1] === " " ? "☐ " : "☑ ") : ""}${html}</li>`);
+        while (i < lines.length && !lines[i].trim()) {
+          let j = i;
+          while (j < lines.length && !lines[j].trim()) j++;
+          const again = j < lines.length ? listMarker.exec(lines[j]) : null;
+          if (again && again[1].length === base) i = j;
+          else break;
+        }
+      }
+      const start = ordered ? Number(/\d+/.exec(marker[2])?.[0] ?? 1) : 1;
+      out.push(ordered ? `<ol${start !== 1 ? ` start="${start}"` : ""}>${items.join("")}</ol>` : `<ul>${items.join("")}</ul>`);
+      continue;
+    }
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !(para.length && startsBlock(lines[i])) && !(lines[i].includes("|") && i + 1 < lines.length && tableRule.test(lines[i + 1]))) para.push(lines[i++].trim());
+    out.push(`<p>${inline(para.join(" "))}</p>`);
+  }
+  return out.join("\n");
+}
+
+/**
+ * A markdown document from the course folder as a page inside the studio, styled like the lesson pages.
+ * @param {string} title
  * @param {string} markdown
  */
-export function guidePage(week, markdown) {
-  const esc = (/** @type {string} */ t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Week ${week} guide</title>
-<style>body{margin:0;background:#fff;color:#16201b;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}main{max-width:860px;margin:0 auto;padding:32px 20px}pre{white-space:pre-wrap;word-break:break-word;font:inherit;margin:0}@media (prefers-color-scheme:dark){body{background:#0f1512;color:#e8efeb}}</style>
-</head><body><main><pre>${esc(markdown)}</pre></main></body></html>`;
+export function markdownPage(title, markdown) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escHtml(title)}</title>
+<style>:root{--bg:#fff;--ink:#16201b;--muted:#56615b;--line:#dfe5e1;--code:#f3f5f4;--link:#1f7a55}@media (prefers-color-scheme:dark){:root{--bg:#0f1512;--ink:#e8efeb;--muted:#9aa8a0;--line:#26312b;--code:#151d18;--link:#6fd3a7}}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif}main{max-width:900px;margin:0 auto;padding:28px 20px 60px}
+h1,h2,h3{line-height:1.2}a{color:var(--link)}code,pre{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}
+pre{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow-x:auto}pre code{background:none;padding:0}
+.table{overflow-x:auto}table{border-collapse:collapse;margin:8px 0}th,td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+blockquote{margin:0;padding:2px 14px;border-left:3px solid var(--line);color:var(--muted)}img{max-width:100%}li.task{list-style:none}</style>
+</head><body><main>${renderMarkdown(markdown)}</main></body></html>`;
+}
+
+/**
+ * A file from the student's course folder, to show inside the studio: any markdown file (rendered),
+ * or an HTML page or image under docs/. Never anything outside the folder, node_modules or .git.
+ * @param {string} dir  the course folder
+ * @param {string} urlPath  the request's path, e.g. /docs/weeks/week-02.html
+ * @returns {{ type: string, body: string | Buffer } | null}
+ */
+export function courseFile(dir, urlPath) {
+  let rel;
+  try {
+    rel = decodeURIComponent(urlPath).replace(/^\/+/, "");
+  } catch {
+    return null;
+  }
+  if (!rel || rel.includes("\0") || rel.includes("\\") || rel.split("/").some((part) => part === ".." || part.startsWith("."))) return null;
+  if (/^node_modules\//.test(rel)) return null;
+  const ext = /\.([a-z0-9]+)$/i.exec(rel)?.[1]?.toLowerCase() ?? "";
+  const types = /** @type {Record<string, string>} */ ({ html: "text/html; charset=utf-8", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", svg: "image/svg+xml", webp: "image/webp" });
+  if (ext !== "md" && !(rel.startsWith("docs/") && types[ext])) return null;
+  try {
+    const root = realpathSync(dir);
+    const file = realpathSync(join(root, rel));
+    if (!file.startsWith(root + sep) || !statSync(file).isFile()) return null;
+    if (ext === "md") return { type: "text/html; charset=utf-8", body: markdownPage(rel, readFileSync(file, "utf8")) };
+    return { type: types[ext], body: readFileSync(file) };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -2412,8 +2711,16 @@ export function serveStudio(studio, { token = randomBytes(24).toString("base64ur
   let seen = 0; // 0 until the page first connects
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
+    // The token: in the address (the link from the terminal), the header (the page's own calls), or,
+    // for pages opened inside the studio (a lesson page and its links), the studio's same-site cookie.
+    const cookie = /(?:^|;\s*)netsim_studio=([^;]+)/.exec(req.headers.cookie ?? "")?.[1];
     const bad = checkRequest(
-      { method: req.method ?? "GET", host: req.headers.host, origin: req.headers.origin, token: url.searchParams.get("t") ?? /** @type {string | undefined} */ (req.headers["x-studio-token"]) ?? null },
+      {
+        method: req.method ?? "GET",
+        host: req.headers.host,
+        origin: req.headers.origin,
+        token: url.searchParams.get("t") ?? /** @type {string | undefined} */ (req.headers["x-studio-token"]) ?? (req.method === "GET" ? cookie : undefined) ?? null,
+      },
       { port: address().port, token },
     );
     if (bad) {
@@ -2427,12 +2734,14 @@ export function serveStudio(studio, { token = randomBytes(24).toString("base64ur
         ...secure,
         "content-type": "text/html; charset=utf-8",
         "content-security-policy":
-          "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:; frame-src http://localhost:3005 http://127.0.0.1:3005; base-uri 'none'; form-action 'none'",
+          "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:; frame-src 'self' http://localhost:3005 http://127.0.0.1:3005; base-uri 'none'; form-action 'none'",
+        // Same-site, this address only: lets the lesson pages and their links load inside the studio.
+        "set-cookie": `netsim_studio=${token}; Path=/; HttpOnly; SameSite=Strict`,
       });
       res.end(studioPage(token));
       return;
     }
-    // A week's page, from the student's own folder (studio.weekPage decides which, and only once it's in).
+    // A week's page: its lesson page (or guide) in the course folder, once the week is in.
     const weekMatch = /^\/week\/(\d{1,2})$/.exec(url.pathname);
     if (req.method === "GET" && weekMatch) {
       const page = studio.weekPage(Number(weekMatch[1]));
@@ -2440,12 +2749,19 @@ export function serveStudio(studio, { token = randomBytes(24).toString("base64ur
         res.writeHead(404, { ...secure, "content-type": "text/plain" }).end("That week isn't in your work yet.");
         return;
       }
+      res.writeHead(302, { ...secure, location: `/${page}` }).end();
+      return;
+    }
+    // A file from the course folder (a lesson page, a linked document, an image), shown inside the studio.
+    const dir = studio.repoDir();
+    const file = req.method === "GET" && dir && !["/events", "/api/act"].includes(url.pathname) ? courseFile(dir, url.pathname) : null;
+    if (file) {
       res.writeHead(200, {
         ...secure,
-        "content-type": "text/html; charset=utf-8",
-        "content-security-policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'",
+        "content-type": file.type,
+        "content-security-policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'",
       });
-      res.end(page.type === "html" ? page.text : guidePage(Number(weekMatch[1]), page.text));
+      res.end(file.body);
       return;
     }
     if (req.method === "GET" && url.pathname === "/events") {
@@ -2850,8 +3166,18 @@ kbd { font: 600 11px/1 "JetBrains Mono", monospace; border: 1px solid currentCol
 button.sgroup { width: 100%; background: none; border: 0; border-left: 3px solid transparent; text-align: left; cursor: pointer; }
 button.sgroup:hover { background: #f7f9f8; color: var(--ink); }
 button.sgroup.viewing { outline: 2px solid var(--mint); outline-offset: -2px; }
-ul.home { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 12px; }
-ul.home .sub { display: block; margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.inner.week { max-width: none; height: 100%; display: flex; flex-direction: column; gap: 10px; }
+.weekhead .q { margin: 0; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tab { font: 600 13.5px/1 "Inter", sans-serif; padding: 9px 14px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; background: none; cursor: pointer; color: var(--muted); }
+.tab.on { color: var(--ink); background: var(--panel); border-color: var(--line); margin-bottom: -1px; }
+.tabbody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+iframe.doc { flex: 1; width: 100%; min-height: 70vh; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+iframe.board { min-height: 72vh; }
+pre.log { background: #0f1f18; color: var(--chrome-ink); border-radius: 8px; padding: 12px 14px; font: 12.5px/1.5 "JetBrains Mono", monospace; max-height: 50vh; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 0; }
+.banner { padding: 10px 14px; border-radius: 8px; background: var(--soft, #f3f7f4); border: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.banner.ok { border-color: var(--mint); }
+.sub { font-size: 12.5px; color: var(--muted); margin: 0; }
 .srow .n { font: 600 11px/20px "JetBrains Mono", monospace; color: var(--muted); text-align: right; }
 .srow .t { font-weight: 600; font-size: 13.5px; line-height: 20px; }
 .srow small { display: block; font-size: 12px; color: var(--muted); }
@@ -2997,7 +3323,9 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
   let listedFor = -1; // the step the list last scrolled to
   /** @type {number | null} */
   let viewingWeek = null; // a week's home is open (its page, note, board)
-  let focusShown = false; // node setup-week N: N's home opens once, when nothing before it is left to do
+  let focusShown = false; // npm start -- --week N: N's view opens once, when nothing before it is left to do
+  let weekTab = "page"; // the week view's tab: page, note, board, checks
+  let detailHtml = ""; // what the main panel shows now (re-rendered only when it changes, so pages don't reload)
   let pasteNote = "";
   /** @type {Record<string, string>} */
   const formValues = {};
@@ -3319,29 +3647,27 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
         <p class="note">You can close this tab: the studio stops when you do.</p>`;
     if (snap.inWork) {
       const home = snap.groups.find((g) => g.week === snap.week);
-      return `<div class="finish"><p class="eyebrow">Week ${esc(snap.week)}</p><h1>Week ${esc(snap.week)} is in your work.</h1>
-        <p class="why" style="margin-top:10px">Week ${esc(snap.next)} isn't out yet: check back before Monday's class.</p></div>
-        ${home ? weekHomeBody(home) : ""}
-        <p class="note">You can close this tab: the studio stops when you do.</p>`;
+      return `<div class="banner"><b>Week ${esc(snap.week)} is in your work.</b> Week ${esc(snap.next)} isn't out yet.</div>${home ? weekView(home) : ""}`;
     }
     const home = snap.groups.find((g) => g.week === snap.week);
-    return `<div class="finish"><p class="eyebrow">Week ${esc(snap.week)}</p><h1>Week ${esc(snap.week)} is in your work!</h1>
-      <p class="why" style="margin-top:10px">${esc(snap.arrived || `Week ${snap.week}'s files are in your folder, and on GitHub.`)}</p></div>
-      ${home ? weekHomeBody(home) : ""}
-      <p class="note">Next class, run <code>node setup-week ${esc(snap.week + 1)}</code> the same way. You can close this tab: the studio stops when you do.</p>`;
+    return `<div class="banner ok"><b>Week ${esc(snap.week)} is in your work!</b> ${esc(snap.arrived || `Week ${snap.week}'s files are in your folder, and on GitHub.`)}
+      </div>${home ? weekView(home) : ""}`;
   }
 
   function finishView() {
     const snap = present();
     if (snap.mode === "week") return weekFinishView();
     const folder = snap.repoDir || "your netsim folder";
+    const week1 = snap.groups.find((g) => g.week === 1);
+    if (week1 && snap.repoDir)
+      return `<div class="banner ok"><b>You're set up!</b> Your laptop has everything the course needs, and your copy of the course is on GitHub and here. From now on, every class starts with <code>npm start</code> in <code>${esc(folder)}</code>. <button class="btn ghost" data-do="machine">See the computer you'll build</button></div>${weekView(week1)}`;
     return `<div class="finish"><p class="eyebrow">Week 1 · Setup</p><h1>You're set up!</h1>
       <p class="why" style="margin-top:10px">Your laptop has everything the course needs, and your own copy of the course is on GitHub and on this laptop.</p>
       ${snap.codexVersion ? `<p class="note" style="margin-top:10px">Codex version: <code>${esc(snap.codexVersion)}</code></p>` : ""}</div>
       <div class="block"><h3>What to do next</h3><ol>
-        <li>${snap.groups.length && snap.repoDir ? `<a class="btn" href="/week/1?t=${encodeURIComponent(TOKEN)}" target="_blank" rel="noopener noreferrer">Open the week-1 page</a> (from your folder), or the` : "<b>Open the week-1 guide:</b>"} <a href="${WEEK1_GUIDE_URL}" target="_blank" rel="noreferrer">guide on GitHub</a>.</li>
+        <li><b>Open the week-1 guide:</b> <a href="${WEEK1_GUIDE_URL}" target="_blank" rel="noreferrer">docs/weeks/week-01.md</a> (it's in your folder too).</li>
         <li><b>Do the take-home:</b> paste the doctor's output into <code>docs/notes/week-01.md</code>, and try Codex on a real file.</li>
-        <li><b>Each class from week 2:</b> open a terminal in <code>${esc(folder)}</code> and run <code>node setup-week 2</code> (then 3, 4, …). The studio gets that week's work for you, then opens its page and board.</li>
+        <li><b>Every class after this:</b> open a terminal in <code>${esc(folder)}</code> and run <code>npm start</code>. The studio gets that week's work for you, then shows its lesson page and the board.</li>
       </ol></div>
       <div class="row"><button class="btn primary" data-do="machine">See the computer you'll build <kbd>↵</kbd></button></div>
       <p class="note">You can close this tab: the studio stops when you do.</p>`;
@@ -3379,27 +3705,51 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
   }
 
   /**
-   * A week's home: what the student opens for that class once the week is in. Room for more later
-   * (a build week's tasks, Join class) without changing its shape.
+   * A week in the studio: its lesson page, design note, board and checks, as tabs. The page and the
+   * note are the course folder's own files, shown here (links inside them open here too). Room for
+   * more tabs later (a build week's tasks, Join class).
    * @param {{ week: number, title: string, kind?: string, page?: string | null, guide?: string | null, note?: string | null, board?: boolean }} g
    */
-  function weekHomeBody(g) {
+  function weekView(g) {
     const nn = String(g.week).padStart(2, "0");
-    const items = [
-      `<li><a class="btn" href="/week/${g.week}?t=${encodeURIComponent(TOKEN)}" target="_blank" rel="noopener noreferrer">Open the week-${g.week} ${g.page ? "page" : "guide"}</a> <span class="sub">${esc(g.page ?? g.guide ?? `docs/weeks/week-${nn}.md`)} from your folder</span></li>`,
-      g.note ? `<li><b>Your ${g.kind === "setup" ? "notes" : "design note"}:</b> <code>${esc(g.note)}</code>. Open it in VS Code: <code>code ${esc(g.note)}</code></li>` : "",
-      g.board ? `<li><b>The board:</b> in a terminal, in your course folder, run <code>npm run dev:all</code>, then <a href="http://localhost:3005/board" target="_blank" rel="noopener noreferrer">open the board</a>.</li>` : "",
-      g.kind === "setup" ? `<li><b>Your setup check:</b> <code>npm run doctor</code></li>` : `<li><b>Your checks:</b> <code>npx vitest run tests/week-${nn}</code></li>`,
-    ];
-    return `<div class="block"><h3>Week ${esc(g.week)} · ${esc(g.title)}</h3><ul class="home">${items.join("")}</ul></div>
-      <div class="row"><button class="btn ghost" data-do="machine">See the computer you'll build</button></div>`;
+    const tabs = [["page", g.page ? "Lesson page" : "Guide"], ...(g.note ? [["note", g.kind === "setup" ? "Your notes" : "Design note"]] : []), ["board", "Board"], ["checks", "Checks"]];
+    const tab = tabs.some(([id]) => id === weekTab) ? weekTab : "page";
+    const bar = `<div class="tabs" role="tablist">${tabs.map(([id, label]) => `<button role="tab" class="tab ${id === tab ? "on" : ""}" data-do="tab" data-tab="${id}" aria-selected="${id === tab}">${esc(label)}</button>`).join("")}</div>`;
+    /** @type {string} */
+    let body;
+    if (tab === "page") body = `<iframe class="doc" title="Week ${g.week} lesson page" src="/week/${g.week}"></iframe>`;
+    else if (tab === "note")
+      body = `<p class="sub">Your ${g.kind === "setup" ? "notes" : "design note"}, <code>${esc(g.note ?? "")}</code>. Write it in VS Code (<code>code ${esc(g.note ?? "")}</code>); it shows here as you save.</p><iframe class="doc" title="Week ${g.week} note" src="/${esc(g.note ?? "")}"></iframe>`;
+    else if (tab === "board") body = boardPanel();
+    else body = checksPanel(g.week, g.kind === "setup" ? "npm run doctor" : `npx vitest run tests/week-${nn}`);
+    return `<div class="weekhead"><p class="eyebrow">Week ${esc(g.week)}${g.kind ? ` · ${esc(g.kind)}` : ""}</p><h1 class="q">${esc(g.title)}</h1></div>${bar}<div class="tabbody">${body}</div>`;
   }
 
-  /** A week's home on its own (picked in the list). @param {number} week */
+  /** The board, run by the studio: start it, watch it here, stop it (it stops with the studio too). */
+  function boardPanel() {
+    const b = snap?.board ?? { phase: "off", error: "", url: "" };
+    if (b.phase === "on")
+      return `<div class="row"><button class="btn ghost" data-do="board-stop">Stop the board</button> <a href="${esc(b.url)}" target="_blank" rel="noopener noreferrer">Open it in a new tab</a></div><iframe class="doc board" title="The board" src="${esc(b.url)}"></iframe>`;
+    if (b.phase === "starting") return `<p class="why">Starting the bus, the parts and the board… The first time takes a minute.</p>`;
+    const failed = b.phase === "failed" ? `<div class="status bad"><span class="icon">!</span><div><b>The board didn't start.</b><pre class="log">${esc(b.error)}</pre></div></div>` : "";
+    return `${failed}<p class="why">The board shows your computer running: the bus, memory, the CPU and the devices, tick by tick. The studio starts everything it needs (what <code>npm run dev:all</code> does) and stops it when you close the studio.</p>
+      <div class="row"><button class="btn primary" data-do="board-start">${b.phase === "failed" ? "Try again" : "Start the board"}</button></div>`;
+  }
+
+  /** A week's checks: run them here and read the result. @param {number} week @param {string} command */
+  function checksPanel(week, command) {
+    const c = snap?.checks ?? { week: 0, phase: "off", out: "" };
+    const mine = c.week === week;
+    const state = !mine || c.phase === "off" ? "" : c.phase === "running" ? `<p class="why">Running…</p>` : `<div class="status ${c.phase === "passed" ? "ok" : "bad"}"><span class="icon">${c.phase === "passed" ? "✓" : "!"}</span><div><b>${c.phase === "passed" ? "All checks pass." : "Some checks don't pass yet."}</b></div></div>`;
+    return `<p class="why">The checks for this week: <code>${esc(command)}</code>.</p>
+      <div class="row"><button class="btn primary" data-do="checks" data-w="${week}" ${mine && c.phase === "running" ? "disabled" : ""}>Run the checks</button></div>
+      ${state}${mine && c.out ? `<pre class="log">${esc(c.out)}</pre>` : ""}`;
+  }
+
+  /** A week picked in the list. @param {number} week */
   function weekHomeView(week) {
     const g = snap?.groups.find((x) => x.week === week);
-    if (!g) return "";
-    return `<div><p class="eyebrow">Week ${esc(g.week)}${g.kind ? ` · ${esc(g.kind)}` : ""}</p><h1 class="q">${esc(g.title)}</h1></div>${weekHomeBody(g)}`;
+    return g ? weekView(g) : "";
   }
 
   function render() {
@@ -3480,7 +3830,11 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       return;
     }
     machine.stop();
-    $("[data-detail]").innerHTML = `<div class="inner">${shown !== null ? otherView(snap.steps[shown]) : showWeek ? weekHomeView(/** @type {number} */ (viewingWeek)) : finished ? finishView() : currentView(snap.steps[snap.current])}</div>`;
+    const wide = showWeek || (finished && shown === null && snap.groups.length > 0);
+    const html = `<div class="inner${wide ? " week" : ""}">${shown !== null ? otherView(snap.steps[shown]) : showWeek ? weekHomeView(/** @type {number} */ (viewingWeek)) : finished ? finishView() : currentView(snap.steps[snap.current])}</div>`;
+    // A week's pages and the board are frames: re-render them only when something they show changed.
+    if (!wide || html !== detailHtml) $("[data-detail]").innerHTML = html;
+    detailHtml = wide ? html : "";
     paintLine();
     paintOutput();
     const input = focused ? /** @type {HTMLInputElement | null} */ (document.querySelector(`input[name="${focused}"]`)) : null;
@@ -3522,7 +3876,14 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       viewingWeek = null;
       return render();
     }
+    if (what === "tab") {
+      weekTab = el?.dataset.tab ?? "page";
+      return render();
+    }
+    if (what === "board-start" || what === "board-stop") return act({ type: what });
+    if (what === "checks") return act({ type: "checks", week: Number(el?.dataset.w) });
     if (what === "week") {
+      if (viewingWeek !== Number(el?.dataset.w)) weekTab = "page";
       viewingWeek = Number(el?.dataset.w);
       viewing = null;
       machineOpen = false;
@@ -3780,6 +4141,13 @@ export function realContext({ dryRun = false, fresh = false, interactive = true 
         kill: () => child.kill(),
       };
     },
+    httpStatus: async (url) => {
+      try {
+        return (await fetch(url, { signal: AbortSignal.timeout(2000) })).status;
+      } catch {
+        return 0;
+      }
+    },
     // NETSIM_STUDIO_NO_OPEN=1 (the test sandbox sets it): never open anything on the screen. The
     // page still shows every link ("Open it here"), so nothing is lost.
     openUrl: (url) => {
@@ -3822,10 +4190,10 @@ export function realContext({ dryRun = false, fresh = false, interactive = true 
       if (dryRun) return;
       try {
         mkdirSync(dirname(STATE_FILE), { recursive: true });
-        // doctorOk and opened too: the doctor passing and the week's guide being opened can't be
-        // checked again without running something, so the next run (and the next week) needs them.
-        const { login, parent, repoDir, chatgpt, codexVersion, doctorOk, opened } = state;
-        writeFileSync(STATE_FILE, JSON.stringify({ login, parent, repoDir, chatgpt, codexVersion, doctorOk, opened }, null, 2));
+        // doctorOk too: the doctor passing can't be checked again without running it, so the next
+        // run (and the next week) needs it.
+        const { login, parent, repoDir, chatgpt, codexVersion, doctorOk } = state;
+        writeFileSync(STATE_FILE, JSON.stringify({ login, parent, repoDir, chatgpt, codexVersion, doctorOk }, null, 2));
       } catch {
         // Remembering is a convenience; the checks find everything again anyway.
       }

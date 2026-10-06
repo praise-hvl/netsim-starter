@@ -1,5 +1,27 @@
 # NetSim: build a computer out of messages
 
+## Start here
+
+**First time** (install [Node.js 22+](https://nodejs.org) first), in a terminal:
+
+```bash
+# macOS
+curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/HEAD/setup.mjs -o setup.mjs && node setup.mjs
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/HEAD/setup.mjs -OutFile setup.mjs; node setup.mjs
+```
+
+**Every class after**, in your course folder:
+
+```bash
+npm start
+```
+
+## What this is
+
 NetSim is a small simulated computer (a dual-core 8-bit CPU, 1 KB of memory, and devices like
 buttons, timers, LEDs and sensors) where every part is a separate program talking over a
 WebSocket **bus** in step with a shared **clock**. A live dashboard draws every part and every
@@ -8,23 +30,12 @@ message as it happens.
 It is also an 8-week course. Each week you build one piece of it, and each piece runs on the
 pieces you built before. By week 8 the computer on the screen is one you wrote.
 
-## Start here: the app
-
-The course is an app, **NetSim Studio**, and it's where every class starts. In your course folder:
-
-```bash
-node setup-week 3        # this class's week number
-```
-
-It gets the week ready with you (your setup in week 1; after that it saves your work, brings the
-new week in, installs and checks), then opens that week's page, your design note and the board.
-Every week that's in stays one click away in its sidebar. Week 1 starts it with the one-liner in
-"Getting started" below, and week 2 with `node setup.mjs`, since a week-1 folder doesn't have
-`setup-week` yet.
+`npm start` opens **NetSim Studio**, the whole course in one app: it gets you set up, brings in
+each new week, and shows each week's lesson page, your design note, the board and the week's
+checks. Its sidebar lists every week (the ones not out yet are greyed).
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
-![React Flow](https://img.shields.io/badge/React%20Flow-12-purple)
 ![Vitest](https://img.shields.io/badge/tests-Vitest-yellow)
 
 ## The course
@@ -36,22 +47,21 @@ build it, writing the core mechanisms yourself and working with your AI agent on
 end you have a portfolio piece: **a multi-core computer you designed and built, with a bus,
 memory, a CPU, a scheduler and interrupts, running live in the browser.**
 
-| Week | Session | Topic | Page | You make |
-|---|---|---|---|---|
-| 1 | Setup | [Setup & System Roles](docs/weeks/week-01.md) | [open](https://htmlpreview.github.io/?https://github.com/praiseisaac/netsim-starter/blob/week-1-start/docs/weeks/week-01.html) | Your accounts, tools and copy of the code |
-| 2 | Design | [The machine and its bus](docs/weeks/week-02.md) | [open](https://htmlpreview.github.io/?https://github.com/praiseisaac/netsim-starter/blob/week-2-start/docs/weeks/week-02.html) | A design note: parts, messages, one read tick by tick, a sketch of the board |
-| 3 | Build | [Bus + memory on screen](docs/weeks/week-03.md) | | Memory cells that light up as requests cross the bus |
-| 4 | Design | [The CPU](docs/weeks/week-04.md) | | A design note: the core's state machine, instructions, how a step animates |
-| 5 | Build | [A CPU that runs programs](docs/weeks/week-05.md) | | Countdown and blink, animated on the board |
-| 6 | Design | [The OS heart: scheduling + interrupts](docs/weeks/week-06.md) | | A design note: processes, round robin, interrupt entry and exit |
-| 7 | Build | [Configurable cores, scheduler, interrupts](docs/weeks/week-07.md) | | 1–8 cores taking turns, with interrupts flying in, live |
-| 8 | Demo | [Ship it](docs/weeks/week-08.md) | | Your board on GitHub Pages, demoed live in class, and your portfolio README |
+| Week | Session | Topic | You make |
+|---|---|---|---|
+| 1 | Setup | [Setup & System Roles](docs/weeks/week-01.md) | Your accounts, tools and copy of the code |
+| 2 | Design | [The machine and its bus](docs/weeks/week-02.md) | A design note: parts, messages, one read tick by tick, a sketch of the board |
+| 3 | Build | [Bus + memory on screen](docs/weeks/week-03.md)
+| 4 | Design | [The CPU](docs/weeks/week-04.md)
+| 5 | Build | [A CPU that runs programs](docs/weeks/week-05.md)
+| 6 | Design | [The OS heart: scheduling + interrupts](docs/weeks/week-06.md)
+| 7 | Build | [Configurable cores, scheduler, interrupts](docs/weeks/week-07.md)
+| 8 | Demo | [Ship it](docs/weeks/week-08.md)
 
 Each guide has the goals, the in-class steps (the first is always getting the week), the
 take-home with its acceptance criteria, the exact commands that work that week, and the
 explain-it-back questions you'll answer before the next session. There's nothing to do before
-class. Weeks with a **Page** also come as a web page with the diagrams: open it from the table, or
-double-click `docs/weeks/week-NN.html` in your folder (it works offline).
+class. In NetSim Studio each week's guide is its lesson page, with the diagrams.
 
 Optional extras for your portfolio (no extra credit) are in [docs/stretch/](docs/stretch/README.md).
 
@@ -74,57 +84,6 @@ a booked 5-minute slot, or a 3-minute video (your face and your screen) answerin
 I post after class. You walk through what you built and why. A good rule: if you can't explain a
 line, you don't have it yet.
 
-## Getting started (week 1)
-
-Week 1 is all setup, and [its guide](docs/weeks/week-01.md) walks through it. You make a
-GitHub account and a ChatGPT account (and claim the student offer) and install **Node.js 22+**
-by hand; then a guided setup tool does the rest, one step at a time, with you typing each
-command:
-
-```bash
-# macOS
-curl -fsSL https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -o setup.mjs && node setup.mjs
-```
-
-```powershell
-# Windows (PowerShell). Not yet tried on a real Windows machine: tell me how it goes.
-irm https://raw.githubusercontent.com/praiseisaac/netsim-starter/week-1-start/setup.mjs -OutFile setup.mjs; node setup.mjs
-```
-
-It installs git, the GitHub CLI, VS Code and Codex, signs you in, forks the course, clones your
-fork into a `netsim` folder, makes your `work` branch, installs the packages, and ends with
-`npm run doctor`. Rerun it any time (inside the course folder: `node setup-week 1`, or `npm run setup`).
-If it doesn't work for you, the week-1 guide has the same steps by hand.
-
-All your work for the whole course goes on `work`. Every week you merge the new week into it;
-you never switch branches.
-
-## Getting each week
-
-Every class after that starts with **getting the week** (5 minutes). In your course folder:
-
-```bash
-node setup-week 3        # this class's week number
-```
-
-NetSim Studio opens in your browser: it's your module for the class. Its sidebar lists every week
-of the course (the ones not out yet are greyed). It walks you through getting the week (save your
-work, fetch it, merge it into `work`, push, install, check), and once the week is in, it opens
-that week's page, your design note and the board. Click any week that's in to open its page again.
-(Week 2 is the exception: your week-1 folder doesn't have `setup-week` yet, so run
-`node setup.mjs`.) Or in a terminal, on your `work` branch:
-
-```bash
-git fetch upstream
-git merge upstream/week-N-start      # N = this week's number
-git push
-npm install
-```
-
-That merge only adds the new week's tests and guide, so it won't conflict with your code. Then
-open the week's page: double-click `docs/weeks/week-NN.html` in your folder (or use the **Page**
-link in the table above), with the guide `docs/weeks/week-NN.md` next to it.
-
 ## How the code is laid out
 
 ```
@@ -133,7 +92,7 @@ protocol/     Every message on the wire (zod schemas + types), the memory map
 bus/          The bus server: routing, clock, tick barrier; save/restore
 components/   The programs that join the bus: client, CPU, memory, peripherals
 programs/     Demo programs in assembly (*.asm)
-app/          The dashboard (Next.js + React Flow)
+app/          The dashboard and the board (Next.js)
 tests/        week-01 … week-08, one folder per week
 docs/         ARCHITECTURE.md, COURSE-PLAN.md, weeks/
 ```
@@ -147,8 +106,9 @@ Which of these work depends on the week: parts that later weeks build throw a cl
 error until you get there. Your week guide lists exactly what works.
 
 ```bash
-node setup-week 3                    # the studio for this class's week (setup in week 1), then its page and board
-npm run setup                        # week 1: the guided setup (rerun any time)
+npm start                            # NetSim Studio: setup, this week, its page, note, board and checks
+npm start -- --week 2                # the studio, opened on an earlier week
+npm run setup                        # the guided setup only (rerun any time)
 npm run doctor                       # week 1: check your setup
 npm run bus                          # just the bus
 npm run hello                        # week 2: say hello to the bus (HELLO_ID=you)
@@ -169,6 +129,26 @@ npm run course:catch-up -- 3         # copy the published week-3 solution into y
 - [docs/COURSE-PLAN.md](docs/COURSE-PLAN.md): how the weeks fit together and how the week
   branches are made
 - [docs/weeks/](docs/weeks/): one guide per week
+
+## More
+
+**What the first-time setup does.** Week 1 is all setup, and [its guide](docs/weeks/week-01.md)
+walks through it. You make a GitHub account and a ChatGPT account (and claim the student offer)
+and install Node.js 22+ by hand; the studio does the rest with you, one step at a time, with you
+typing each command: it installs git, the GitHub CLI, VS Code and Codex, signs you in, forks the
+course, clones your fork into a `netsim` folder, makes your `work` branch from the course's
+current week, installs the packages, and ends with `npm run doctor`.
+
+**Your work branch.** All your work for the whole course goes on `work`. Each week the studio
+merges the new week into it; you never switch branches.
+
+**If the studio won't start**, get the week by hand, on your `work` branch, then open
+`docs/weeks/week-NN.html` (or `.md`) in your folder:
+
+```bash
+git fetch upstream && git merge upstream/week-N-start   # N = this week's number
+git push && npm install
+```
 
 ## License
 
