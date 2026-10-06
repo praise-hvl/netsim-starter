@@ -5,6 +5,7 @@ import type { CoreFrame, Frame } from "@/board/feed/frames";
 import { Box, Label } from "@/board/parts/box";
 import { INK, coreColour } from "@/board/parts/colours";
 import type { Rect } from "@/board/parts/geometry";
+import { explainCore, explainPhase } from "@/board/parts/explain";
 import { hex } from "@/protocol/memory-map";
 import { todo } from "@/core/todo";
 import { notBuilt } from "@/board/shell/layer";

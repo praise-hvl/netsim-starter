@@ -45,8 +45,17 @@ export function explainPhase(text: string): string {
   return found ? PHASES[found] : "";
 }
 
-/** A memory cell: its address and value, and whether this tick read or wrote it. */
-export function explainCell(address: number, value: number | undefined, { read = false, written = false } = {}): string {
-  const now = written ? " It was written this tick." : read ? " It was read this tick." : "";
+/** A memory cell: its address and value, and whether this tick read or wrote it (and who). */
+export function explainCell(address: number, value: number | undefined, { read = false, written = false, by }: { read?: boolean; written?: boolean; by?: string } = {}): string {
+  const who = by ? ` by ${by}` : "";
+  const now = written ? ` It was written this tick${who}.` : read ? ` It was read this tick${who}.` : "";
   return `Memory at ${hex(address)} (byte ${address})${value === undefined ? "" : ` holds ${value}`}.${now}`;
+}
+
+/** A core: what it's running, where it is, and what its phase means. */
+export function explainCore(core: { id: number; phase: string; pc: number; process: string | null; instruction?: string | null; inHandler?: boolean }): string {
+  const running = core.process ? `is running ${core.process}` : "has no program right now";
+  const where = core.process ? `, at PC ${hex(core.pc)}${core.instruction ? ` (${core.instruction})` : ""}` : "";
+  const handler = core.inHandler ? " It's in an interrupt handler: when the handler ends (IRET), it goes back exactly where it was." : "";
+  return `Core ${core.id} ${running}${where}. ${explainPhase(core.phase) || `Phase: ${core.phase}.`}${handler}`;
 }

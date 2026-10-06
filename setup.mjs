@@ -28,6 +28,20 @@ import { pathToFileURL } from "node:url";
 
 export const STARTER = "praiseisaac/netsim-starter";
 export const STARTER_URL = `https://github.com/${STARTER}.git`;
+/** The Mac's folder picker, in front of the browser; it prints the chosen folder, or nothing if cancelled. */
+export const MAC_PICK_FOLDER = [
+  "on run argv",
+  'tell application "System Events"',
+  "activate",
+  "try",
+  "return POSIX path of (choose folder with prompt (item 2 of argv) default location (POSIX file (item 1 of argv)))",
+  "on error",
+  'return ""',
+  "end try",
+  "end tell",
+  "end run",
+];
+
 /** Where the board's server (Next.js, what `npm run dev` serves) shows the board. */
 export const BOARD_URL = "http://localhost:3005/board";
 
@@ -184,6 +198,7 @@ const CODEX_FLAGS = ["-c", "check_for_update_on_startup=false"];
  *   openUrl?: (url: string) => void,
  *   openTerminal?: (command: Command) => void,
  *   httpStatus?: (url: string) => Promise<number>,
+ *   pickFolder?: (initial: string, prompt: string) => Promise<string | null>,
  *   ask: (question: string) => Promise<string>,
  *   print: (line: string) => void,
  *   exists: (path: string) => boolean,
@@ -1845,7 +1860,7 @@ export function createStudio(ctx, steps, meta = {}) {
   let child = null;
   /**
    * @type {{ phase: string, already: boolean, index: number, error: { what: string, fix: string, back?: number, stop?: boolean, items?: { check: string, found: string, fix: string }[] } | null,
-   *   ask: string, note: string, slowNote: string, slowAfterMs: number, startedAt: number, code: string, url: string, waitFor: string, formError: string }}
+   *   ask: string, note: string, slowNote: string, slowAfterMs: number, startedAt: number, code: string, url: string, waitFor: string, formError: string, picked?: string }}
    */
   let view = blank("checking");
   /** The account gh uses now (step 5 and the panel show it). A dry run shows the pretend login. */
@@ -1953,7 +1968,7 @@ export function createStudio(ctx, steps, meta = {}) {
         ran: ran[i],
         preview: previewsNow()[i],
       })),
-      view: current < steps.length ? { ...view, attempt, outputId, actions: plan.map(describe), canChangeAccount: canChange } : null,
+      view: current < steps.length ? { ...view, attempt, outputId, actions: plan.map(describe), canChangeAccount: canChange, canPickFolder: Boolean(ctx.pickFolder) && !ctx.dryRun } : null,
     };
   }
 
@@ -2249,6 +2264,16 @@ export function createStudio(ctx, steps, meta = {}) {
         const command = /** @type {Command} */ (commandOf(action, ctx));
         if (typeof a.typed !== "string" || normalizeCommand(a.typed) !== normalizeCommand(command.display)) return reject(400, "What was typed doesn't match the command.");
         void runCommand(command, mine);
+        return ok;
+      }
+      case "pick-folder": {
+        // The computer's own folder picker, for the folder question; the chosen path fills the box.
+        if (view.phase !== "ready" || a.index !== view.index || action?.kind !== "folder") return reject(409, "There's no folder to choose right now.");
+        if (!ctx.pickFolder || ctx.dryRun) return reject(409, "Type the folder's path instead.");
+        const picked = await ctx.pickFolder(action.initial(ctx), action.label);
+        if (mine !== attempt) return ok;
+        if (picked) view = { ...view, picked, formError: "" };
+        publish();
         return ok;
       }
       case "submit": {
@@ -3361,6 +3386,7 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
   let out = { id: -1, text: "" };
   let showOutput = false;
   let outputFor = -1; // the step Show full output was opened on
+  let pickedShown = ""; // the last folder from the computer's picker put in the box
   let listedFor = -1; // the step the list last scrolled to
   /** @type {number | null} */
   let viewingWeek = /^#week-(\d+)/.test(location.hash) ? Number(/^#week-(\d+)/.exec(location.hash)?.[1]) : null; // a week's view is open (its page, note, board)
@@ -3674,10 +3700,15 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
         /** @type {Field[]} */
         const fields = a.kind === "form" ? (a.fields ?? []) : [{ name: "folder", label: a.label ?? "", hint: a.hint, placeholder: a.initial }];
         if (a.kind === "folder" && formValues.folder === undefined) formValues.folder = a.initial ?? "";
+        // A folder picked in the computer's picker fills the box (once per pick).
+        if (a.kind === "folder" && v.picked && v.picked !== pickedShown) {
+          pickedShown = v.picked;
+          formValues.folder = v.picked;
+        }
         body = `${earlier}<form class="fields" data-form novalidate>
           ${fields.map((f) => `<label>${esc(f.label)} ${f.hint ? `<small>${esc(f.hint)}</small>` : ""}<input name="${esc(f.name)}" type="${esc(f.type || "text")}" placeholder="${esc(f.placeholder || "")}" value="${esc(formValues[f.name] ?? "")}" autocomplete="off" spellcheck="false"></label>`).join("")}
           ${v.formError ? `<p class="formerror">${esc(v.formError)}</p>` : ""}
-          <div class="row"><button class="btn primary" type="submit">${esc(a.button || "Use this folder")} <kbd>↵</kbd></button></div></form>`;
+          <div class="row"><button class="btn primary" type="submit">${esc(a.button || "Use this folder")} <kbd>↵</kbd></button>${a.kind === "folder" && v.canPickFolder ? ` <button class="btn ghost" type="button" data-do="pick-folder">Choose…</button>` : ""}</div></form>`;
       } else if (a.kind === "choice") {
         body = `<div class="block"><h3>Do this in your browser</h3><div class="links">${(a.links ?? []).map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noreferrer">${esc(l.label)} ↗</a>`).join("")}</div></div>
           <div class="status wait"><span class="icon">?</span><div><b>${esc(a.question)}</b><div class="sub">The studio can't check this one, so it takes your word for it.</div></div></div>
@@ -3995,6 +4026,7 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
     if (what === "yes") return act({ type: "confirm", stepId: step.id, answer: "yes" });
     if (what === "switch") return act({ type: "account-open" }); // the accounts gh knows, or add one
     if (what === "submit") return act({ type: "submit", stepId: step.id, index: actionIndex(), values: {} });
+    if (what === "pick-folder") return act({ type: "pick-folder", stepId: step.id, index: actionIndex() });
     act({ type: what, stepId: step.id });
   }
 
@@ -4219,6 +4251,23 @@ export function realContext({ dryRun = false, fresh = false, interactive = true 
         kill: () => child.kill(),
       };
     },
+    // The computer's own folder picker (only when the student clicks Choose…; never in a sandbox).
+    pickFolder: (initial, prompt) =>
+      new Promise((done) => {
+        if (process.env.NETSIM_STUDIO_NO_OPEN === "1") return done(null);
+        /** @type {[string, string[]]} */
+        const [command, args] =
+          platform === "mac"
+            ? ["osascript", [...MAC_PICK_FOLDER.flatMap((line) => ["-e", line]), initial, prompt]]
+            : platform === "windows"
+              ? ["powershell", ["-NoProfile", "-Command", "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = $args[1]; $d.SelectedPath = $args[0]; if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }", initial, prompt]]
+              : ["zenity", ["--file-selection", "--directory", `--title=${prompt}`, `--filename=${initial.replace(/\/?$/, "/")}`]];
+        let out = "";
+        const child = spawn(command, args, { stdio: ["ignore", "pipe", "ignore"] });
+        child.stdout.setEncoding("utf8").on("data", (d) => (out += d));
+        child.on("error", () => done(null));
+        child.on("close", () => done(out.trim().replace(/(.)\/$/, "$1") || null));
+      }),
     httpStatus: async (url) => {
       try {
         return (await fetch(url, { signal: AbortSignal.timeout(2000) })).status;
