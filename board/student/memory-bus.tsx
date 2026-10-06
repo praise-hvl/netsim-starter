@@ -6,9 +6,10 @@ import type { Frame, Packet } from "@/board/feed/frames";
 import { Box, Label } from "@/board/parts/box";
 import { INK, coreColour } from "@/board/parts/colours";
 import { MemoryGrid } from "@/board/parts/memory-grid";
+import { explainCell } from "@/board/parts/explain";
 import { PacketOnWire, Wire } from "@/board/parts/wire";
 import { BUS_LINE, MEMORY_AREA, MEMORY_COLUMNS, partRects, pinOf, wireBetween } from "@/board/student/places";
-import { MEMORY_SIZE, hex } from "@/protocol/memory-map";
+import { MEMORY_SIZE } from "@/protocol/memory-map";
 import { todo } from "@/core/todo";
 import { notBuilt } from "@/board/shell/layer";
 
