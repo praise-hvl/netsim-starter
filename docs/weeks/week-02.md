@@ -32,10 +32,10 @@ Fill in your own design note: open `docs/notes/week-02.md` (it arrives with this
 with the nine headings from [the design-note template](../notes/design-note-template.md) and a
 comment under each saying what goes there). If it isn't there, copy the template to that path.
 
-1. **Open the app (5 min).** In your course folder, run `node setup.mjs` (this once: from next
-   class it's `node setup-week 3`). The app is where every class starts: it gets week 2 ready
-   (saves your work, brings the week in, checks), and once it's in, `node setup-week 2` opens this
-   page and your design note from it. If the app won't start, the same by hand:
+1. **Open the app (5 min).** In your course folder, run `npm start`. (This first time, your week-1
+   folder doesn't have it yet: run `node setup.mjs` instead, which brings it in.) The app is where
+   every class starts: it gets week 2 ready (saves your work, brings the week in, checks), then
+   shows this page, your design note and the board. If the app won't start, the same by hand:
 
    ```bash
    git fetch upstream && git merge upstream/week-2-start
