@@ -22,7 +22,7 @@ npm start
 
 ## What this is
 
-NetSim is a small simulated computer (a dual-core 8-bit CPU, 1 KB of memory, and devices like
+NetSim is a small simulated computer (an 8-bit CPU with 1 to 8 cores, 2 by default, 1 KB of memory, and devices like
 buttons, timers, LEDs and sensors) where every part is a separate program talking over a
 WebSocket **bus** in step with a shared **clock**. A live dashboard draws every part and every
 message as it happens.
