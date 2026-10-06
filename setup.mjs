@@ -3363,10 +3363,39 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
   let outputFor = -1; // the step Show full output was opened on
   let listedFor = -1; // the step the list last scrolled to
   /** @type {number | null} */
-  let viewingWeek = null; // a week's home is open (its page, note, board)
+  let viewingWeek = /^#week-(\d+)/.test(location.hash) ? Number(/^#week-(\d+)/.exec(location.hash)?.[1]) : null; // a week's view is open (its page, note, board)
   let focusShown = false; // npm start -- --week N: N's view opens once, when nothing before it is left to do
-  let weekTab = "page"; // the week view's tab: page, note, board, checks
+  let weekTab = /^#week-\d+\/(\w+)$/.exec(location.hash)?.[1] ?? "page"; // the week view's tab: page, note, board, checks
   let detailHtml = ""; // what the main panel shows now (re-rendered only when it changes, so pages don't reload)
+
+  // Back and forward: each view the student moves to (a week and its tab, the machine, a step looked
+  // back at) is an entry in the browser's history, with its own address (#week-2/board, #machine).
+  /** @typedef {{ week: number | null, tab: string, machine: boolean, step: number | null }} Nav */
+  /** @returns {Nav} */
+  const navNow = () => ({ week: viewingWeek, tab: weekTab, machine: machineOpen, step: viewing });
+  /** @param {Nav} n */
+  const hashOf = (n) => (n.machine ? "#machine" : n.week !== null ? `#week-${n.week}${n.tab !== "page" ? `/${n.tab}` : ""}` : n.step !== null ? `#step-${n.step + 1}` : "");
+  /** @param {string} hash @returns {Nav} */
+  const navOf = (hash) => {
+    const week = /^#week-(\d+)(?:\/(\w+))?$/.exec(hash);
+    const step = /^#step-(\d+)$/.exec(hash);
+    return { week: week ? Number(week[1]) : null, tab: week?.[2] ?? "page", machine: hash === "#machine", step: step ? Number(step[1]) - 1 : null };
+  };
+  /** After the student moves to another view: a new history entry, unless it's the same place. */
+  function remember() {
+    const hash = hashOf(navNow());
+    if (hash === location.hash) return;
+    history.pushState(navNow(), "", hash || location.pathname + location.search);
+  }
+  history.replaceState(navOf(location.hash), "", location.href);
+  window.addEventListener("popstate", (e) => {
+    const n = /** @type {Nav | null} */ (e.state) ?? navOf(location.hash);
+    viewingWeek = n.week;
+    weekTab = n.tab;
+    machineOpen = n.machine;
+    viewing = n.step;
+    render();
+  });
   let pasteNote = "";
   /** @type {Record<string, string>} */
   const formValues = {};
@@ -3917,10 +3946,14 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       viewing = n === "" || n === undefined || Number(n) === snap?.current ? null : Number(n);
       machineOpen = false;
       viewingWeek = null;
+      remember();
       return render();
     }
     if (what === "tab") {
       weekTab = el?.dataset.tab ?? "page";
+      // On the finish screen the week shown is the current one: a tab picks it, so Back returns here.
+      if (viewingWeek === null && snap) viewingWeek = snap.week;
+      remember();
       return render();
     }
     if (what === "board-start" || what === "board-stop") return act({ type: what });
@@ -3930,12 +3963,14 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
       viewingWeek = Number(el?.dataset.w);
       viewing = null;
       machineOpen = false;
+      remember();
       return render();
     }
     if (what === "machine" || what === "m-close") {
       machineOpen = what === "machine";
       viewing = null;
       viewingWeek = null;
+      remember();
       return render();
     }
     if (what === "m-play") return machine.toggle();
