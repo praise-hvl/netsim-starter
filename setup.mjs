@@ -3206,14 +3206,15 @@ kbd { font: 600 11px/1 "JetBrains Mono", monospace; border: 1px solid currentCol
 button.sgroup { width: 100%; background: none; border: 0; border-left: 3px solid transparent; text-align: left; cursor: pointer; }
 button.sgroup:hover { background: #f7f9f8; color: var(--ink); }
 button.sgroup.viewing { outline: 2px solid var(--mint); outline-offset: -2px; }
-.inner.week { max-width: none; height: 100%; display: flex; flex-direction: column; gap: 10px; }
+.detail .inner.week { max-width: none; min-height: 100%; display: flex; flex-direction: column; gap: 10px; }
 .weekhead .q { margin: 0; }
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
 .tab { font: 600 13.5px/1 "Inter", sans-serif; padding: 9px 14px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; background: none; cursor: pointer; color: var(--muted); }
 .tab.on { color: var(--ink); background: var(--panel); border-color: var(--line); margin-bottom: -1px; }
 .tabbody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
-iframe.doc { flex: 1; width: 100%; min-height: 70vh; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
-iframe.board { min-height: 72vh; }
+/* A lesson page or the board at the panel's full width and the window's height, like opening it on its own. */
+iframe.doc { flex: 1; width: 100%; min-height: calc(100vh - 250px); border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+iframe.board { min-height: calc(100vh - 220px); }
 pre.log { background: #0f1f18; color: var(--chrome-ink); border-radius: 8px; padding: 12px 14px; font: 12.5px/1.5 "JetBrains Mono", monospace; max-height: 50vh; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 0; }
 .banner { padding: 10px 14px; border-radius: 8px; background: var(--soft, #f3f7f4); border: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .banner.ok { border-color: var(--mint); }
@@ -3862,6 +3863,8 @@ function studioClient(TOKEN, WEEK1_GUIDE_URL) {
     $("[data-tag]").textContent = tagText;
     $("[data-tag]").style.display = total === 0 ? "none" : "";
     if (showMachine) {
+      // The panel no longer shows what detailHtml remembers: "Back to the summary" must redraw it.
+      detailHtml = "";
       // Leave a playing replay alone when the setup state changes underneath it.
       if (!document.querySelector("[data-machine]")) {
         $("[data-detail]").innerHTML = `<div class="inner wide">${machineView()}</div>`;
