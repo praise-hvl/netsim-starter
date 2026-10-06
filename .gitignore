@@ -43,5 +43,6 @@ next-env.d.ts
 # simulator saves
 /saves/
 
-# instructor-only notes (never committed)
-/teacher/
+# teacher/ is committed here (private repo) and kept out of student branches by
+# scripts/make-week-branches.ts (instructorOnly).
+/teacher/instructor/app/data/
