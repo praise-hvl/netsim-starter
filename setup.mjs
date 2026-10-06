@@ -191,7 +191,7 @@ const CODEX_FLAGS = ["-c", "check_for_update_on_startup=false"];
  *   mtime?: (path: string) => number | null,
  *   readText: (path: string) => string | null,
  *   save?: () => void,
- *   state: { login?: string, seenLogin?: string, parent?: string, repoDir?: string, chatgpt?: string, doctorOk?: boolean, codexVersion?: string, dryDone?: Record<string, boolean>, dryFound?: Record<string, string> },
+ *   state: { login?: string, seenLogin?: string, parent?: string, repoDir?: string, chatgpt?: string, doctorOk?: boolean, refused?: { dir: string, why: string }, codexVersion?: string, dryDone?: Record<string, boolean>, dryFound?: Record<string, string> },
  * }} Context
  */
 
@@ -575,9 +575,47 @@ function findClone(ctx) {
   const candidates = [here, join(ctx.cwd, "netsim"), ctx.state.repoDir ?? null, join(ctx.state.parent ?? ctx.cwd, "netsim")].filter((d) => d !== null);
   for (const dir of candidates) {
     const pkg = ctx.readText(join(dir, "package.json"));
-    if (pkg && ctx.exists(join(dir, ".git")) && /"name":\s*"simulated-cpu"/.test(pkg)) return dir;
+    if (!pkg || !ctx.exists(join(dir, ".git")) || !/"name":\s*"simulated-cpu"/.test(pkg)) continue;
+    const why = notACourseCopy(ctx, dir);
+    if (!why) return dir;
+    // Looks like the course but isn't a student's copy (the instructor's repo, another clone):
+    // never adopt it, never change its branches or remotes; say so instead.
+    ctx.state.refused = { dir, why };
   }
   return null;
+}
+
+/**
+ * Why a folder that looks like the course (same package name) isn't a student's copy, or "" if it
+ * is one: its origin must be a netsim-starter repository (the student's fork, or the course's own),
+ * and its upstream, when there is one, the course's (praiseisaac/netsim-starter). The instructor's
+ * repo (simulated-cpu, the reference solution) is refused by its own files as well.
+ * @param {Context} ctx
+ * @param {string} dir
+ * @returns {string}
+ */
+export function notACourseCopy(ctx, dir) {
+  if (isInstructorRepo(ctx, dir)) return "it's the instructor's course repository, not a copy of the starter";
+  /** owner/repo from any remote address: a GitHub URL, or a local path like …/ada/netsim-starter.git. @param {string} url */
+  const ownerRepo = (url) => parseRemote(url) ?? (/([^/\\:]+)[/\\]([^/\\]+?)(?:\.git)?[/\\]?$/.exec(url) ? { owner: RegExp.$1, repo: RegExp.$2 } : null);
+  const originUrl = output(ctx, ["git", "remote", "get-url", "origin"], dir);
+  const origin = originUrl ? ownerRepo(originUrl) : null;
+  if (!origin || origin.repo.toLowerCase() !== STARTER.split("/")[1].toLowerCase())
+    return originUrl ? `its origin is ${originUrl}, not a copy of ${STARTER}` : "it has no origin on GitHub";
+  const upstreamUrl = output(ctx, ["git", "remote", "get-url", "upstream"], dir);
+  const upstream = upstreamUrl ? ownerRepo(upstreamUrl) : null;
+  if (upstreamUrl && (!upstream || `${upstream.owner}/${upstream.repo}`.toLowerCase() !== STARTER.toLowerCase())) return `its upstream is ${upstreamUrl}, not ${STARTER}`;
+  return "";
+}
+
+/**
+ * The instructor's own repo has the same package name as a student's copy. These files exist only
+ * there; week branches never carry them.
+ * @param {Context} ctx
+ * @param {string} dir
+ */
+export function isInstructorRepo(ctx, dir) {
+  return ctx.exists(join(dir, "scripts", "make-week-branches.ts")) || ctx.exists(join(dir, "course", "AGENTS.student.md"));
 }
 
 /**
@@ -831,6 +869,8 @@ export function courseSteps() {
         if (dir) ctx.state.repoDir = dir;
         const mismatch = dir ? ownerMismatch(ctx, ctx.state.login) : "";
         if (mismatch) return { done: false, found: `${mismatch} The folder at ${tildify(/** @type {string} */ (dir))} still sends your work to ${cloneOwner(ctx)}'s copy.` };
+        if (!dir && ctx.state.refused)
+          return { done: false, found: `${tildify(ctx.state.refused.dir)} isn't your copy of the course (${ctx.state.refused.why}), so the studio won't touch it. Download the course into another folder.` };
         return { done: dir !== null, found: dir ? `The course is at ${tildify(dir)}.` : "The course isn't on this laptop yet." };
       },
       plan: (ctx) => {
