@@ -2,7 +2,7 @@
 // The frame around your board: pick a recording, a machine running in this page, or the live
 // bus; play, pause, step a tick and scrub. You draw the board itself: `children` gets the frame to draw and how far through its
 // tick the playback is (0..1, for things in motion).
-import type { ReactNode } from "react";
+import { useRef, useState, type PointerEvent, type ReactNode } from "react";
 import type { Frame } from "@/board/feed/frames";
 import { useFeed, type Source } from "@/board/feed/use-feed";
 import { sourceFromKey, sourceKey, sourceOptions } from "@/board/feed/source";
@@ -34,6 +34,35 @@ export function BoardShell({ title, source, onSource, size, children }: BoardShe
   const index = Math.min(playback.index, Math.max(0, feed.frames.length - 1));
   const frame = feed.frames[index];
   const margin = 4;
+
+  // Hover anything on the board that says what it is (data-explain: the parts fill it in) and the
+  // board pauses while a popover explains it; move away and it carries on if it was playing.
+  const [tip, setTip] = useState<{ text: string; left: number; top: number; held: boolean } | null>(null);
+  const hovered = useRef<Element | null>(null);
+  const heldByHover = useRef(false);
+  const leave = () => {
+    hovered.current = null;
+    setTip(null);
+    if (heldByHover.current) {
+      heldByHover.current = false;
+      dispatch({ type: "play" });
+    }
+  };
+  const onHover = (e: PointerEvent<HTMLElement>) => {
+    const target = e.target instanceof Element ? e.target.closest("[data-explain]") : null;
+    const text = target?.getAttribute("data-explain");
+    if (!target || !text) return leave();
+    if (target === hovered.current) return;
+    hovered.current = target;
+    const area = e.currentTarget.getBoundingClientRect();
+    const it = target.getBoundingClientRect();
+    const width = 300;
+    if (playback.playing && !heldByHover.current) {
+      heldByHover.current = true;
+      dispatch({ type: "pause" });
+    }
+    setTip({ text, left: Math.max(8, Math.min(it.left - area.left, area.width - width - 8)), top: Math.min(it.bottom - area.top + 8, area.height - 120), held: heldByHover.current });
+  };
 
   return (
     <div className="flex h-screen flex-col text-black" style={{ background: INK.paper }}>
@@ -71,7 +100,7 @@ export function BoardShell({ title, source, onSource, size, children }: BoardShe
           </div>
         )}
       </header>
-      <main className="min-h-0 flex-1 p-3">
+      <main className="relative min-h-0 flex-1 p-3" onPointerMove={onHover} onPointerLeave={leave}>
         {frame ? (
           <svg
             className="h-full w-full select-none"
@@ -83,6 +112,16 @@ export function BoardShell({ title, source, onSource, size, children }: BoardShe
           </svg>
         ) : (
           <p className="p-6 text-lg">{feed.error ? `Couldn't load: ${feed.error}` : feed.state === "connecting" ? (source.kind === "machine" ? "Starting the machine…" : `Connecting to the bus at ${BUS_URL}…`) : "Loading…"}</p>
+        )}
+        {tip && (
+          <div
+            role="tooltip"
+            className="pointer-events-none absolute z-10 w-[300px] whitespace-pre-line rounded-md border-2 border-black bg-white px-3 py-2 text-sm leading-snug shadow-[3px_3px_0_#000]"
+            style={{ left: tip.left, top: tip.top }}
+          >
+            {tip.text}
+            {tip.held && <span className="mt-1 block text-xs text-zinc-500">Paused while you look. Move away to carry on.</span>}
+          </div>
         )}
       </main>
       <PlaybackBar playback={playback} dispatch={dispatch} frames={feed.frames} live={feed.live} />

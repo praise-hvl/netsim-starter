@@ -3,6 +3,7 @@
 import { memo } from "react";
 import { screenRect, type Rect } from "@/board/parts/geometry";
 import { INK } from "@/board/parts/colours";
+import { explainCell } from "@/board/parts/explain";
 
 export type MemoryGridProps = {
   rect: Rect;
@@ -11,7 +12,7 @@ export type MemoryGridProps = {
   columns: number;
   /** A cell's colour, or null for an unlit cell. */
   colourOf: (address: number) => string | null;
-  /** Hover text for a cell. */
+  /** Hover text for a cell (shown in the board's popover); by default its address. */
   titleOf?: (address: number) => string;
 };
 
@@ -31,9 +32,17 @@ export const MemoryGrid = memo(function MemoryGrid({ rect, size, columns, colour
         const cell = screenRect(gridCell(rect, size, columns, address));
         const colour = colourOf(address);
         return (
-          <rect key={address} x={cell.x + 0.5} y={cell.y + 0.5} width={cell.width - 1} height={cell.height - 1} fill={colour ?? "#24493a"} stroke={colour ? INK.white : "none"} strokeWidth={0.8}>
-            {titleOf && <title>{titleOf(address)}</title>}
-          </rect>
+          <rect
+            key={address}
+            x={cell.x + 0.5}
+            y={cell.y + 0.5}
+            width={cell.width - 1}
+            height={cell.height - 1}
+            fill={colour ?? "#24493a"}
+            stroke={colour ? INK.white : "none"}
+            strokeWidth={0.8}
+            data-explain={titleOf ? titleOf(address) : explainCell(address, undefined)}
+          />
         );
       })}
     </g>
